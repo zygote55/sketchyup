@@ -1,9 +1,11 @@
 #include "core/annotations.hpp"
+#include "dem_export_fixture.hpp"
 #include "io/measured_export.hpp"
 #include "pdf_info_check.hpp"
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
 #include <QRegularExpression>
@@ -23,7 +25,7 @@ template <class F> void rejects(F f) {
     }
     throw std::runtime_error("Expected measured export rejection");
 }
-MeasuredDrawing drawing(const Document &doc) {
+MeasuredDrawing drawing(const Document &doc, double scale = 50) {
     RenderCamera camera;
     camera.orthographic = true;
     camera.position = {0, 0, 10};
@@ -34,9 +36,82 @@ MeasuredDrawing drawing(const Document &doc) {
     MeasuredPage page;
     page.widthMm = 254;
     page.heightMm = 203.2;
-    page.scaleDenominator = 50;
+    page.scaleDenominator = scale;
     return captureMeasuredDrawing(RenderSnapshot::capture(doc, options), page);
 }
+// The embedded PNG of an SVG's raster appearance.
+QImage embeddedPng(const QByteArray &svg) {
+    const QByteArray marker("data:image/png;base64,");
+    const auto start = svg.indexOf(marker);
+    check(start >= 0, "SVG embeds a PNG");
+    const auto end = svg.indexOf('"', start);
+    return QImage::fromData(
+        QByteArray::fromBase64(svg.mid(start + marker.size(), end - start - marker.size())), "PNG");
+}
+// R107.c2 (ADR 0181 §3.3): a drawing of DEM terrain carries its notice in the bottom page margin,
+// as text in vector output. A raster is composed with the notice in its own bottom margin, so it
+// keeps its size.
+void sourceCredit() {
+    Document terrain;
+    importDemFixture(terrain, std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/",
+                     "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    // 1:1000: the 300 m terrain window fills the page, so its lines reach it.
+    const auto shown = drawing(terrain, 2000);
+    const QString usgs = QString::fromStdString(demCreditUsgs);
+    check(shown.credits.joined() == demCreditUsgs, "The drawing carries the 3DEP notice");
+    // Vector SVG: the notice is the text of <text> elements, each in the bottom margin (below 203.2
+    // mm).
+    const auto svg = exportMeasuredDrawing(shown, MeasuredFormat::Svg);
+    check(svg.report["creditPlacement"].toString() == "bottomMargin" &&
+              svg.report["credits"].toArray().size() == 1,
+          "The SVG report lists the notice and its placement");
+    QXmlStreamReader xml(svg.bytes);
+    QString text;
+    bool inText = false;
+    while (!xml.atEnd()) {
+        xml.readNext();
+        if (xml.isStartElement() && xml.name() == u"text") {
+            inText = true;
+            const auto baseline = xml.attributes().value("y").toString().toDouble();
+            check(baseline > 193.2 && baseline <= 203.2, "The credit sits in the bottom margin");
+        } else if (xml.isEndElement() && xml.name() == u"text") {
+            inText = false;
+        } else if (xml.isCharacters() && inText) {
+            text += xml.text();
+        }
+    }
+    check(!xml.hasError() && text == usgs, "The SVG text is the 3DEP notice");
+    check(exportMeasuredDrawing(shown, MeasuredFormat::Pdf).report["credits"].toArray().size() == 1,
+          "The PDF report lists the notice");
+    // Raster: the strip is part of the image. The drawing keeps its size; white outside it, red
+    // inside.
+    QImage raster(1000, 800, QImage::Format_ARGB32_Premultiplied);
+    raster.fill(Qt::red);
+    const auto composed =
+        embeddedPng(exportMeasuredDrawing(shown, MeasuredFormat::Svg, raster).bytes);
+    check(composed.size() == QSize(1000, 800), "The composed raster keeps its size");
+    check(composed.pixelColor(500, 400) == QColor(Qt::red) &&
+              composed.pixelColor(500, 10) == QColor(Qt::white),
+          "The drawing stays in the margins and the top margin stays white");
+    int dark = 0;
+    for (int y = 765; y < 800; ++y)
+        for (int x = 0; x < 1000; ++x)
+            dark += composed.pixelColor(x, y).lightness() < 128;
+    check(dark > 50, "The strip's text is in the bottom margin of the image");
+    // A document with no DEM terrain keeps its raster as it was: no composition, no strip.
+    Document plainDocument;
+    plainDocument.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
+    const auto plain = exportMeasuredDrawing(drawing(plainDocument), MeasuredFormat::Svg, raster);
+    check(!plain.report.contains("credits") && !plain.bytes.contains("<text"),
+          "A drawing without DEM terrain names no credit and writes no text");
+    check(embeddedPng(plain.bytes).pixelColor(500, 790) == QColor(Qt::red),
+          "Without a credit the raster is not composed");
+    // A page with no margin has no room for the notice: refused, not overlapped.
+    auto zero = shown;
+    zero.page.marginMm = 0;
+    rejects([&] { exportMeasuredDrawing(zero, MeasuredFormat::Pdf); });
+}
+
 int main(int argc, char **argv) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -160,6 +235,26 @@ int main(int argc, char **argv) {
             check(!rasterImage.isNull() && rasterImage.pixelColor(1270, 1016) == QColor(Qt::red) &&
                       rasterImage.pixelColor(50, 50) == QColor(Qt::white),
                   "Embedded appearance raster and paper margins render correctly");
+            // R107.c2: the notice is text in the PDF's text layer, in a DEM drawing.
+            Document terrain;
+            importDemFixture(terrain, std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/",
+                             "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+            const auto demPdf = exportMeasuredDrawing(drawing(terrain, 2000), MeasuredFormat::Pdf);
+            const auto demFile = scratch.filePath("dem-drawing.pdf");
+            QFile demOut(demFile);
+            check(demOut.open(QIODevice::WriteOnly) &&
+                      demOut.write(demPdf.bytes) == demPdf.bytes.size(),
+                  "Write the DEM drawing PDF");
+            demOut.close();
+            QProcess reader;
+            reader.start(QFileInfo(executable).dir().filePath("pdftotext"), {demFile, "-"});
+            check(reader.waitForStarted(10000) && reader.waitForFinished(60000) &&
+                      reader.exitCode() == 0,
+                  "pdftotext reads the DEM drawing PDF");
+            check(QString::fromUtf8(reader.readAllStandardOutput())
+                      .simplified()
+                      .contains(QString::fromStdString(demCreditUsgs)),
+                  "The DEM drawing's PDF text layer carries the 3DEP notice");
             std::cout << "Poppler independently verified page size, print scale, placement, wire, "
                          "raster and report\n";
             return 0;
@@ -213,6 +308,7 @@ int main(int argc, char **argv) {
             exportMeasuredDrawing(page, MeasuredFormat::Svg,
                                   QImage(100, 100, QImage::Format_RGB32));
         });
+        sourceCredit();
         std::cout << "Measured PDF/SVG serialization, dimensions, Unicode outlines, raster "
                      "disclosure and publication passed\n";
     } catch (const std::exception &e) {
