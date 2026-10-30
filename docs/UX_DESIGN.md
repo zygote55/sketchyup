@@ -2352,3 +2352,192 @@ Each choice has a recommended default. **The owner decided all five on 2026-10-2
 | ![exists](mockups/quantities/exists.png) | Refused: the file already exists, and nothing was written | 19.8, 19.9 |
 
 Each screen also renders at 200 % text as `mockups/quantities/<name>-200.png`, which is the check for wrapping and overlap.
+
+## 20. Terrain from a downloaded elevation file (desktop)
+
+**Status: drafted 2026-10-30 for owner approval. Not approved and not implemented.** This section designs the desktop side of R107.b: importing an elevation file that the person downloaded from USGS 3DEP or Copernicus GLO-30 as a terrain. The engine and the command line already do the import (R107.b1, R107.b1.1 and R107.b1.2; [ADR 0181](decisions/0181-maps-geolocation-feasibility.md) §7.2 and §7.3). The product never downloads a file.
+
+The import extends the terrain import dialog of section 15 and adds no second dialog. A GeoTIFF is a third source format in that dialog, with its settings column, live preview, report and footer. Section 15.1 places the menu entry, and the dialog's layout is described in its header comment (`src/app/terrain_import_dialog.hpp`). The import adds no rail slot, tool, shortcut or tray panel.
+
+Parts: 20.1 the entry; 20.2 the window; 20.3 the labels; 20.4 the report; 20.5 the refusals; 20.6 keyboard, accessibility and text size; 20.7 the engine and command gaps the design found; 20.8 the open questions for the owner. The wireframes are text, as in section 18.5. No image mockups are added.
+
+### 20.1 Entry
+
+- **File → Import terrain…** (section 15.1), in the same place. The chooser's terrain filter gains **GeoTIFF elevation (\*.tif, \*.tiff)** beside the DXF and point-file choices.
+- **Format from the extension.** A `.tif` or `.tiff` file opens the dialog with **GeoTIFF elevation** selected, as the command line picks it by extension. Other files open as they do now.
+- **Which source.** Two radio buttons, **USGS 3DEP** and **Copernicus GLO-30**. The file does not say which it is, so the dialog reads its post size. A file whose posts fit one product selects that product, and the caption says why ("1/3 arc-second posts are 3DEP only"). A file at 1 arc-second in both directions fits both products, so neither is selected until the person chooses. A file that fits neither is refused (20.5).
+- **Where to get a file.** The GeoTIFF settings show one line, "Get the file: the user guide explains how to download a 3DEP or GLO-30 tile. SketchyUp does not download it.", with **Open the user guide**. The button opens the guide page in the system browser when the person presses it. The product sends no request of its own. R107.e writes that page, so the link ships with it, not before.
+- **Non-affiliation.** The source caption reads "Provider names identify the sources only. SketchyUp is not affiliated with USGS or Copernicus." (ADR 0181 V8.)
+- **Subline.** "Adds a terrain to this model. The file is read and never changed."
+- **No size refusal.** The reader works in windows, so the file's size is not a reason to refuse it. The 1/3 arc-second 3DEP tile, 434 MiB, is accepted once 20.7 item 1 is done.
+
+### 20.2 The window
+
+```text
+Window
+  (●) Around the site origin     Width [ 1,000 ] m    Height [ 1,000 ] m
+  ( ) Centre and size            Centre  E [         ]  N [         ]
+  ( ) Corners                    SW      E [         ]  N [         ]
+                                 NE      E [         ]  N [         ]
+  Zone [ 11N ▾ ]                 [ Fit to the file ]
+
+Grid    33 × 33 = 1,089 posts · spacing 31 m (nominal 31 m) · not decimated
+        2,048 triangles · room left in this model: 61,952 of 250,000
+        Voids: none (a window with a void is refused)
+```
+
+- **Default.** When the site has a geographic record, the window is **Around the site origin**, 1,000 m square, centred on the origin, in the record's zone. Without a record, the default is **Centre and size** with an empty centre, and Import waits for it. Open question 2 sets the default size.
+- **Three ways to set it.** *Around the site origin* takes the origin's position from the record. The record sits within 1 m of the origin's UTM position (ADR 0181 §2.1), so the window is exact. *Centre and size* takes a UTM centre and a width and height in metres. *Corners* takes the south-west and north-east corners in UTM. Beside each corner, its latitude and longitude show read-only, converted with R107.a's series. Open question 1 asks whether they can be typed as well.
+- **One zone.** The window and the grid share one zone, 1 to 60 with N or S. A file that crosses a zone edge can be imported in one zone only. The preview then draws the file's extent clipped to that zone's 6° band, and says so.
+- **Fit to the file.** Sets the window to the file's extent within the zone. A whole 1° tile at 1 arc-second decimates to posts of about 285 m (computed from the limits at 35° N), and the grid line shows that.
+- **Over the file.** The preview draws the file's extent as a dashed outline, the window as a solid outline labelled with its size, the site origin as a cross, and the grid's posts as a light fill. Each has a label, so dash, fill and text carry the meaning, not colour alone. A window that leaves the file is drawn in the failure colour, with ✕ and "1,204 of 1,681 posts lie outside the file. Move the window inside the dashed outline." This is a refusal at the pointer, as in 15.3.
+- **The grid's real extent.** Posts sit at whole multiples of the spacing from the window's west and south edges. The last post can therefore fall short of the east or north edge by less than one spacing. The preview draws the grid itself, and the grid line states the grid's extent when it differs from the window by more than one post.
+- **Before Import.** The grid line gives the post count (columns and rows), the spacing with its nominal size, whether the grid was decimated, the triangles, and the room left in this model. The dry run supplies these figures. It runs after each change, debounced by 250 ms, on the worker. Cancel stops it, as in section 15.
+- **Spacing.** A field in whole metres, defaulting to the nominal post size: 31 m at 1 arc-second, about 10 m at 1/3 arc-second, rounded to whole metres. A value below the nominal size is refused in the field before any run: "Finer than the file's posts (31 m) would only interpolate. Use 31 m or more." A coarser value is accepted. If the grid would pass the limits, the engine decimates, and an amber notice says so: "Too many triangles at 31 m, so the spacing is 34 m."
+- **Origin outside the window.** If the site origin lies outside the window, a caption says how far away it is. The terrain is still placed relative to the origin, as for other sources.
+
+### 20.3 The labels
+
+```text
+Source
+  Product     (●) USGS 3DEP    ( ) Copernicus GLO-30
+  File        USGS_1_n35w119.tif · 52.3 MiB · 1 arc-second · LZW
+  Horizontal  NAD83, labelled approximation                 ⚠ Approximation
+  Vertical    none in the file   [ Choose…            ▾ ]
+              3DEP heights are NAVD88 over the conterminous US. The sources
+              read do not cover other areas, so check the reference there.
+  Site        Zone 11N · vertical NAVD88 · WGS84          [ Site settings… ]
+
+⚠ The vertical references differ                     (shown only on a mismatch)
+  The heights are NAVD88. The site's elevation is EGM2008.
+  Offset to add to the heights  [ 0.00 ] m   (must not be zero)
+  Why                           [                              ]  (required)
+  Mixing them needs an offset and a note. SketchyUp adds no geoid model, so
+  enter the difference at this place from a source you trust. To change the
+  site's reference instead, use Site settings.
+```
+
+- **Horizontal datum.** GLO-30 is WGS84 and shows no warning. 3DEP is NAD83, shown as "NAD83, labelled approximation" with ⚠ and the word "Approximation". The caption reads: "NAD83 is taken as WGS84. Sources disagree on the size of the difference, from about a metre upward, so positions are approximate. The terrain keeps the NAD83 label." The report repeats it as a notice (20.4).
+- **Vertical reference, chosen when the file has none.** Neither product's files carry a vertical key (ADR 0181, R107.b1 table), so for 3DEP and GLO-30 the person chooses. The menu starts at **Choose…**, as the DXF dialog's **Choose units…** does, and then lists NAVD88, EGM2008 and EGM96. Import stays off until one is chosen, and its description says why. Captions: for 3DEP, "3DEP heights are NAVD88 over the conterminous US"; for GLO-30, "GLO-30 heights are EGM2008, and a surface: buildings and trees are included." Nothing is pre-selected, because the sources read do not cover other areas. If a file ever names a reference, the menu shows it read-only, as "from the file", and a different choice is refused (20.5).
+- **Mismatch with the site.** The site's reference is the vertical label of its geographic record ("Vertical reference of the origin's elevation" in Site settings). When both are known and differ, the amber block above opens under the Vertical row. Import stays off until the offset is not zero and the note is filled in. This is stricter than the engine today (20.7 item 5), and it follows ADR 0181 V5, which says "an offset and a note". When the dry run refuses the mismatch, the refusal names both references (20.5).
+- **The site has no location.** With no geographic record there is nothing to compare, so the zone and the vertical reference are not checked. The Site row says so: "This site has no geographic location, so the zone and vertical reference are not checked. Set one in Site settings." (ADR 0181 §2.1 and §2.7.)
+- **The site's reference is unknown.** A site whose elevation is labelled "unknown" accepts the import, with a notice: "The site's elevation names no vertical reference. The terrain is labelled NAVD88, and the label is recorded, not checked."
+- **No origin yet.** The import establishes one, as it does for other sources: the centre of the grid, rounded to 100 m, editable with **Use proposed origin**. The import writes no geographic record, which 20.7 item 6 and 20.8 question 5 deal with.
+
+### 20.4 The report
+
+The report is the terrain dialog's own report: **Copy report** and **Save report…** as now, in the same footer, with the same text and JSON forms. For a GeoTIFF it reads like this, with the figures from the R107.b1.2 measurement of a 1 km window at 1 arc-second, labelled as an example:
+
+```text
+Terrain import report: USGS_1_n35w119.tif
+Outcome: ready, with notices
+Source: USGS 3DEP, 1 arc-second, LZW · 52.3 MiB (54,875,665 bytes)
+Licence: free of charge, without use restrictions; USGS-produced data are U.S. Public Domain
+SHA-256: 7e378d44621ce06260c81b3d6330f4e03d5f3caed9559323a959eb035130cba8
+Window: zone 11N · E 361,789.4 to 362,789.4 · N 3,818,118.4 to 3,819,118.4 · 1,000 m square
+Spacing: 31 m (nominal 31 m) · not decimated
+Grid: 33 × 33 = 1,089 posts · read 1,089 · voids 0 · outside 0
+Datum: NAD83, taken as WGS84 (labelled approximation)
+Heights: NAVD88, chosen (the file names none) · offset 0.00 m
+Triangles: 2,048 · the model had none before this import
+Credit: U.S. Geological Survey
+
+⚠ Notices
+  The file is NAD83. It is taken as WGS84, with the label kept.
+  The file names no vertical reference. The NAVD88 label is recorded.
+```
+
+- **GLO-30.** The licence line reads "Licence for the use of the Copernicus WorldDEM-30 (COP-DEM-GLO-30-F)". The credit is two lines: "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved", and the no-liability sentence, "The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM-30." Both texts come from the source record, unchanged.
+- **Names and digests.** The report holds the file's name, never its path, as the engine does. The whole SHA-256 is in Copy report and Save report. The dialog shows its first 12 characters and "…", with the full value in a tooltip, as the Source row of Entity info does now.
+- **Voids and outside.** Both read 0 for any window that imports, because a window with either is refused. The rows say so ("voids 0 · a window with a void is refused"), so the zero is not mistaken for a report that did not count.
+- **Notices.** Each appears once, in the warning style, with the wording of the example. The set is: the datum approximation, the decimation, the GLO-30 surface, a vertical reference from the file or chosen, a vertical offset (with its note), and a site whose reference is unknown.
+- **Save and not store.** Save report… keeps the report in a `.txt` or `.json` file, as the dialog does now. The report is not stored in the model.
+- **After Import.** The status line reads "Imported a terrain from USGS_1_n35w119.tif (USGS 3DEP): 2,048 triangles · site origin set · Undo removes it". The Source row of the Terrain section shows the file's name, the start of its digest and the units, as it does now. The record holds no path, so the file is not needed after the import.
+- **Credit in the app.** The credit appears only in this report for now. Open question 4 proposes a place in the Terrain section.
+
+### 20.5 The refusals
+
+Every refusal follows section 16.6 and section 18.6. It says first that nothing was imported and the model is unchanged, then gives the reason with its number, then numbered next steps. A file-level refusal, found while the window is chosen, appears as a red banner inside the dialog. The settings grey out, Import stays off, and focus moves to **Choose another file…**. A refusal from the read appears in the same banner and in the report's refusal group. No separate sheet opens. The reader's own texts cite ADR sections and command-line options. The dialog replaces them with the words below (20.7 item 9). No refusal involves the network.
+
+```text
+✕ Refused. Nothing was imported. Your model is unchanged.
+  The window leaves the file: 1,204 of 1,681 posts lie outside it.
+  1. Move the window inside the file's outline.
+  2. Or choose Fit to the file.
+```
+
+| Where it appears | Refusal (named by the reader) | What the person is told | Next step |
+| --- | --- | --- | --- |
+| File, before the window | Not a TIFF file; the header cannot be read | "This is not a GeoTIFF file." | Choose another file |
+| File | BigTIFF | "This is a BigTIFF file, which this version does not read." | Save the tile as a classic GeoTIFF with a GeoTIFF tool |
+| File | Compression other than none, LZW or Deflate (JPEG, PackBits, ZSTD, WebP, LERC) | "This file is compressed with JPEG. SketchyUp reads uncompressed, LZW and Deflate files." | Download the product's standard GeoTIFF (3DEP is LZW, GLO-30 Deflate), or convert the file |
+| File | A second full-resolution image; a transparency mask; a first image that is an overview or a mask; an image loop or a link outside the file; more than 16 further images | "The file holds a second full-resolution image (image 2). Overview images are skipped. A second full image is not read." | Keep one full-resolution image, with a GeoTIFF tool |
+| File | Several bands; 64-bit or unsigned samples | "The file has 3 bands. An elevation file has one." / "The samples are 64-bit. This version reads 16-bit integer and 32-bit float heights." | Choose the product's elevation tile |
+| File | Projected coordinates; a rotated or sheared raster; no geographic coordinate system; a user-defined one | "The file's coordinates are projected (EPSG:32611). This version reads geographic files only." | Download the geographic tile (WGS84 or NAD83) |
+| File | OSGB36 (EPSG:4277) or ETRS89 (EPSG:4258) | "OSGB36 needs a national grid transformation, which this version does not have." | None in this version |
+| File | Heights in units other than metres; a vertical code the reader does not know | "The heights are in units this version does not read. It reads metres only." | Choose a file whose heights are in metres |
+| File | Posts outside the product's sizes (3DEP at 1/3 or 1 arc-second; GLO-30 at 1 arc-second north–south and 1 or 1.5 arc-seconds east–west) | "The posts are 3 arc-seconds. 3DEP is read at 1/3 or 1 arc-second, and GLO-30 at 1 arc-second." | Choose the matching product, or a supported resolution |
+| File | Not georeferenced (no geographic keys, no tie point, no scale) | "The file has no map position, so its posts cannot be placed." | Choose a georeferenced tile |
+| File | Damaged or cut short: a truncated file, a block that cannot be read, a malformed directory or LZW stream | "The file is damaged: {one line of the reader's detail}." | Download the file again, and compare its size with the source's listing |
+| Vertical choice | No reference in the file and none chosen | Import is off: "Choose the vertical reference to import." | Choose NAVD88, EGM2008 or EGM96 |
+| Vertical choice | The choice differs from the file's own reference | "The file names NAVD88 and you chose EGM2008." | Choose the file's reference |
+| Window | Zone not 1 to 60; latitude outside 80° S to 84° N; the Norway or Svalbard zone exception | "This window cannot be placed in zone 31N: it is in the Norway zone exception, which this version does not place." | Choose a window in one zone without an exception |
+| Window | Corners not ordered (east not greater than west, or north not greater than south); fewer than two posts across | "The east edge must be east of the west edge." / "The window is smaller than two posts across." | Correct the corners, or enlarge the window |
+| Window | Posts outside the file (a count) | "1,204 of 1,681 posts lie outside the file." | Move the window inside the file, or choose Fit to the file |
+| Window | Void (no-data) posts (a count) | "37 posts depend on no-data posts of the file. SketchyUp does not fill them." | Move the window clear of the no-data area (20.8 question 3, 20.7 item 11) |
+| Spacing | Finer than the file's post | Refused in the field before a run: "Finer than the file's posts (31 m) would only interpolate. Use 31 m or more." | Enter 31 m or more |
+| Site | Zone differs from the site's record | "The window is in zone 10N, and the site is in zone 11N. A terrain cannot cross zones." | Choose a window in 11N |
+| Site | Vertical reference differs, and the offset is zero or the note is empty | "The heights are NAVD88, and the site's elevation is EGM2008. Enter an offset and a note, or change the site's reference in Site settings." | The amber block of 20.3 |
+| Site | An offset with no note; a note over 256 bytes | "An offset needs a note that says why." | Enter the note, or shorten it |
+| Model | The import would take the model's terrain past 250,000 triangles | "This model's terrain would have 262,144 triangles. The limit is 250,000." | Choose a smaller window, or a coarser spacing (20.7 item 4) |
+| Cancel | Cancel during the read | Footer: "Cancelled. Nothing was imported." No sheet. | None |
+
+Other formats are not offered in the chooser, and they are not imported in this version: DTED, BIL, ASCII grid, LAZ and COPC, LandXML, GeoJSON and LAS are later rows (ADR 0181 §7.3). The wording in the table is the dialog's, to be checked in the input tests. It is not the reader's text.
+
+### 20.6 Keyboard, accessibility and text size
+
+| Area | Rule |
+| --- | --- |
+| Entry | No new shortcut. File → Import terrain… from the menu, or Ctrl+K and "Import terrain"; then the chooser, then the dialog. |
+| Tab order | The product radios; the user-guide button; the window radios; the window fields; Zone; Fit to the file; Spacing; Vertical reference; Offset; Why; Site settings…; Show report; Cancel; Import. |
+| Radio groups | Arrow keys move inside a group, as in 16.9. |
+| Accessible names | "Source product: USGS 3DEP or Copernicus GLO-30"; "Window: around the site origin, centre and size, or corners"; "Width, metres"; "Height, metres"; "Post spacing, metres, at least 31"; "Vertical reference of the heights, choose one"; "Offset to add to the heights, metres"; "Why the heights are offset, required". When Import is off, its description gives the reason. |
+| The preview | One Tab stop. Its accessible description gives the window, the file and the grid in words: "Window 1,000 by 1,000 metres in zone 11N. File 1 by 1 degree. Grid 33 by 33 posts, 31 metres apart." |
+| Enter and Esc | Enter is Import while Import is on, as the default button (15.7). Esc cancels a running read, and otherwise closes the dialog. |
+| Refusals | The banner is announced as an alert, and its first words are "Refused. Nothing was imported." |
+| Colour | The file's extent is dashed, the window solid, the grid filled, and every outline has a label. States are a glyph and a word: ⚠ Approximation, ✕ Refused, ● Reading. |
+| Progress | One determinate bar, named "Reading the elevation file, 40 per cent". Its stages are the dialog's footer stages. |
+| Text size (200 %) | The settings stack above the preview. The footer stays in view. The report's two columns stack (16.9). |
+| Scale | 1×, 2× and fractional scales. Outlines are one logical pixel wide and labels scale with the display. |
+| Checks | Proposed `terrain_dem_input_tests`, on X11 and Wayland at 1×, 2× and a fractional scale, and at 200 % text. The checks include the keyboard-reachability and accessible-name tests of 15.7 and 16.9, and every case in 20.3 and 20.5 (the mismatch, the missing location, the decimation, and each refusal). |
+
+### 20.7 Engine and command gaps the design found
+
+These are gaps to close before the dialog can import a GeoTIFF. Each is a note for R107.b or the owner, not a change made here.
+
+1. **The desktop reads the whole file, and refuses files over 64 MiB.** The dialog takes the file as bytes (`TerrainImportDialog::Setup::bytes`), and `Window::importTerrainPath` throws for any file over 64 MiB (`src/app/window_terrain.cpp:71`). The 1/3 arc-second 3DEP tile is 454,839,551 bytes (R107.b1.1). The desktop needs a path-based dry run and import, as the command line has (`readGeoTiffTerrain` reads windows through `FileBytes`). The 64 MiB rule must not apply to GeoTIFF.
+2. **GeoTIFF import is not a command.** `terrain.import` accepts only `dxf` and `points` (`src/automation/terrain_commands.cpp`, the `format` choice). The command line is the only caller of `importGeoTiffTerrain` (`src/automation/main.cpp`). The dialog needs the path-based calls. MCP and the headless session get no GeoTIFF import until the command accepts one, and ADR 0181 does not decide that.
+3. **No file facts before the window.** The window cannot be chosen well until the file's facts are known: the product's post size, the datum and vertical keys, the compression, the latitude and longitude extent, and the zone. `readGeoTiffHeader` is public (`src/io/geotiff.hpp`), but the file-backed byte source is private to `src/io/geotiff_terrain.cpp`, and no call returns the facts. A small facts call is needed.
+4. **Decimation ignores the room left in the model.** `readGeoTiffTerrain` decimates each grid to the limit alone. The model's total is checked afterwards (`src/io/terrain_import.cpp`, the `triangle-budget` refusal), so a window can be refused when a coarser spacing would have fitted. The spacing rule should take the room left. The dialog already passes that figure to the dry run (`src/app/terrain_import_dialog.cpp`, `otherTerrainTriangles`).
+5. **The mismatch escape accepts a zero offset.** The check passes when the note is non-empty, whatever the offset (`src/io/terrain_import.cpp`, the vertical-reference block). The reader requires a note only when an offset is given (`src/io/geotiff_terrain.cpp`). Neither rejects a zero offset with a note, so the references can mix without a correction. The design requires a non-zero offset (20.3), which matches ADR 0181 V5.
+6. **A DEM import writes no geographic record.** Nothing in `src/io/terrain_import.cpp` or `src/io/geotiff_terrain.cpp` sets the site's geographic record. A site that a DEM establishes therefore has no zone or vertical label, and the zone and mismatch checks never run for it. ADR 0181 §2.1 allows the record with provenance "imported" and the file's SHA-256. The import also sets the site's CRS label to EPSG:326nn or EPSG:327nn (`src/automation/terrain_commands.cpp`, `importGeoTiffTerrain`), with no position behind it.
+7. **The SHA-256 is taken in a second pass.** `readGeoTiffTerrain` hashes the file after it has read the posts. If the file changes in between, the posts and the record's digest describe different files. The digest should be computed over the bytes as they are read. Until then, the dialog can check the file's size and modification time before Import.
+8. **The desktop report text is DXF-shaped.** `TerrainImportDialog::reportText()` writes the "Format, Units, Conversion, Source extents" lines, and has no GeoTIFF branch. The `dem` block of the report already holds the fields it needs.
+9. **Reader texts reach the person.** The reader's refusals cite ADR sections and command-line options, for example "Give --dem-vertical NAVD88" and "(ADR 0181 §2.8)". The dialog must replace them (20.5). The same change should keep the reader's texts for the command line.
+10. **The credit is not shown in the app.** The source record holds the credit, the disclaimer and the licence (`provenance.dem`). The Source row of the Terrain section shows only the file's name, the digest and the units (`src/app/terrain_section.cpp`). The credit appears only in the report. Open question 4.
+11. **Void posts are counted, not located.** Any void refuses the window, so the report's voids are always 0 for an import, and the refusal gives a count only. The preview cannot show where the voids are. A bounded list of void-post positions in the refusal would let it, and open question 3 depends on it.
+12. **The preview overlays are new UI.** The file's extent, the window and the grid's outline are not drawn anywhere today. This is dialog work, not an engine gap.
+13. **Other rows.** The user-guide page that the download link opens is R107.e's. Credits in exports are R107.c's. Neither belongs to this dialog, and the link must not ship before its page.
+
+Items 1 to 4 and item 6 are needed before a GeoTIFF can be imported from the dialog. Items 5, 7 and 11 change the existing path, and items 8 to 10 and 12 are dialog work.
+
+### 20.8 Open questions for the owner
+
+1. **Typing the window in latitude and longitude.** The engine takes UTM only, with a zone (`--dem-window`, `--dem-zone`), and no latitude and longitude window is built (R107.b1). The site location already takes typed latitude and longitude, to six decimal places, with WGS84 or NAD83 and a 1 m match to the origin. *Recommended: yes, in the dialog only. The Centre and Corners fields take latitude and longitude as well as UTM, converted with R107.a's series into one zone, and the engine and the command line stay in UTM. Reason: file names and map tools use degrees, and the conversion is already in the application, so the engine needs no change.*
+2. **The default window size.** *Recommended: 1,000 m square, centred on the site origin. Reason: at 1 arc-second it is 33 by 33 posts and 2,048 triangles, and the measured 1 km window reads in 0.16 s with the file's hash included (R107.b1.1). One terrain's limit allows a square of about 8.8 to 10.9 km at 1 arc-second and 2.9 to 3.6 km at 1/3 arc-second (ADR 0181 §2.9), so the default leaves room to enlarge.*
+3. **Voids as holes instead of a refusal.** The triangulation cannot cut interior holes (ADR 0181 §2.8), and a fill would invent heights (ADR 0168, owner decision 6). *Recommended: keep the refusal for 1.x. The refusal locates the void posts (20.7 item 11), so the preview can show them and the person can move the window. Revisit holes in a later row, drawn dashed, with a report row such as "Holes: 2 areas, 37 posts, no height". Reason: a hole drawn as ground, or a fill, misleads. A refusal that shows where the voids are is safe, and it keeps the report exact.*
+4. **Where the source credit shows in the app.** The credit and disclaimer appear now only in the import report (20.7 item 10). ADR 0181 §3.4 says a credit appears where the source-derived content appears. *Recommended: also show it in the Terrain section of Entity info, as a "Credit" line under Source, with the full text and the file's name. Exports carry it under R107.c. Reason: the terrain is the source-derived content, and the Source row already sits there.*
+5. **Whether a DEM import that sets the site origin also writes the site's geographic record.** *Recommended: yes, when the import sets the origin. The record sits at the origin, with the file's name and SHA-256 as provenance "imported", the grid's zone and hemisphere, the chosen vertical reference, and the file's datum. Reason: without it the zone and vertical checks never run for that site, and its CRS label has no position behind it. ADR 0181 §2.1 allows the record with this provenance.*
+6. **Wording of refusals in the same dialog.** The DXF and point-file banners say "Nothing was changed.", and 20.5 says "Nothing was imported." *Recommended: "Nothing was imported." for every refusal in this dialog, the DXF ones included, in the same change as this section. Reason: one dialog should not describe one outcome in two ways, and sections 16.6 and 18.6 already use this form.*
+
+Build order for the owner's approval: 20.7 items 1 to 4 and 6 first, then the dialog. Items 5 and 7 can ship with them.

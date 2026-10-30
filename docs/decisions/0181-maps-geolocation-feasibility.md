@@ -806,3 +806,20 @@ These match the R107.b1.1 measurements of the same window on the copy with the o
 - The full CI tier was not waited for; the fast tier is the gate for this PR.
 
 **Not done in this slice.** The desktop import dialog, lat/lon windows and holes for voids (all as in R107.b1.1). Heights were not compared pixel by pixel with tifffile in this run. The structure of the real file was checked with tifffile, and the decode path is the one R107.b1.1 checked.
+
+## Implementation notes (R107.b, UX design)
+
+What this record adds: the desktop import dialog's design, [UX_DESIGN §20](UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop), and a read of the code that dialog extends. No code was changed, and nothing was measured. The figures are the ones in the R107.b1.1 and R107.b1.2 notes above. The owner's approval of §20 is the UX gate for R107.b. The owner decisions of this ADR stand unchanged.
+
+Where the built code differs from this ADR (each is a gap §20.7 asks to close before the dialog imports a GeoTIFF):
+
+1. **The desktop cannot read a 3DEP tile of the size the ADR names.** §9 says "windowed; at most 64 MiB of raster held at once" and §4 says the reader "never loads the whole file". That holds for the command line. The dialog takes the file as bytes, and `Window::importTerrainPath` refuses any file over 64 MiB (`src/app/window_terrain.cpp:71`). The 1/3 arc-second tile is 454,839,551 bytes.
+2. **The V5 escape accepts a zero offset.** The mismatch check in `src/io/terrain_import.cpp` passes when the note is non-empty, whatever the offset. V5 says "an offset and a note". The design requires a non-zero offset.
+3. **Decimation does not know the model's room.** `readGeoTiffTerrain` decimates each grid to one terrain's limit. The model's total is checked afterwards (`triangle-budget`, `src/io/terrain_import.cpp`), so a window can be refused when a coarser spacing would have fitted. §2.9 does not cover this case.
+4. **A DEM import writes no geographic record.** §2.1 allows the record, with provenance "imported" and the file's SHA-256. Without it the zone and vertical checks of §2.7 never run for that site. The import also sets the site's CRS label (EPSG:326nn or EPSG:327nn, `src/automation/terrain_commands.cpp`, `importGeoTiffTerrain`) with no position behind it.
+5. **The SHA-256 comes from a second pass.** `readGeoTiffTerrain` hashes the file after it reads the posts. §3.2 needs the digest of the bytes that were read, so the two can disagree if the file changes between them.
+6. **Void posts are counted, not located.** Any void refuses the window, so the report's `voids` is 0 for every import. The refusal gives a count only, so the preview cannot show where the voids are. §20.8 question 3 depends on this.
+7. **GeoTIFF is not a command.** `terrain.import` accepts `dxf` and `points` only (`src/automation/terrain_commands.cpp`). The command line is the only caller of `importGeoTiffTerrain`. ADR 0181 does not say whether the agent surface should get it.
+8. **Reader texts cite this ADR and command-line options.** For example "Give --dem-vertical NAVD88" and "(ADR 0181 §2.8)". The dialog replaces them, and the command line keeps them.
+
+Owner questions raised by this record are in [UX_DESIGN §20.8](UX_DESIGN.md#208-open-questions-for-the-owner). Question 5 would make the DEM import write the site record that item 4 says is missing.
