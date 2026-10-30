@@ -671,6 +671,34 @@ void pointFiles() {
           "point files need units");
 }
 
+#ifdef CLI_PATH
+// The GeoTIFF import of tests/fixtures/geotiff/plane-f32-strip-none-le.tif through the command line
+// (R107.b3 in the R107.b1 form): the 300 m square around the file's centre, UTM zone 30N, referenced
+// to NAVD88.
+QStringList demFixtureArguments() {
+    const auto tiff = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/plane-f32-strip-none-le.tif";
+    const auto centre = geoToUtm({51.6 - 20.0 / 3600, -0.2 + 24.0 / 3600}, 30);
+    const auto window = QString("%1,%2,%3,%4")
+                            .arg(centre.easting - 150, 0, 'f', 3)
+                            .arg(centre.northing - 150, 0, 'f', 3)
+                            .arg(centre.easting + 150, 0, 'f', 3)
+                            .arg(centre.northing + 150, 0, 'f', 3);
+    return {"--import-terrain", QString::fromStdString(tiff), "--terrain-format", "geotiff",
+            "--dem-source", "3dep", "--dem-window", window, "--dem-zone", "30N", "--dem-vertical",
+            "NAVD88"};
+}
+
+// `terrain_import_tests --write-fixture PATH` writes tests/fixtures/terrain-dem-v34.sketchyup, a
+// schema-34 document with a GeoTIFF terrain (R107.b1), by the command line.
+void writeDemFixture(const QString &path) {
+    QProcess process;
+    process.start(QString::fromUtf8(CLI_PATH), demFixtureArguments() + QStringList{"--output", path});
+    check(process.waitForStarted(10000) && process.waitForFinished(120000) &&
+              process.exitCode() == 0,
+          "the schema-34 fixture imports: " + process.readAllStandardError().left(400).toStdString());
+}
+#endif
+
 void cli() {
 #ifdef CLI_PATH
     QTemporaryDir directory;
@@ -1182,6 +1210,14 @@ void progressAndCancel() {
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
+        if (argc == 3 && std::string(argv[1]) == "--write-fixture") {
+#ifdef CLI_PATH
+            writeDemFixture(QString::fromLocal8Bit(argv[2]));
+            return 0;
+#else
+            check(false, "--write-fixture needs sketchyup-cli (SKETCHYUP_BUILD_CLI)");
+#endif
+        }
         const bool large = argc > 1 && std::string(argv[1]) == "--timings";
         reportBounds();
         units();

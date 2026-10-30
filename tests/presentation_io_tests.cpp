@@ -391,8 +391,8 @@ void malformedRecords() {
         named = named || references.sceneMissing == std::set<Id>{999};
     check(report.size() == 2 && named, "The loaded broken paths name their missing scenes");
 }
-// The released reader (SKETCHYUP_PRIOR_CLI, set by the package acceptance to a 1.3.x CLI)
-// refuses a schema-30 file unchanged.
+// The released reader (SKETCHYUP_PRIOR_CLI, set by the package acceptance to a 1.4.x CLI, the
+// first to read schema 30) opens a schema-30 file unchanged.
 void priorRelease(const QString &directory) {
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (prior.isEmpty()) {
@@ -404,9 +404,9 @@ void priorRelease(const QString &directory) {
     write(path, bytes);
     QProcess process;
     process.start(prior, {"--validate-native", path});
-    check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == bytes,
-          "The prior release refuses a schema-30 file unchanged");
-    std::cout << "prior release refusal: "
+    check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == bytes,
+          "The prior release opens a schema-30 file unchanged");
+    std::cout << "prior release check: "
               << process.readAllStandardError().trimmed().toStdString() << '\n';
 }
 } // namespace
