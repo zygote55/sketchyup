@@ -7,6 +7,7 @@
 #include "geo/geographic.hpp"
 #include "io/geotiff_terrain.hpp"
 #include "io/terrain_import.hpp"
+#include <optional>
 
 #include <stdexcept>
 #include <string>
@@ -22,8 +23,11 @@ inline const char *demCreditGlo30 =
     "liability for any use of the Copernicus WorldDEM-30.";
 
 // One fixture's window, read into a source set (the R107.b1 reader, with the window the tests use).
+// A terrain whose vertical reference differs from the site's needs a non-zero offset and a note (ADR
+// 0181 V5, R107.b3): the first import writes the site's geographic record with its reference.
 inline TerrainSourceSet demFixtureSet(const std::string &fixtures, const std::string &file,
-                                      DemProduct product, const std::string &vertical) {
+                                      DemProduct product, const std::string &vertical,
+                                      std::optional<double> offset = {}, const std::string &note = {}) {
     const bool dep3 = product == DemProduct::Dep3;
     // 3DEP: post (24, 20) of the 1 arc-second plane. GLO-30: post (20, 15) of the pixel-is-point file.
     const GeoPosition at = dep3 ? GeoPosition{51.6 - 20.0 / 3600.0, -0.2 + 24.0 / 3600.0}
@@ -39,6 +43,8 @@ inline TerrainSourceSet demFixtureSet(const std::string &fixtures, const std::st
     options.easting1 = centre.easting + half;
     options.northing1 = centre.northing + half;
     options.vertical = vertical;
+    options.verticalOffset = offset;
+    options.verticalNote = note;
     return readGeoTiffTerrain(QString::fromStdString(fixtures + file), options);
 }
 
@@ -53,8 +59,9 @@ inline void importDemSet(Document &document, const TerrainSourceSet &set, const 
 }
 
 inline void importDemFixture(Document &document, const std::string &fixtures, const std::string &file,
-                             DemProduct product, const std::string &vertical) {
-    importDemSet(document, demFixtureSet(fixtures, file, product, vertical), file);
+                             DemProduct product, const std::string &vertical,
+                             std::optional<double> offset = {}, const std::string &note = {}) {
+    importDemSet(document, demFixtureSet(fixtures, file, product, vertical, offset, note), file);
 }
 
 } // namespace sketchy

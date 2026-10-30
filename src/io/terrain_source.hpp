@@ -69,6 +69,8 @@ struct TerrainReportBounds {
     static constexpr std::size_t quotedBytes = 64;
     static constexpr std::size_t reportBytes = 64 * 1024;
 };
+// A count with thousands separators, as the terrain reports and dialog write it: 250,000.
+std::string terrainCountText(std::uint64_t count);
 // User text quoted in a message: control characters replaced, cut on a UTF-8 boundary at
 // 64 bytes with an ellipsis.
 std::string terrainQuote(const std::string &text);
@@ -95,6 +97,8 @@ class TerrainReport {
     void locate(Severity severity, const std::string &kind, const std::string &message,
                 TerrainReportLocation location, bool counted = true);
     bool refused() const;
+    // The kind of the first refusal, in the order the kinds were added; empty when there is none.
+    std::string firstRefusal() const;
     bool hasNotices() const;
     std::uint64_t count(const std::string &kind) const;
     // `envelope` (the other fields of the terrain object) plus "refusals", "notices",

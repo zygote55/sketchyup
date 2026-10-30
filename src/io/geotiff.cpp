@@ -75,11 +75,11 @@ class Reader {
     Reader(const GeoTiffBytes &bytes, bool little) : bytes_(bytes), little_(little) {}
     std::vector<std::uint8_t> bytesAt(std::uint64_t offset, std::uint64_t count) const {
         if (count > bytes_.size() || offset > bytes_.size() || count > bytes_.size() - offset)
-            throw GeoTiffRefusal("Truncated GeoTIFF: " + std::to_string(count) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Truncated GeoTIFF: " + std::to_string(count) +
                                  " bytes are needed" + where(offset));
         std::vector<std::uint8_t> out(count);
         if (count != 0 && !bytes_.read(offset, count, out.data()))
-            throw GeoTiffRefusal("Truncated GeoTIFF: the read failed" + where(offset));
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Truncated GeoTIFF: the read failed" + where(offset));
         return out;
     }
     std::uint16_t u16(const std::uint8_t *p) const {
@@ -118,7 +118,7 @@ std::vector<std::uint8_t> tagBytes(const Reader &reader, const Tag &tag) {
 
 std::vector<std::uint64_t> tagIntegers(const Reader &reader, const Tag &tag) {
     if (tag.type != typeShort && tag.type != typeLong)
-        throw GeoTiffRefusal("Malformed TIFF: a tag that should hold integers has type " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed TIFF: a tag that should hold integers has type " +
                              std::to_string(tag.type));
     const auto raw = tagBytes(reader, tag);
     std::vector<std::uint64_t> values;
@@ -136,7 +136,7 @@ std::vector<std::uint64_t> tagIntegers(const Reader &reader, const Tag &tag) {
 
 std::vector<double> tagDoubles(const Reader &reader, const Tag &tag) {
     if (tag.type != typeDouble)
-        throw GeoTiffRefusal("Malformed TIFF: a tag that should hold doubles has type " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed TIFF: a tag that should hold doubles has type " +
                              std::to_string(tag.type));
     const auto raw = tagBytes(reader, tag);
     std::vector<double> values;
@@ -174,6 +174,11 @@ std::string compressionName(std::uint64_t code) {
         return "code " + std::to_string(code);
     }
 }
+// The compression's name without its TIFF code: "JPEG" for "JPEG (7)".
+std::string compressionWord(std::uint64_t code) {
+    const auto name = compressionName(code);
+    return name.substr(0, name.find(" ("));
+}
 
 // The vertical reference a GeoKey names, or empty for an unlabelled key (none, or 0).
 std::string verticalLabel(std::uint64_t code) {
@@ -195,7 +200,7 @@ std::vector<std::uint8_t> directoryBytes(const Reader &reader, std::uint64_t ifd
                                          std::uint16_t &count) {
     count = reader.u16(reader.bytesAt(ifd, 2).data());
     if (count == 0 || count > GeoTiffBounds::ifdEntries)
-        throw GeoTiffRefusal("GeoTIFF directory has " + std::to_string(count) +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "GeoTIFF directory has " + std::to_string(count) +
                              " entries (the limit is " +
                              std::to_string(GeoTiffBounds::ifdEntries) + ")" + where(ifd));
     return reader.bytesAt(ifd + 2, 12u * count + 4);
@@ -227,7 +232,7 @@ Directory readDirectory(const Reader &reader, std::uint64_t ifd) {
         } else {
             entry.offset = reader.u32(p + 8);
             if (entry.valueSize > GeoTiffBounds::tagValueBytes)
-                throw GeoTiffRefusal("GeoTIFF tag " + std::to_string(tag) + " has " +
+                throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "GeoTIFF tag " + std::to_string(tag) + " has " +
                                      std::to_string(entry.valueSize) +
                                      " bytes of values (the limit is 8 MiB)");
         }
@@ -254,7 +259,7 @@ LaterImage readLaterImage(const Reader &reader, std::uint64_t ifd) {
             continue;
         const auto type = reader.u16(p + 2);
         if ((type != typeShort && type != typeLong) || reader.u32(p + 4) != 1)
-            throw GeoTiffRefusal("Malformed TIFF: the NewSubfileType of the image" + where(ifd) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed TIFF: the NewSubfileType of the image" + where(ifd) +
                                  " does not hold one SHORT or LONG value");
         image.subfileType = type == typeLong ? reader.u32(p + 8) : reader.u16(p + 8);
     }
@@ -272,15 +277,15 @@ void checkFurtherImages(const GeoTiffBytes &bytes, const Reader &reader, std::ui
     for (std::size_t later = 1; next != 0; ++later) {
         const auto number = std::to_string(later + 1); // the image's number in the file, from 1
         if (later > GeoTiffBounds::furtherImages)
-            throw GeoTiffRefusal("More than one image in the file: more than " +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::ImageLayout, "More than one image in the file: more than " +
                                  std::to_string(GeoTiffBounds::furtherImages) +
                                  " images follow the first, and the reader walks at most that many "
                                  "(ADR 0181 §7.3)");
         if (next < 8 || next >= bytes.size())
-            throw GeoTiffRefusal("Malformed TIFF: the link to image " + number + " is at offset " +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::ImageLayout, "Malformed TIFF: the link to image " + number + " is at offset " +
                                  std::to_string(next) + ", outside the file");
         if (std::find(walked.begin(), walked.end(), next) != walked.end())
-            throw GeoTiffRefusal("Malformed TIFF: the image directories loop: image " + number +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::ImageLayout, "Malformed TIFF: the image directories loop: image " + number +
                                  " links back to the directory" + where(next));
         walked.push_back(next);
         const auto image = readLaterImage(reader, next);
@@ -294,7 +299,7 @@ void checkFurtherImages(const GeoTiffBytes &bytes, const Reader &reader, std::ui
                       std::to_string(image.subfileType) + ")"
                 : "a second full-resolution image (NewSubfileType " +
                       std::to_string(image.subfileType) + ", bit 0 clear)";
-        throw GeoTiffRefusal("More than one image in the file: image " + number + " (directory" +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::ImageLayout, "More than one image in the file: image " + number + " (directory" +
                              where(next) + ") is " + kind +
                              "; the reader reads the full-resolution image and skips only "
                              "reduced-resolution overviews (ADR 0181 §7.3)");
@@ -311,7 +316,7 @@ std::vector<std::uint8_t> decodeLzw(const std::uint8_t *in, std::size_t size, st
                                     std::size_t index) {
     const std::string block = "Block " + std::to_string(index);
     if (size >= 2 && in[0] == 0 && (in[1] & 1))
-        throw GeoTiffRefusal(block + " is old-style LZW (least-significant-bit codes, from TIFF 5.0 "
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, block + " is old-style LZW (least-significant-bit codes, from TIFF 5.0 "
                                      "writers), which is not in the supported subset (ADR 0181 §7.3)");
     struct Entry {
         std::uint16_t prefix{}; // the code this entry extends
@@ -332,7 +337,7 @@ std::vector<std::uint8_t> decodeLzw(const std::uint8_t *in, std::size_t size, st
     std::size_t written = 0;
     for (;;) {
         if (at + width > bits)
-            throw GeoTiffRefusal(block + " is a truncated LZW stream: it ends before its "
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, block + " is a truncated LZW stream: it ends before its "
                                          "EndOfInformation code");
         std::uint32_t code = 0;
         for (unsigned taken = 0; taken < width;) {
@@ -352,14 +357,14 @@ std::vector<std::uint8_t> decodeLzw(const std::uint8_t *in, std::size_t size, st
             continue;
         }
         if (code > next || (!hasPrevious && code > 255))
-            throw GeoTiffRefusal(block + " has LZW code " + std::to_string(code) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, block + " has LZW code " + std::to_string(code) +
                                  ", beyond the table (its next free code is " +
                                  std::to_string(next) + ")");
         // A code equal to the next free code is the previous string and its own first byte.
         const bool repeat = hasPrevious && code == next;
         const std::size_t length = repeat ? table[previous].length + 1u : table[code].length;
         if (length > expected - written)
-            throw GeoTiffRefusal(block + " is an LZW stream that decodes to more than its " +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, block + " is an LZW stream that decodes to more than its " +
                                  std::to_string(expected) + " bytes");
         std::uint32_t walk = repeat ? previous : code;
         for (std::size_t k = written + (repeat ? length - 1 : length); k-- > written;) {
@@ -370,7 +375,7 @@ std::vector<std::uint8_t> decodeLzw(const std::uint8_t *in, std::size_t size, st
             out[written + length - 1] = table[previous].first;
         if (hasPrevious) {
             if (next >= lzwTableCodes)
-                throw GeoTiffRefusal(block + " fills the LZW table past 4,096 codes without a "
+                throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, block + " fills the LZW table past 4,096 codes without a "
                                              "ClearCode");
             table[next] = Entry{std::uint16_t(previous), out[written], table[previous].first,
                                 std::uint16_t(table[previous].length + 1u)};
@@ -383,7 +388,7 @@ std::vector<std::uint8_t> decodeLzw(const std::uint8_t *in, std::size_t size, st
         hasPrevious = true;
     }
     if (written != expected)
-        throw GeoTiffRefusal(block + " is an LZW stream that decodes to " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, block + " is an LZW stream that decodes to " +
                              std::to_string(written) + " bytes; " + std::to_string(expected) +
                              " are expected");
     return out;
@@ -414,11 +419,11 @@ void GeoTiffHeader::fromPixel(double column, double row, double &longitude,
 
 GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     if (bytes.size() < 8)
-        throw GeoTiffRefusal("Not a TIFF file: it is shorter than the 8-byte header");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NotTiff, "Not a TIFF file: it is shorter than the 8-byte header");
     const auto head = [&bytes] {
         std::vector<std::uint8_t> out(8);
         if (!bytes.read(0, 8, out.data()))
-            throw GeoTiffRefusal("Not a TIFF file: the header cannot be read");
+            throw GeoTiffRefusal(GeoTiffRefusalCode::NotTiff, "Not a TIFF file: the header cannot be read");
         return out;
     }();
     bool little{};
@@ -427,18 +432,18 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     else if (head[0] == 'M' && head[1] == 'M')
         little = false;
     else
-        throw GeoTiffRefusal("Not a TIFF file: the byte-order mark is missing");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NotTiff, "Not a TIFF file: the byte-order mark is missing");
     const Reader probe(bytes, little);
     const auto magic = probe.u16(head.data() + 2);
     if (magic == 43)
-        throw GeoTiffRefusal("BigTIFF (magic 43) is not in the supported subset: the 3DEP and GLO-30 "
+        throw GeoTiffRefusal(GeoTiffRefusalCode::BigTiff, "BigTIFF (magic 43) is not in the supported subset: the 3DEP and GLO-30 "
                              "tiles are classic TIFF (ADR 0181 §7.2)");
     if (magic != 42)
-        throw GeoTiffRefusal("Not a TIFF file: the magic number is " + std::to_string(magic));
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NotTiff, "Not a TIFF file: the magic number is " + std::to_string(magic));
     const Reader reader(bytes, little);
     const auto ifd = reader.u32(head.data() + 4);
     if (ifd < 8 || ifd >= bytes.size())
-        throw GeoTiffRefusal("Malformed TIFF: the directory offset " + std::to_string(ifd) +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed TIFF: the directory offset " + std::to_string(ifd) +
                              " is outside the file");
     const auto first = readDirectory(reader, ifd);
     const auto &tags = first.tags;
@@ -448,14 +453,14 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
             return fallback;
         const auto values = tagIntegers(reader, found->second);
         if (values.size() != 1)
-            throw GeoTiffRefusal("Malformed TIFF: tag " + std::to_string(tag) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed TIFF: tag " + std::to_string(tag) +
                                  " does not hold one value");
         return values.front();
     };
     const auto require = [&](std::uint16_t tag) -> const Tag & {
         const auto found = tags.find(tag);
         if (found == tags.end())
-            throw GeoTiffRefusal("Malformed TIFF: tag " + std::to_string(tag) + " is missing");
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed TIFF: tag " + std::to_string(tag) + " is missing");
         return found->second;
     };
 
@@ -463,11 +468,11 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     // name, and the images after it are walked (ADR 0181 §7.2 and §7.3).
     const auto subfile = scalar(tagNewSubfileType, 0);
     if (subfile & subfileReducedResolution)
-        throw GeoTiffRefusal("The first image is reduced-resolution (NewSubfileType " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::ImageLayout, "The first image is reduced-resolution (NewSubfileType " +
                              std::to_string(subfile) + ", bit 0 set): the reader reads the "
                              "full-resolution image, not an overview (ADR 0181 §7.2)");
     if (subfile & subfileMask)
-        throw GeoTiffRefusal("The first image is a transparency mask (NewSubfileType " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::ImageLayout, "The first image is a transparency mask (NewSubfileType " +
                              std::to_string(subfile) + ", bit 2 set): the reader reads the "
                              "elevation image (ADR 0181 §7.2)");
     checkFurtherImages(bytes, reader, ifd, first.next);
@@ -477,7 +482,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     const auto width = scalar(tagImageWidth, 0), height = scalar(tagImageLength, 0);
     if (width < 2 || height < 2 || width > GeoTiffBounds::maxDimension ||
         height > GeoTiffBounds::maxDimension)
-        throw GeoTiffRefusal("The raster is " + std::to_string(width) + " by " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "The raster is " + std::to_string(width) + " by " +
                              std::to_string(height) +
                              " posts; each side must be 2 to 1,000,000 posts");
     header.width = std::uint32_t(width);
@@ -485,8 +490,8 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
 
     const auto samples = scalar(tagSamplesPerPixel, 1);
     if (samples != 1)
-        throw GeoTiffRefusal("The file has " + std::to_string(samples) +
-                             " samples per pixel: multi-band rasters are refused (ADR 0181 §7.3)");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Bands, "The file has " + std::to_string(samples) +
+                             " samples per pixel: multi-band rasters are refused (ADR 0181 §7.3)", std::to_string(samples));
     const auto bits = scalar(tagBitsPerSample, 1);
     const auto format = scalar(tagSampleFormat, 1);
     if (bits == 16 && format == 2)
@@ -494,29 +499,29 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     else if (bits == 32 && format == 3)
         header.sampleType = GeoTiffSampleType::Float32;
     else if (bits == 64)
-        throw GeoTiffRefusal("64-bit samples are refused (ADR 0181 §7.3); the subset is int16 "
-                             "and float32");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::SampleType, "64-bit samples are refused (ADR 0181 §7.3); the subset is int16 "
+                             "and float32", "64-bit");
     else
-        throw GeoTiffRefusal("Samples of " + std::to_string(bits) + " bits in sample format " +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::SampleType, "Samples of " + std::to_string(bits) + " bits in sample format " +
                              std::to_string(format) +
-                             " are not in the subset (int16 signed 16-bit or float32)");
+                             " are not in the subset (int16 signed 16-bit or float32)", std::to_string(bits) + "-bit");
     const auto bytesPerSample = header.sampleType == GeoTiffSampleType::Int16 ? 2u : 4u;
 
     const auto compression = scalar(tagCompression, compressionNone);
     if (compression != compressionNone && compression != compressionLzw &&
         compression != compressionDeflate && compression != compressionAdobeDeflate)
-        throw GeoTiffRefusal("Compression " + compressionName(compression) +
-                             " is not in the supported subset (none, LZW or Deflate, ADR 0181 §7.3)");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Compression, "Compression " + compressionName(compression) +
+                             " is not in the supported subset (none, LZW or Deflate, ADR 0181 §7.3)", compressionWord(compression));
     header.compression = compression == compressionAdobeDeflate ? compressionDeflate
                                                                 : std::uint16_t(compression);
 
     const auto predictor = scalar(tagPredictor, 1);
     if (predictor == 2 && header.sampleType != GeoTiffSampleType::Int16)
-        throw GeoTiffRefusal("Predictor 2 is for int16 samples; this file is float32");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "Predictor 2 is for int16 samples; this file is float32");
     if (predictor == 3 && header.sampleType != GeoTiffSampleType::Float32)
-        throw GeoTiffRefusal("Predictor 3 is for float32 samples; this file is int16");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "Predictor 3 is for float32 samples; this file is int16");
     if (predictor != 1 && predictor != 2 && predictor != 3)
-        throw GeoTiffRefusal("Predictor " + std::to_string(predictor) +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "Predictor " + std::to_string(predictor) +
                              " is not in the supported subset (1, 2 or 3)");
     header.predictor = std::uint16_t(predictor);
 
@@ -530,7 +535,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
         if (blockWidth == 0 || blockHeight == 0 || blockWidth > GeoTiffBounds::maxDimension ||
             blockHeight > GeoTiffBounds::maxDimension ||
             blockWidth * blockHeight > GeoTiffBounds::blockSamples)
-            throw GeoTiffRefusal("Tile size " + std::to_string(blockWidth) + " by " +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "Tile size " + std::to_string(blockWidth) + " by " +
                                  std::to_string(blockHeight) +
                                  " is over the 4,194,304-sample block limit");
         header.blocksAcross = std::uint32_t((width + blockWidth - 1) / blockWidth);
@@ -541,7 +546,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
         blockWidth = width;
         blockHeight = std::min<std::uint64_t>(scalar(tagRowsPerStrip, height), height);
         if (blockHeight == 0 || blockWidth * blockHeight > GeoTiffBounds::blockSamples)
-            throw GeoTiffRefusal("A strip of " + std::to_string(blockWidth * blockHeight) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "A strip of " + std::to_string(blockWidth * blockHeight) +
                                  " samples is over the 4,194,304-sample block limit; the file "
                                  "needs tiles or shorter strips");
         header.blocksAcross = 1;
@@ -554,7 +559,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     const std::uint64_t blocks = std::uint64_t(header.blocksAcross) * header.blocksDown;
     if (blocks > GeoTiffBounds::blockCount || header.offsets.size() != blocks ||
         header.byteCounts.size() != blocks)
-        throw GeoTiffRefusal("The file has " + std::to_string(header.offsets.size()) +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "The file has " + std::to_string(header.offsets.size()) +
                              " blocks; the reader needs " + std::to_string(blocks) +
                              " and takes at most 1,000,000");
     for (std::uint64_t b = 0; b < blocks; ++b) {
@@ -564,7 +569,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
         const auto expected = blockWidth * rows * bytesPerSample;
         const auto stored = header.byteCounts[b];
         if (header.offsets[b] > bytes.size() || stored > bytes.size())
-            throw GeoTiffRefusal("Block " + std::to_string(b) + " lies outside the file");
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Block " + std::to_string(b) + " lies outside the file");
         // A compressed block may store more than it decodes to, up to a bound. Deflate's is a
         // sixteenth and 1 KiB. LZW's worst case is a 12-bit code for each byte of output (1.5 bytes
         // a byte), and 1 KiB covers the clear and end codes, so its bound is 1.5 times and 1 KiB.
@@ -573,23 +578,23 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
                                         ? expected + expected / 2 + 1024
                                         : expected + expected / 16 + 1024;
         if (compressed ? stored > limit : stored != expected)
-            throw GeoTiffRefusal(
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, 
                 "Block " + std::to_string(b) + " stores " + std::to_string(stored) + " bytes" +
                 (compressed ? "; the block decodes to " + std::to_string(expected) +
                                   " bytes, so at most " + std::to_string(limit) + " may be stored"
                             : "; " + std::to_string(expected) + " are expected"));
         if (header.offsets[b] + stored > bytes.size())
-            throw GeoTiffRefusal("Block " + std::to_string(b) + " runs past the end of the file");
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Block " + std::to_string(b) + " runs past the end of the file");
     }
 
     // GeoKeys: the model, the raster type, the horizontal and vertical references.
     const auto keyDirectory = tags.find(tagGeoKeys);
     if (keyDirectory == tags.end())
-        throw GeoTiffRefusal("The file has no GeoKey directory: it is not georeferenced");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NotGeoreferenced, "The file has no GeoKey directory: it is not georeferenced");
     const auto directory = tagIntegers(reader, keyDirectory->second);
     if (directory.size() < 4 || directory[3] > GeoTiffBounds::geoKeys ||
         directory.size() < 4 + 4 * directory[3])
-        throw GeoTiffRefusal("Malformed GeoKey directory");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Malformed GeoKey directory");
     std::map<std::uint16_t, GeoKey> keys;
     for (std::uint64_t k = 0; k < directory[3]; ++k) {
         const auto at = 4 + 4 * k;
@@ -607,25 +612,25 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     };
     if (const auto model = keyValue(keyModelType); model && *model != 2) {
         if (*model == 1)
-            throw GeoTiffRefusal("The raster is projected: the subset is geographic, EPSG:4326 "
-                                 "or 4269 (ADR 0181 §7.3)");
-        throw GeoTiffRefusal("The model type " + std::to_string(*model) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Projected, "The raster is projected: the subset is geographic, EPSG:4326 "
+                                 "or 4269 (ADR 0181 §7.3)", "the raster is marked projected");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "The model type " + std::to_string(*model) +
                              " is not in the subset (geographic is required)");
     }
     if (const auto raster = keyValue(keyRasterType)) {
         if (*raster != 1 && *raster != 2)
-            throw GeoTiffRefusal("The raster type " + std::to_string(*raster) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "The raster type " + std::to_string(*raster) +
                                  " is not pixel-is-area (1) or pixel-is-point (2)");
         header.pixelIsArea = *raster == 1;
     }
     if (keyValue(keyProjectedType) && *keyValue(keyProjectedType) != 32767)
-        throw GeoTiffRefusal("The file names a projected CRS (EPSG:" +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Projected, "The file names a projected CRS (EPSG:" +
                              std::to_string(*keyValue(keyProjectedType)) +
-                             "): the subset is geographic (ADR 0181 §7.3)");
+                             "): the subset is geographic (ADR 0181 §7.3)", "EPSG:" + std::to_string(*keyValue(keyProjectedType)));
     const auto geographic = keyValue(keyGeographicType);
     if (!geographic)
-        throw GeoTiffRefusal("The file names no geographic CRS, so its horizontal datum is "
-                             "unlabelled");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::CoordinateSystem, "The file names no geographic CRS, so its horizontal datum is "
+                             "unlabelled", "none named");
     switch (*geographic) {
     case 4326:
         header.geographicKey = 4326;
@@ -636,40 +641,41 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
         header.horizontalDatum = "NAD83";
         break;
     case 4258:
-        throw GeoTiffRefusal("ETRS89 (EPSG:4258) is refused: the product has no transformation to "
-                             "WGS84 (ADR 0181 §2.3)");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NationalGrid, "ETRS89 (EPSG:4258) is refused: the product has no transformation to "
+                             "WGS84 (ADR 0181 §2.3)", "ETRS89");
     case 4277:
-        throw GeoTiffRefusal("OSGB36 (EPSG:4277) is refused: the product has no national grid "
-                             "transformation (ADR 0181 §2.3)");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NationalGrid, "OSGB36 (EPSG:4277) is refused: the product has no national grid "
+                             "transformation (ADR 0181 §2.3)", "OSGB36");
     case 32767:
-        throw GeoTiffRefusal("A user-defined geographic CRS is not in the supported subset");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::CoordinateSystem, "A user-defined geographic CRS is not in the supported subset", "user-defined");
     default:
-        throw GeoTiffRefusal("Geographic CRS EPSG:" + std::to_string(*geographic) +
-                             " is not in the supported subset (4326 WGS84 or 4269 NAD83)");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::CoordinateSystem, "Geographic CRS EPSG:" + std::to_string(*geographic) +
+                             " is not in the supported subset (4326 WGS84 or 4269 NAD83)", "EPSG:" + std::to_string(*geographic));
     }
     if (const auto units = keyValue(keyVerticalUnits); units && *units != 9001)
-        throw GeoTiffRefusal("Elevations in units code " + std::to_string(*units) +
+        throw GeoTiffRefusal(GeoTiffRefusalCode::VerticalUnits, "Elevations in units code " + std::to_string(*units) +
                              " are refused: only metres (9001) are in the subset");
     if (const auto vertical = keyValue(keyVerticalType)) {
         if (*vertical == 32767)
-            throw GeoTiffRefusal("A user-defined vertical reference is not in the supported subset");
+            throw GeoTiffRefusal(GeoTiffRefusalCode::VerticalReference, "A user-defined vertical reference is not in the supported subset", "user-defined");
         if (*vertical != 0) {
+            header.verticalKey = std::uint16_t(*vertical);
             header.verticalReference = verticalLabel(*vertical);
             if (header.verticalReference.empty())
-                throw GeoTiffRefusal("The vertical reference EPSG:" + std::to_string(*vertical) +
+                throw GeoTiffRefusal(GeoTiffRefusalCode::VerticalReference, "The vertical reference EPSG:" + std::to_string(*vertical) +
                                      " is not in the subset (NAVD88 5703, EGM2008 3855, EGM96 "
-                                     "5773; ADR 0181 §2.7)");
+                                     "5773; ADR 0181 §2.7)", "EPSG:" + std::to_string(*vertical));
         }
     }
 
     // Georeferencing: a pixel scale and one tie point, with no rotation.
     if (tags.count(tagModelTransformation))
-        throw GeoTiffRefusal("A model transformation matrix (a rotated or sheared raster) is not in "
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "A model transformation matrix (a rotated or sheared raster) is not in "
                              "the supported subset");
     const auto scale = tagDoubles(reader, require(tagModelPixelScale));
     const auto tie = tagDoubles(reader, require(tagModelTiepoint));
     if (scale.size() < 2 || tie.size() != 6)
-        throw GeoTiffRefusal("The raster must have one pixel scale and one tie point");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NotGeoreferenced, "The raster must have one pixel scale and one tie point");
     header.scaleX = scale[0];
     header.scaleY = scale[1];
     header.tieI = tie[0];
@@ -682,7 +688,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
                       std::isfinite(header.tieY) && std::abs(header.tieX) <= 360 &&
                       std::abs(header.tieY) <= 90;
     if (!sane)
-        throw GeoTiffRefusal("The raster's pixel scale or tie point is not a finite geographic "
+        throw GeoTiffRefusal(GeoTiffRefusalCode::NotGeoreferenced, "The raster's pixel scale or tie point is not a finite geographic "
                              "position");
 
     // GDAL_NODATA: an ASCII number, the void value of the file.
@@ -692,7 +698,7 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
         char *end = nullptr;
         const double value = std::strtod(text.c_str(), &end);
         if (end == text.c_str())
-            throw GeoTiffRefusal("GDAL_NODATA is not a number");
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "GDAL_NODATA is not a number");
         if (std::isfinite(value))
             header.noData = value;
     }
@@ -749,7 +755,7 @@ std::vector<float> GeoTiffRaster::decode(std::size_t index) const {
     const std::size_t stored = std::size_t(h.byteCounts[index]);
     std::vector<std::uint8_t> raw(stored);
     if (stored != 0 && !bytes_.read(h.offsets[index], stored, raw.data()))
-        throw GeoTiffRefusal("Block " + std::to_string(index) + " cannot be read");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Block " + std::to_string(index) + " cannot be read");
     std::vector<std::uint8_t> out;
     if (h.compression == compressionLzw) {
         out = decodeLzw(raw.data(), stored, expected, index);
@@ -759,7 +765,7 @@ std::vector<float> GeoTiffRaster::decode(std::size_t index) const {
                                                      TINFL_FLAG_PARSE_ZLIB_HEADER |
                                                          TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
         if (got != expected)
-            throw GeoTiffRefusal("Block " + std::to_string(index) +
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Block " + std::to_string(index) +
                                  " is not a valid Deflate stream of " + std::to_string(expected) +
                                  " bytes");
     } else {
@@ -809,7 +815,7 @@ double GeoTiffRaster::sample(double column, double row, bool &isVoid) {
     const auto &h = header_;
     const double maxColumn = h.width - 1.0, maxRow = h.height - 1.0;
     if (!(column >= 0 && column <= maxColumn && row >= 0 && row <= maxRow))
-        throw GeoTiffRefusal("The sample lies outside the file's posts");
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Unsupported, "The sample lies outside the file's posts");
     std::size_t c0 = std::size_t(std::floor(column)), r0 = std::size_t(std::floor(row));
     if (c0 >= h.width - 1)
         c0 = h.width - 2;
@@ -842,6 +848,89 @@ double GeoTiffRaster::sample(double column, double row, bool &isVoid) {
         total += weights[k] * double(value);
     }
     return isVoid ? 0.0 : total;
+}
+
+// The refusal codes (UX §20.5): the stable name and the dialog's plain sentence.
+const char *geoTiffRefusalName(GeoTiffRefusalCode code) {
+    switch (code) {
+    case GeoTiffRefusalCode::NotTiff:
+        return "not-tiff";
+    case GeoTiffRefusalCode::BigTiff:
+        return "bigtiff";
+    case GeoTiffRefusalCode::Damaged:
+        return "damaged";
+    case GeoTiffRefusalCode::Compression:
+        return "compression";
+    case GeoTiffRefusalCode::ImageLayout:
+        return "image-layout";
+    case GeoTiffRefusalCode::Bands:
+        return "bands";
+    case GeoTiffRefusalCode::SampleType:
+        return "sample-type";
+    case GeoTiffRefusalCode::Projected:
+        return "projected";
+    case GeoTiffRefusalCode::NationalGrid:
+        return "national-grid";
+    case GeoTiffRefusalCode::CoordinateSystem:
+        return "coordinate-system";
+    case GeoTiffRefusalCode::VerticalUnits:
+        return "vertical-units";
+    case GeoTiffRefusalCode::VerticalReference:
+        return "vertical-reference";
+    case GeoTiffRefusalCode::NotGeoreferenced:
+        return "not-georeferenced";
+    case GeoTiffRefusalCode::Unsupported:
+        break;
+    }
+    return "unsupported";
+}
+
+std::string geoTiffRefusalSentence(GeoTiffRefusalCode code, const std::string &detail) {
+    // A sentence built from a message drops any ADR citation the message carries.
+    const auto plain = [](std::string text) {
+        if (const auto citation = text.find(" (ADR "); citation != std::string::npos)
+            text.erase(citation);
+        while (!text.empty() && text.back() == '.')
+            text.pop_back();
+        return text + ".";
+    };
+    switch (code) {
+    case GeoTiffRefusalCode::NotTiff:
+        return "This is not a GeoTIFF file.";
+    case GeoTiffRefusalCode::BigTiff:
+        return "This is a BigTIFF file, which this version does not read.";
+    case GeoTiffRefusalCode::Damaged:
+        return plain("The file is damaged: " + detail);
+    case GeoTiffRefusalCode::Compression:
+        return "This file is compressed with " + detail +
+               ". SketchyUp reads uncompressed, LZW and Deflate files.";
+    case GeoTiffRefusalCode::ImageLayout:
+        return "The file's images are not one full-resolution image with overviews. Overview images "
+               "are skipped; a second full-resolution image, a mask or a link is not read.";
+    case GeoTiffRefusalCode::Bands:
+        return "The file has " + detail + " bands. An elevation file has one.";
+    case GeoTiffRefusalCode::SampleType:
+        return "The samples are " + detail + ". This version reads 16-bit integer and 32-bit float "
+                                             "heights.";
+    case GeoTiffRefusalCode::Projected:
+        return "The file's coordinates are projected (" + detail +
+               "). This version reads geographic files only.";
+    case GeoTiffRefusalCode::NationalGrid:
+        return detail + " needs a national grid transformation, which this version does not have.";
+    case GeoTiffRefusalCode::CoordinateSystem:
+        return "The file's geographic coordinate system (" + detail +
+               ") is not in the supported subset. This version reads WGS84 and NAD83 files.";
+    case GeoTiffRefusalCode::VerticalUnits:
+        return "The heights are in units this version does not read. It reads metres only.";
+    case GeoTiffRefusalCode::VerticalReference:
+        return "The file's vertical reference (" + detail +
+               ") is not one this version reads: NAVD88, EGM2008 or EGM96.";
+    case GeoTiffRefusalCode::NotGeoreferenced:
+        return "The file has no map position, so its posts cannot be placed.";
+    case GeoTiffRefusalCode::Unsupported:
+        break;
+    }
+    return plain("This file is outside the supported subset: " + detail);
 }
 
 } // namespace sketchy
