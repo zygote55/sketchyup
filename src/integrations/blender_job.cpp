@@ -214,11 +214,11 @@ std::shared_ptr<const PreparedRender> PreparedRender::prepare(const RenderSnapsh
     writeGlbExport(scene, result->sourceDirectory());
     result->manifest_ = scene.manifest;
     result->manifestHash_ =
-        hash(read(result->sourceDirectory() + "/manifest.json", 16 * 1024 * 1024));
+        hash(read(result->sourceDirectory() + "/manifest.json", glbManifestByteLimit));
     return result;
 }
 void PreparedRender::copyTo(const QString &directory) const {
-    const auto bytes = read(sourceDirectory() + "/manifest.json", 16 * 1024 * 1024);
+    const auto bytes = read(sourceDirectory() + "/manifest.json", glbManifestByteLimit);
     require(hash(bytes) == manifestHash_, "Captured render manifest changed");
     GlbExport package{read(sourceDirectory() + "/scene.glb", 256 * 1024 * 1024), object(bytes), {}};
     if (package.manifest.contains("environment"))
@@ -229,7 +229,7 @@ std::shared_ptr<const PreparedRender> PreparedRender::open(const QString &direct
                                                            const QString &manifestHash) {
     require(!QFileInfo(directory).isSymLink() && QFileInfo(directory).isDir(),
             "Invalid retained render directory");
-    const auto bytes = read(directory + "/manifest.json", 16 * 1024 * 1024);
+    const auto bytes = read(directory + "/manifest.json", glbManifestByteLimit);
     require(hash(bytes) == manifestHash, "Retained render manifest changed");
     auto result = std::shared_ptr<PreparedRender>(new PreparedRender);
     result->root_ = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-render-XXXXXX");
@@ -246,7 +246,7 @@ std::shared_ptr<const PreparedRender> PreparedRender::open(const QString &direct
         package.environment = read(directory + "/environment.hdr", 40 * 1024 * 1024);
     writeGlbExport(package, result->sourceDirectory());
     result->manifestHash_ =
-        hash(read(result->sourceDirectory() + "/manifest.json", 16 * 1024 * 1024));
+        hash(read(result->sourceDirectory() + "/manifest.json", glbManifestByteLimit));
     require(result->manifestHash_ == manifestHash, "Retained manifest is not canonical");
     return result;
 }

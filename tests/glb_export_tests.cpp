@@ -6,6 +6,7 @@
 #include "core/tags.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
+#include "report_fixtures.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -93,6 +94,55 @@ QByteArray read(const QString &path) {
     QFile file(path);
     check(file.open(QIODevice::ReadOnly), "Read artifact");
     return file.readAll();
+}
+// The message of the exception operation throws, or empty when it does not throw.
+template <class F> std::string refusal(F operation) {
+    try {
+        operation();
+    } catch (const std::exception &error) {
+        return error.what();
+    }
+    return {};
+}
+// R099.f: the limits a large capture meets. A terrain's triangles count against the terrain class
+// (ADR 0168), not the 100,000-face modelling limit. The manifest bound is 128 MiB: exactly the
+// bound is written, one byte more is refused by name. The render snapshot keeps its 20,000-body
+// limit: 6,666 placements of the 12-face part are 19,998 bodies, and 6,667 are 20,001.
+void checkLargeCaptureLimits(const QString &directory) {
+    const auto mesh = report_fixtures::flatGrid(230, 1.); // 105,800 triangles, over 100,000 faces.
+    Document terrain;
+    createTerrain(terrain, mesh, report_fixtures::terrainRecord(mesh));
+    check(exportGlb(RenderSnapshot::capture(terrain)).manifest["visibleTriangles"] == 105800,
+          "A terrain over 100,000 faces exports under the terrain class");
+    const auto scene = [](qsizetype padding) {
+        GlbExport result;
+        result.glb = QByteArray("glTF");
+        const auto digest = QString::fromLatin1(
+            QCryptographicHash::hash(result.glb, QCryptographicHash::Sha256).toHex());
+        result.manifest = QJsonObject{{"scene", QJsonObject{{"file", "scene.glb"},
+                                                            {"bytes", qint64(result.glb.size())},
+                                                            {"sha256", digest}}},
+                                      {"padding", QString(padding, QChar('x'))}};
+        return result;
+    };
+    // The indented manifest is the published size; the padding adds one byte per character.
+    const auto room = glbManifestByteLimit - QJsonDocument(scene(0).manifest).toJson().size();
+    check(refusal([&] { writeGlbExport(scene(room + 1), directory + "/over"); }) ==
+              "GLB manifest exceeds 128 MiB",
+          "A manifest one byte over 128 MiB is refused by name");
+    writeGlbExport(scene(room), directory + "/exact");
+    check(QFileInfo(directory + "/exact/manifest.json").size() == glbManifestByteLimit,
+          "A manifest of exactly 128 MiB is written");
+    Document parts, over;
+    report_fixtures::buildPartsModel(parts, 6666, false);
+    report_fixtures::buildPartsModel(over, 6667, false);
+    check(parts.bodies().size() == 19998 && over.bodies().size() == 20001,
+          "The placement counts give 19,998 and 20,001 bodies");
+    check(refusal([&] { RenderSnapshot::capture(parts); }).empty(),
+          "A 19,998-body capture is accepted");
+    check(refusal([&] { RenderSnapshot::capture(over); }) ==
+              "Render snapshot contains too many records",
+          "A 20,001-body capture is refused by name");
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -388,6 +438,7 @@ int main(int argc, char **argv) {
               "CLI rejects mixed modes before effects");
         check(cli({"--render-settings", "missing"}).first != 0, "Orphan render settings rejected");
 #endif
+        checkLargeCaptureLimits(files.path());
         std::cout
             << "GLB snapshot, geometry, hierarchy, assets, cameras and publication checks passed\n";
     } catch (const std::exception &error) {

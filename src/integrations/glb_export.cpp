@@ -1,5 +1,6 @@
 #include "io/solar_io.hpp"
 #include "integrations/glb_export.hpp"
+#include "core/document_limits.hpp"
 #include "core/face_textures.hpp"
 #include "core/shading_normals.hpp"
 #include "core/section_records.hpp"
@@ -18,6 +19,9 @@
 namespace sketchy {
 namespace {
 constexpr qsizetype binaryLimit = 256 * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
+// Visible faces of modelling bodies (ADR 0032). A terrain tile's faces are counted against
+// terrainTriangleLimit instead (ADR 0168 decision 3), so a terrain does not use this budget.
+constexpr size_t visibleFaceLimit = 100000;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -99,8 +103,9 @@ struct Writer {
     std::map<QByteArray, int> meshCache, materialCache;
     std::map<Id, int> nodeMap;
     std::set<Id> usedAssets, usedMaterials;
-    size_t faces{}, triangles{}, references{}, hiddenBodies{}, hiddenFaces{}, wires{}, guides{},
-        curves{}, backDifferences{}, cutEdges{}, capTriangles{}, textSources{}, referenceImages{};
+    size_t faces{}, terrainFaces{}, triangles{}, references{}, hiddenBodies{}, hiddenFaces{},
+        wires{}, guides{}, curves{}, backDifferences{}, cutEdges{}, capTriangles{}, textSources{},
+        referenceImages{};
     Bounds bounds;
     explicit Writer(const RenderSnapshot &snapshot)
         : snapshot(snapshot), doc(snapshot.document()) {}
@@ -274,7 +279,11 @@ struct Writer {
                 ++hiddenFaces;
                 continue;
             }
-            require(++faces <= 100000, "GLB has too many visible faces");
+            if (body.terrainTile)
+                require(++terrainFaces <= terrainTriangleLimit,
+                        "GLB terrain has more than 250,000 triangles");
+            else
+                require(++faces <= visibleFaceLimit, "GLB has too many visible faces");
             for (const auto &loop : record.loops) {
                 references += loop.size();
                 require(references <= 2000000, "GLB has too many face vertices");
@@ -626,8 +635,9 @@ struct Writer {
             manifest["environment"] = describeRenderEnvironment(*snapshot.environment());
             environment = snapshot.environment()->image;
         }
-        require(QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() <= jsonLimit,
-                "GLB manifest exceeds 16 MiB");
+        require(QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() <=
+                    glbManifestByteLimit,
+                "GLB manifest exceeds 128 MiB");
         return {std::move(glb), std::move(manifest), std::move(environment)};
     }
 };
@@ -636,8 +646,8 @@ GlbExport exportGlb(const RenderSnapshot &snapshot) { return Writer(snapshot).ru
 void writeGlbExport(const GlbExport &scene, const QString &directory) {
     require(!directory.isEmpty(), "Choose an export directory");
     const auto manifest = QJsonDocument(scene.manifest).toJson();
-    require(scene.glb.size() <= binaryLimit && manifest.size() <= jsonLimit,
-            "Export artifacts exceed bounds");
+    require(scene.glb.size() <= binaryLimit, "Export artifacts exceed bounds");
+    require(manifest.size() <= glbManifestByteLimit, "GLB manifest exceeds 128 MiB");
     const auto identity = scene.manifest.value("scene").toObject();
     require(identity.value("file") == "scene.glb" &&
                 identity.value("bytes").toInteger() == scene.glb.size() &&
