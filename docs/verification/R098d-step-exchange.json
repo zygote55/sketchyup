@@ -97,7 +97,8 @@
     "tessellate1M": {
       "budget": "10 s with progress; cancel 100 ms; helper ends 1 s",
       "measured": "helper alone 3.99 to 4.03 s (4 runs, Release, R098.e); end-to-end import 14.02 to 14.11 s with a new native file (4 runs), 10.15 to 10.25 s without one (3 runs); helper 3.94 to 4.00 s of it; application conversion 6.2 s, native save about 4 s; cancel not measured on the real helper",
-      "verdict": "helper met (4.0 s); end-to-end import missed, accepted as a documented limit (owner decision 8, 2026-10-28)"
+      "verdict": "R098.j: end-to-end import with a new native file missed, accepted (owner decision 8): 10.17 s (four runs, p50; max 10.23 s; was 14.1 s); without an output file met: 6.87 s (was 10.2 s); helper alone 3.96 s",
+      "measuredR098j": "Release, pinned image, four runs each, final tree (branch perf/r098j-step-speed): the end-to-end import with a new native file 10.14, 10.10, 10.23, 10.20 s (p50 10.17 s), peak 700 MiB; without an output file 6.85, 6.85, 6.88, 6.96 s (p50 6.87 s), peak 691 MiB; the helper alone 3.96 p50 (3.93 to 4.03 s), peak 189 MiB. Baseline 3968bd90, same commands: 14.70 p50 (13.68 to 20.25 s), 10.32 p50 (10.23 to 10.51 s), helper 4.04 s"
     },
     "export1M": {
       "budget": "5 s with progress and cancel; output 256 MiB",
@@ -107,7 +108,8 @@
     "export90954Faces": {
       "budget": "5 s with progress and cancel",
       "measured": "16.80 to 16.83 s (R098.e, Release, four runs); the OCCT writer 13.1 s",
-      "verdict": "missed; accepted as a documented limit (owner decision 8, 2026-10-28)"
+      "verdict": "missed, accepted (owner decision 8): 9.96 s (R098.j, four runs; was 16.80 s); output 100,551,450 bytes (was 223,950,330), which the application now reads back (the 224 MB file was above the 128 MiB input limit); peak 1,034 MiB (was 1,926 MiB)",
+      "measuredR098j": "Release, four runs, final tree: 9.96, 9.96, 9.93, 9.95 s (p50 9.96 s). The change is the writer's surface-curve option (WriteSurfaceCurMode = false): 3.82 million entities become 1.77 million"
     },
     "exportLargest": {
       "budget": "23 s, with progress and cancel; output 256 MiB; the 4 GiB address-space cap kept (owner decision 13)",
@@ -228,6 +230,108 @@
       "sanitizers",
       "desktop suites (the full tier, with the full-ci label)",
       "the helper's thread count and entity cap (partly met in R098.d; not covered by the 2026-10-28 decisions)"
+    ]
+  },
+  "r098j": {
+    "date": "2026-10-29",
+    "branch": "perf/r098j-step-speed",
+    "base": {
+      "main": "3968bd90"
+    },
+    "commits": {
+      "deferredTopology": "4f5096bd",
+      "flatMergeRuns": "bfafe795",
+      "exportWithoutPcurves": "9af0f1b7",
+      "record": "the commit that adds section 14 and the ADR notes (see the PR)"
+    },
+    "owner": "decision 8 (2026-10-28): the conversion step is for 1.5",
+    "verdicts": {
+      "importWithNativeFile": "missed, accepted (owner decision 8): 10.17 s against 10 s",
+      "importWithoutNativeFile": "met: 6.87 s against 10 s",
+      "exportNinetyThousandFaces": "missed, accepted (owner decision 8): 9.96 s against 5 s"
+    },
+    "measurements": {
+      "baseline3968bd90": {
+        "importNativeFileP50": 14.7,
+        "importNativeFileMax": 20.25,
+        "importNativeFilePeakMiB": 724,
+        "importNoOutputP50": 10.32,
+        "importNoOutputMax": 10.51,
+        "importNoOutputPeakMiB": 716,
+        "helperP50": 4.04,
+        "exportP50": 16.56,
+        "exportMax": 16.78,
+        "exportPeakMiB": 1926,
+        "exportBytes": 223950314
+      },
+      "final": {
+        "importNativeFileP50": 10.17,
+        "importNativeFileMax": 10.23,
+        "importNativeFilePeakMiB": 700,
+        "importNoOutputP50": 6.87,
+        "importNoOutputMax": 6.96,
+        "importNoOutputPeakMiB": 691,
+        "helperP50": 3.96,
+        "helperMax": 4.03,
+        "helperPeakMiB": 189,
+        "exportP50": 9.96,
+        "exportMax": 9.96,
+        "exportPeakMiB": 1034,
+        "exportBytes": 100551450
+      },
+      "steps": [
+        {
+          "change": "1 deferred topology (4f5096bd)",
+          "importNativeFileP50": 11.07,
+          "importNoOutputP50": 7.72
+        },
+        {
+          "change": "2 flat merge runs (bfafe795)",
+          "importNativeFileP50": 10.32,
+          "importNoOutputP50": 6.91
+        },
+        {
+          "change": "3 export without pcurves (9af0f1b7)",
+          "exportP50": 9.94
+        }
+      ],
+      "profileBaseline": {
+        "helper": 3.89,
+        "applicationImport": 5.96,
+        "mergeAllBodies": 3.82,
+        "featureEdgesAndAdjacency": 1.35,
+        "directedEdgeMap": 0.38,
+        "regionGrowth": 0.52,
+        "welding": 0.26,
+        "topologyRebuild": 0.24,
+        "materials": 0.21,
+        "encodeForSizeCheck": 1.01,
+        "validationDecode": 0.58,
+        "nativeSave": 3.61,
+        "saveEncodeContainer": 0.97,
+        "saveDecode": 0.54,
+        "saveRoundTripEncodes": 1.89,
+        "saveDescribe": 0.19
+      }
+    },
+    "output": {
+      "identical": "the 19 committed STEP fixtures (17 import, 2 refused with their reports) and the 100-sphere model: 20 reports and 18 native files are identical after fixing the random document identity (38 comparisons)",
+      "converterPins": "ifc_convert_tests pins the encoded document of a curved package (ten of twelve bodies fit) and of the sample package, with hashes taken from the converter at 3968bd90",
+      "exportChanged": "by design: no parametric curves. Re-imported, the 90,954-face export has the source model's counts (faces 90,954, vertices 45,495, edges 136,431, non-planar faces 18,284)"
+    },
+    "tests": {
+      "ifc-app ctest, CI selection (Debug)": "10 of 10 pass, 45.8 s",
+      "helper ctest, fast tier (Debug)": "8 of 8 pass",
+      "helper ctest, full tier": "ifc_worker_fault_corpus_full 1 of 1 pass, 211 s",
+      "sanitizer ctest, CI selection (ASan and UBSan helper)": "6 of 6 pass",
+      "ifc_step_export_tests (E3, E5, E8, refusals)": "all checks pass",
+      "not run": "the desktop dialog suites (no dialog changed); the export rows for the largest exportable model and the 1,000,000-triangle model (not measured again)"
+    },
+    "notDone": [
+      "the save: its round-trip check (two encodings of the document) is the larger part of its time; cutting it changes what the check compares",
+      "the import with a native file is 0.17 s over its budget",
+      "a tessellated export would need AP242, which ADR 0172 section 2 refuses",
+      "the helper's tessellation (BRepMesh, 3.96 s) is output-affecting and unchanged"
     ]
   }
 }

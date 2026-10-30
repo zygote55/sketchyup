@@ -7,6 +7,12 @@ Qt 6.11.2, Python 3.14), 22 CPUs and a 10 GB container. The checks are those of
 [ADR 0172 §7](../decisions/0172-step-exchange-subset.md#7-verification-the-r098-verify-line) (E1 to E8),
 §6 (the budgets) and §8 (packaging and CI). [Summary](R098d-step-exchange.json).
 
+**Status (after R098.j, 2026-10-29).** The two STEP budgets accepted as documented limits under owner decision 8 are still
+missed, and their speed is improved (section 14). The end-to-end import of the 100-sphere model with a new native file is
+10.17 s (was 14.70 s; budget 10 s), and without an output file it is 6.87 s, which meets the budget (was 10.32 s). The
+90,954-face export is 9.96 s (was 16.56 s; budget 5 s), and its file is 100 MB, not 224 MB. The imported documents and the
+import reports are identical to before. The Verify line's verdict (section 12.6) is unchanged.
+
 **Status (after R098.i, 2026-10-29).** E6 now passes in full: the restart-and-exclude that owner decision 7 deferred to 1.5 is built and tested (section 13). Nothing else in this record changes, and the verdict stays as R098.h left it.
 
 **Status (after R098.h, 2026-10-28): Accepted (R098.h)**, with the documented limits of section 12.7: the owner's decisions 7, 8 and 13 are applied (section 12). E1 to E5, E7 and E8 pass; E6 passes for the refusals and the stops, and the restart-and-exclude is deferred to 1.5 (decision 7). The 1,000,000-triangle export budget is replaced by the largest exportable model a document holds, measured under the 4 GiB cap (23 s).
@@ -125,8 +131,8 @@ OCCT sphere model of `tests/step_budget_model.cpp` (100 spheres of radius 1 m, 2
 | Application memory during import | ≤ 1 GiB | Command-line import of the 100-sphere model: peak 722 to 723 MiB over three runs (the helper's peak is inside that figure). The helper alone on the 128 MiB file: 964 to 965 MiB. The 128 MiB input through the command line was not run | **met** for the measured inputs |
 | Parse and transfer 64 MiB, 1,000,000 instances | ≤ 3 s | Helper `--import-step`, 67,108,864 bytes, 1,000,350 entities, status ok; four runs: 2.72, 2.59, 2.69, 2.74 s; peak 487 to 529 MiB. (The R098.a2 figure of 13.89 s was for a different file, 79.8 MiB and 1,690,012 entities, and its build type is not recorded) | **met**: 2.59 to 2.74 s; the margin is about 0.3 s |
 | Parse and transfer 128 MiB, 2,000,000 instances | ≤ 6 s | Helper `--import-step`, 134,217,728 bytes, 1,999,350 entities (under the row's 2,000,000 by 650), status ok; four runs: 5.39, 5.66, 5.51, 5.50 s; peak 964 to 965 MiB | **met**: 5.39 to 5.66 s |
-| Tessellate the model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns in ≤ 100 ms and the helper ends within 1 s | The helper alone on the 100-sphere model (990,584 triangles): 4.04, 3.98, 4.08, 4.99 s (R098.d); **R098.e, Release, 4 runs: 3.99, 4.00, 4.00, 4.03 s**; progress: 101 `P at` lines. The command-line import of the same file, end to end, with a new output file: 13.84, 15.76, 14.27, 13.99 s (R098.d); **R098.e, Release, 4 runs: 14.02, 14.09, 14.06, 14.11 s**. The same import without an output file (R098.e, 3 runs): 10.15, 10.18, 10.25 s. Cancel on the real helper: **not measured** (the command line has no cancel) | the helper's tessellation **met**; the end-to-end import **missed: owner decision pending** (14.1 s with a native file, 10.2 s without); cancel **not run**. Where the time goes, in section 9 |
-| Export of the 1,000,000-triangle model | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | **R098.e, Release, the helper alone on a package of the budget model (20 bodies of 500 102-gons, 1,000,000 triangles, 1,020,000 vertices), with no address-space limit: 61.1 s, peak 8,446 MiB, output 975,418,866 bytes (exit 0).** With the application's 4 GiB address-space limit: **SIGSEGV at 21.6 s** (the address space is exhausted; the OCCT writer reports `malloc failed` and then faults in `Interface_Graph::Evaluate`, gdb backtrace in section 9). With the output limit only (257 MiB): SIGXFSZ at 54 s, 269 MB written. Through the application: **the model cannot be built in one document**: `ifc_step_export --budget 20 500` runs for 204 s and then refuses the edit ("vertices would be 1,020,000 of 600,000"). R098.c's figures (73.9 s helper alone, 974.9 MB) are the same order and are consistent with these. The 90,954-face imported model: **R098.e, Release, 4 runs of the command line: 16.80, 16.83, 16.82, 16.83 s**; helper 15.6 s (the writer 13.1 s), application 1.1 s; 223,950,330 bytes | the 1,000,000-triangle row **missed** (61 s against 5 s; 975 MB against 256 MiB; crash at the 4 GiB limit): owner decision pending. The 90,954-face export **missed on time** (16.8 s against 5 s), met on size: owner decision pending |
+| Tessellate the model (≤ 1,000,000 triangles) | ≤ 10 s, with progress; cancel returns in ≤ 100 ms and the helper ends within 1 s | The helper alone on the 100-sphere model (990,584 triangles): 4.04, 3.98, 4.08, 4.99 s (R098.d); **R098.e, Release, 4 runs: 3.99, 4.00, 4.00, 4.03 s**; progress: 101 `P at` lines. The command-line import of the same file, end to end, with a new output file: 13.84, 15.76, 14.27, 13.99 s (R098.d); **R098.e, Release, 4 runs: 14.02, 14.09, 14.06, 14.11 s**. The same import without an output file (R098.e, 3 runs): 10.15, 10.18, 10.25 s. Cancel on the real helper: **not measured** (the command line has no cancel) | the helper's tessellation **met**; the end-to-end import **missed, accepted (owner decision 8)** with a native file (R098.j: 10.17 s, four runs; was 14.1 s), **met** without one (R098.j: 6.87 s; was 10.2 s); cancel **not run**. Where the time goes, in section 9 |
+| Export of the 1,000,000-triangle model | ≤ 5 s, with progress and cancel; output ≤ 256 MiB | **R098.e, Release, the helper alone on a package of the budget model (20 bodies of 500 102-gons, 1,000,000 triangles, 1,020,000 vertices), with no address-space limit: 61.1 s, peak 8,446 MiB, output 975,418,866 bytes (exit 0).** With the application's 4 GiB address-space limit: **SIGSEGV at 21.6 s** (the address space is exhausted; the OCCT writer reports `malloc failed` and then faults in `Interface_Graph::Evaluate`, gdb backtrace in section 9). With the output limit only (257 MiB): SIGXFSZ at 54 s, 269 MB written. Through the application: **the model cannot be built in one document**: `ifc_step_export --budget 20 500` runs for 204 s and then refuses the edit ("vertices would be 1,020,000 of 600,000"). R098.c's figures (73.9 s helper alone, 974.9 MB) are the same order and are consistent with these. The 90,954-face imported model: **R098.e, Release, 4 runs of the command line: 16.80, 16.83, 16.82, 16.83 s**; helper 15.6 s (the writer 13.1 s), application 1.1 s; 223,950,330 bytes | the 1,000,000-triangle row **missed** (61 s against 5 s; 975 MB against 256 MiB; crash at the 4 GiB limit): owner decision pending. The 90,954-face export **missed, accepted (owner decision 8)** (R098.j: 9.96 s against 5 s, four runs; was 16.8 s), met on size (100 MB, R098.j; 224 MB before) |
 
 The helper figures are four runs each (the text gives the spread). The two export budget figures (20,000 and
 50,000 triangles) are single runs. Every timed figure in the record is from the Release build.
@@ -712,3 +718,169 @@ Not run: `ifc_worker_fault_corpus_full` (the 512-mutation corpus, label `full`),
 - **ADR 0172 section 6's row for the helper's limits** said STEP "has no restarts" (owner decision 7). That row is amended
   to match (R098.i).
 - No contradiction with ADR 0171: decision 19 and the IFC restart are unchanged, and the STEP restart copies their rule.
+
+## 14. R098.j: STEP conversion speed (2026-10-29)
+
+Owner decision 8 (2026-10-28) kept two STEP budgets as documented limits for 1.4.0, and moved the speed of the
+application's conversion step to 1.5 (PR_ROADMAP, 1.5 follow-up 5). This section records that work. Branch
+`perf/r098j-step-speed`, one pull request against `main`. ADR 0172 gains "Implementation notes (R098.j)", and its
+section 6 row for the tessellation is marked (R098.j). Measurements are Release, the pinned image, four runs each,
+on the shared machine (load 1 to 2 for the baseline and for the final runs).
+
+**Status.** Both budgets are still missed, and both are accepted under owner decision 8. The end-to-end import of the
+100-sphere model with a new native file is 10.17 s (budget 10 s; was 14.70 s). Without an output file it is 6.87 s,
+which meets the budget (was 10.32 s). The 90,954-face export is 9.96 s (budget 5 s; was 16.56 s), and its file is
+100 MB, not 224 MB.
+
+### 14.1 Where the time went (baseline)
+
+One run with phase timers, on the unchanged code at `3968bd90` (`origin/main`). The timers are not committed.
+
+| Phase (import with a new native file, 14.7 s) | Time |
+| --- | --- |
+| The helper (`step.helper and checks`: copy, scan, run, read the package) | 3.89 s |
+| The application's conversion (`importIfcPackage`) | 5.96 s |
+| of which: the mesh build for all 100 bodies (`geometryFor`) | 3.82 s |
+| of which: the document build, aside from the meshes | 0.31 s |
+| of which: the encoding for the size check (`encodeDocument`) | 1.01 s |
+| of which: the validation decode (`decodeDocument`) | 0.58 s |
+| The package decode | 0.04 s |
+| The native save (`createNativeFile`) | 3.61 s |
+
+Inside the mesh build (`buildMeshGeometry`, summed over the 100 bodies): feature edges and adjacency 1.35 s; the
+directed-edge map 0.38 s; the region growth 0.52 s; the welding 0.26 s; the topology rebuild 0.24 s; the materials
+0.21 s; the merge loop 0.16 s; the triangle preparation 0.11 s. About 0.6 s is not attributed (freeing the maps).
+
+Inside the save: the encoding of the file 0.97 s; the reopen decode 0.54 s; the round-trip check, which encodes the
+reopened document and the original again, 1.89 s; the description of the file (a parse of its JSON, and its hash) 0.19 s;
+publishing 0.02 s.
+
+**The hypothesis (brief item 1).** Yes. The converter builds the merged geometry of every mesh before the document's
+limit is checked, so the 89 bodies the document refuses (`documentLimit:faces`) had all their merging done, and most of
+their topology too. The face count of a body is exact only after its regions are merged, so the merge itself cannot be
+skipped for a refused body without changing how the refusal is decided. What can be skipped is the work that counts
+against no limit: the feature edges, the edge appearances and the materials. That is change 1 below.
+
+### 14.2 The changes and what each did
+
+Each row is a commit on the branch. Times are p50 of four runs, the import with a new native file unless said.
+
+| Change | Commit | Import, native file | Import, no output | Export |
+| --- | --- | --- | --- | --- |
+| Baseline, `3968bd90` | | 14.70 s | 10.32 s | 16.56 s |
+| 1. The feature edges, edge appearances and materials of a body are made when the document accepts it (`finishMeshGeometry`). The topology rebuild stays where it was, so every count the limits check, and every refusal and its reason, is unchanged | `4f5096bd` | 11.07 s | 7.72 s | | 
+| 2. The planar merge looks up its directed edges in flat runs sorted per start vertex (welded ids are dense), and the faces, points and materials are inserted at the end of their maps (their ids only grow); the points are read from an array, and the region queue is reused | `bfafe795` | 10.32 s | 6.91 s | |
+| 3. The STEP writer writes no parametric (pcurve) curves: `DESTEP_Parameters::WriteSurfaceCurMode = false` | `9af0f1b7` | | | 9.96 s |
+| **Final** | | **10.17 s** (max 10.23) | **6.87 s** (max 6.96) | **9.96 s** (max 9.96) |
+
+Change 3 is in the helper, so the helper's time is not part of the import rows of the final run, and its figures are the
+same as the baseline's (3.96 s p50 against 4.04 s). The peak memory is 700 MiB for the import with a file (was 724 MiB),
+691 MiB without (was 716 MiB), and 1,034 MiB for the export (was 1,926 MiB).
+
+**The save was not changed.** The 3.6 s of section 14.1 is the file's own encoding, the reopen, and the round-trip
+check of R073 (two more encodings of the document). Removing a re-encoding from the check would change what the check
+compares (the Inline encoding it compares today stores the terrain and the asset payloads in the JSON, which the
+External encoding of the file does not), so it is not a contained change. Passing the import's encoding to the save would
+need the import to keep its bytes, which crosses the import and the save interfaces. Neither is done.
+
+**The export writer (change 3), and what was tried first.** The first attempt set the process-wide
+`write.surfacecurve.mode` with `Interface_Static::SetIVal` before the transfer. It made no difference: the transfer
+takes its writer options from `DESTEP_Parameters`, which overrides the statics. The field `WriteSurfaceCurMode` is the
+one that works. The export file of the 90,954-face model went from 3.82 million entities (224 MB) to 1.77 million
+(100 MB): the 273,000 `PCURVE`s, their `DEFINITIONAL_REPRESENTATION`s and the `SURFACE_CURVE`s are gone. The 3D curve of
+every edge is kept, so the reader gives the same faces, vertices, edges and non-planar count: the re-import of the new file
+reports 90,954 faces, 45,495 vertices, 136,431 edges and 18,284 non-planar faces, the same as the import of the source
+sphere model.
+
+This change also fixes a round trip that did not work before: the old 224 MB file is refused on import as larger than
+128 MiB (`LIMIT_EXCEEDED`, `tooLarge`), so a model of this size could be exported but not read back by the application.
+The new file imports.
+
+### 14.3 Before and after
+
+Release, the pinned image, the commands of section 9.3, four runs each. The baseline was measured at 20:15 and the final at
+21:07, at comparable load.
+
+| Measurement | Baseline p50 (max), peak | Final p50 (max), peak | Budget | Verdict |
+| --- | --- | --- | --- | --- |
+| End-to-end import, a new native file | 14.70 s (20.25 s, one outlier; 13.68 to 15.50 s), 724 MiB | 10.17 s (10.23 s), 700 MiB | 10 s | missed, accepted (owner decision 8) |
+| End-to-end import, no output file | 10.32 s (10.51 s), 716 MiB | 6.87 s (6.96 s), 691 MiB | 10 s | met |
+| Helper alone, 100 spheres | 4.04 s (4.04 s), 190 MiB | 3.96 s (4.03 s), 189 MiB | 10 s | met |
+| Export, 90,954 faces, 9 bodies | 16.56 s (16.78 s), 1,926 MiB; 223,950,330 bytes | 9.96 s (9.96 s), 1,034 MiB; 100,551,450 bytes | 5 s | missed, accepted (owner decision 8) |
+
+The budget rows of section 4 carry these verdicts. The helper's figures were noisy in one intermediate run (5.47 s on a
+busy machine), so the table gives the final run.
+
+### 14.4 The output is unchanged (brief item 3)
+
+- **The imported document.** Before the change and after it, the command line imported every committed STEP fixture (19
+  files: 17 import, and 2 are refused with their own reports, `e4-pmi-ap242` and `spaced-units`) and the 100-sphere model,
+  into new native files. Each run's JSON report and its native file were compared with the normalization below. All 38
+  comparisons (the 20 reports and the 18 native files) are identical. The `after` intermediate runs (changes 1 and 2) were
+  compared the same way and are identical too.
+- **How the native files were compared.** A native file carries a random document identity, in its manifest and in its
+  document JSON, and the SHA-256 of the document chunk covers it. The check fixes the identity in both files, recomputes
+  the chunk's SHA-256, and compares the bytes. The report's `nativeFile` block is compared without its identity-derived
+  fields. Two runs of the baseline agree under this rule (every file, every report).
+- **The converter's pinned output.** `ifc_convert_tests` now pins the encoded document (its SHA-256, with the identity
+  fixed) of two packages: a curved package whose last two bodies the face limit refuses (ten bodies of 9,800 faces fit),
+  and the sample package (merged faces, feature edges, materials, colours and a shared mesh). The hashes were taken from
+  the converter at `3968bd90`, and the test passes with the final converter. No existing golden was regenerated.
+- **The export is not byte-identical, by design.** The STEP file has no parametric curves now, so its text differs. Its
+  geometry is checked by the re-import (section 14.2): the same counts as the source. The OCCT writer also numbers its
+  entities in an order that varies from run to run (the two baseline exports differ in their `#` numbers), so the export
+  can only be compared by its content, and the E3, E5 and E8 checks are the ones that bind it.
+
+### 14.5 Tests run (CI's "IFC library and helper" job, locally)
+
+| Selection | Tree | Result |
+| --- | --- | --- |
+| `ctest --test-dir build/ifc-app -R '^(ifc_package|ifc_convert|ifc_import|ifc_worker_run|ifc_export|ifc_step|ifc_step_export|step_import|import_refusal|ifc_sandbox)$' --parallel 2` | Debug, the `ifc-app` configuration (shared libraries, `-g0`, BFD) | 10 of 10 pass, 45.8 s |
+| `ctest --test-dir build/helper -R '^ifc_' -LE full --parallel 2` | Debug, the `ifc` configuration (helper and its suites) | 8 of 8 pass, about 70 s |
+| `ctest --test-dir build/helper -L full` | the same tree | 1 of 1 pass (the 512-mutation damaged-file corpus), 211 s |
+| `ctest --test-dir build/sanitize -R '^(ifc_worker_probe|ifc_import_worker|ifc_georeference|ifc_export_worker|ifc_worker_fault_corpus|ifc_step_worker)$'` | the `ifc-sanitize` configuration (helper under ASan and UBSan), run without `ulimit -v` | 6 of 6 pass, about 230 s |
+| `ifc_step_export_tests` (E3, E5, E8 and the refusals), run directly | the Debug tree | all checks pass |
+
+The IfcOpenShell prefix was built once, in the Release tree, and the other trees reuse it (`SKETCHYUP_IFC_PREFIX`). Its
+stamp matches the pin and the format, and the sanitized build instruments only the project, not the prefix (the preset
+says the library is not instrumented). CI builds its own prefixes. The desktop dialog suites were not run: no dialog was
+changed. The sanitizer and full-tier lines were run as the brief's CI job runs them.
+
+### 14.6 Export findings (brief item 2)
+
+- **Where the time goes.** The writer is per entity. For the 90,954 planar triangle faces, the file had 3.82 million
+  entities, about 42 per face; 273,000 of them were the `PCURVE`s and their definitional representations, and the other
+  faces' entities are the face, its bound, its loop, three oriented edges, the edge curves, the lines with their vectors
+  and directions, and the plane with its placement. Change 3 removes the first group (about 54 % of the entities). What
+  remains is the OCCT writer on 1.77 million entities, and the application's package and the helper's read-back check of
+  the file, which were not profiled separately.
+- **What was tried.** The XDE writer options that the helper sets: `WriteSurfaceCurMode` (taken, section 14.2),
+  `WriteSchema` (already AP214), `WriteUnit` (millimetres, unchanged). The other fields of `DESTEP_Parameters` concern
+  reading, the naming and the assembly mode, which the export already sets to what the file needs (names, colours,
+  layers and assemblies are kept). None was changed.
+- **Not done: a tessellated representation.** Writing triangulated faces would cut the entity count far more, but the
+  tessellated entities belong to AP242, and ADR 0172 section 2 refuses AP242 writing. It was not tried in AP214.
+- **The 5 s budget is not met.** The export is 9.96 s against 5 s, and the writer is most of it. The other export rows
+  of section 4 (the largest exportable model, and the 1,000,000-triangle model) were not measured again. Change 3 applies
+  to them as well, so their figures are older than this change.
+
+### 14.7 What was not done, and risks
+
+- **The save** is unchanged (section 14.2): its round-trip check is the larger part of its time.
+- **The import with a file is 0.17 s over its budget**, and the margin is about the noise of a four-run p50 on a shared
+  machine. The remaining app-side costs are the two encodings of the document (the size check and the file) and the
+  decodes, which are the JSON layer, and the welding (about 0.26 s by the profile), which is a hash table with 27 lookups per
+  vertex. Each of these would be a change to a shared layer, and none is small.
+- **The helper** (`BRepMesh`, 4.0 s) is unchanged: its tessellation parameters are part of the output (ADR 0172 section 3).
+- **Risk.** The deferred topology and the flat edge runs change the code path of every IFC import, not only STEP. The IFC
+  goldens and the IFC import tests pass unchanged (the `ifc_import`, `ifc_convert` and `ifc_sandbox` suites above). The
+  export change affects every STEP export: the round trip and its counts are the evidence, and the E5 test passes.
+
+### 14.8 Findings for the parent
+
+- The two STEP budgets are still missed where they were missed: the import with a file by 0.17 s, the export by 5 s. Both are
+  accepted under owner decision 8. Without a file, the import now meets its budget.
+- The export of the largest model could not be read back before this change: its 224 MB file is above the 128 MiB input
+  limit. It can be now (section 14.2).
+- The desktop's File › Export STEP… uses the same helper, so it now writes the new file too. The IFC export does not use
+  the STEP writer and is unchanged.

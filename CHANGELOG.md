@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- STEP conversion speed (R098.j): importing the 100-sphere model with a new native file takes 10.2 s (was 14.7 s; still over its 10 s budget, a documented limit), and without a file 6.9 s (met); exporting the 90,954-face model takes 10.0 s (was 16.6 s; budget 5 s, a documented limit) and writes 100 MB, not 224 MB, with no parametric curves on the edges.
 - STEP import restart-and-exclude (R098.i, [PR #522](https://github.com/zygote55/sketchyup/pull/522)): a STEP file whose tessellation crashes the helper or overruns its limits is restarted without the part it stopped on (at most three times), and the import is partial and names that part; a sandbox kill, or a stop before the tessellation, still refuses the file whole (1.5 follow-up 4; [ADR 0172](docs/decisions/0172-step-exchange-subset.md)).
 - Asset catalogs insert (R100.i, [PR #521](https://github.com/zygote55/sketchyup/pull/521)): a large catalog's insert runs off the UI thread; a progress sheet opens after a second, and Cancel leaves the model and the library folder unchanged.
 - Styles and asset catalogs (R100.h, [PR #520](https://github.com/zygote55/sketchyup/pull/520)): the asset catalog report has **Save report…**, its accounting bar is solid, hatched and cross-hatched with a legend, and the Styles refusals open with "Nothing was saved." or "Nothing was applied." (1.5 follow-up 3; [ADR 0174](docs/decisions/0174-custom-styles-asset-authoring.md)).
