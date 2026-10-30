@@ -1,4 +1,5 @@
 #include "core/terrain.hpp"
+#include "dem_export_fixture.hpp"
 #include "io/dxf_export.hpp"
 #include "io/terrain_import.hpp"
 #include "io/terrain_source.hpp"
@@ -136,11 +137,45 @@ void siteCoordinates() {
               text.contains("\n" + QByteArray::number(origin.northing, 'f', 0) + "\n"),
           "Origin is added back to a short line");
 }
+// R107.c1 (ADR 0181 §3.3, V6). The planar DXF writer takes world XY only, so a terrain with heights is
+// refused and no DEM-derived content reaches the file as it stands. A flat DEM terrain (every height
+// zero) is written, and each notice is a group-code 999 comment ahead of the header. The file reads back.
+void checkDemCredits(const QString &directory) {
+    const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+    const QString usgs = QString::fromUtf8(demCreditUsgs);
+    Document tall;
+    importDemFixture(tall, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    bool refused = false;
+    try {
+        exportDxf(tall, 1);
+    } catch (const std::runtime_error &error) {
+        refused = std::string(error.what()) == "DXF export supports world XY only";
+    }
+    check(refused, "A terrain with heights is refused by the planar DXF writer");
+
+    auto set = demFixtureSet(fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    for (auto &point : set.points)
+        point.position.z = 0;
+    Document flat;
+    importDemSet(flat, set, "plane-f32-strip-none-le.tif");
+    const auto exported = exportDxf(flat, 1);
+    check(exported.bytes.startsWith(QByteArray("999\n") + demCreditUsgs + "\n0\nSECTION\n2\nHEADER\n"),
+          "The flat terrain's notice is the first group-code 999 comment, ahead of the header");
+    check(exported.report["credits"] == QJsonArray{usgs}, "The DXF report lists the notice");
+    writeDxfExport(exported, directory + "/flat.dxf");
+    const auto back = loadDxf(directory + "/flat.dxf");
+    check(back.document.bodies().size() > 0, "A DXF with a notice reads back");
+    const auto plain = exportDxf(loadDxf(QStringLiteral(SOURCE_DIR "/tests/fixtures/dxf/ezdxf-r2018.dxf")).document, 1);
+    check(!plain.bytes.contains("999\n") && !plain.report.contains("credits"),
+          "A model without DEM terrain writes no notice");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
         QTemporaryDir dir;
         check(dir.isValid(), "Scratch folder");
+        checkDemCredits(dir.path());
         const auto source =
             loadDxf(QStringLiteral(SOURCE_DIR "/tests/fixtures/dxf/ezdxf-r2018.dxf"));
         const auto before = encodeDocument(source.document);

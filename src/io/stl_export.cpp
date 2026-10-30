@@ -1,4 +1,5 @@
 #include "io/stl_export.hpp"
+#include "core/source_credits.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -55,6 +56,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         result.bytes = "solid sketchyup\n";
     auto axis = [&](Vec3 p) { return coordinates.up == StlUpAxis::Y ? Vec3{p.x, p.z, -p.y} : p; };
     size_t count{}, bodies{}, wires{}, groups{}, images{};
+    SourceCredits credits; // R107.c1: the DEM notices of the terrain written
     double maximumError{};
     for (const auto &[id, body] : doc.bodies()) {
         if (body->kind == BodyKind::Group) {
@@ -69,6 +71,8 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         if (body->surface.faces.empty())
             continue;
         ++bodies;
+        if (const auto *dem = demSourceOf(doc, id))
+            credits.add(*dem);
         const auto transform = doc.worldTransform(id);
         for (const auto &[faceId, face] : body->surface.faces) {
             (void)face;
@@ -130,6 +134,13 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
     if (doc.site())
         notices.append("Coordinates are model coordinates, not site coordinates; the site origin "
                        "is not added back.");
+    // R107.c1 (ADR 0181 §3.3): STL has no field for a credit, so the credit is in this report only.
+    QJsonArray written;
+    for (const auto &notice : credits.notices())
+        written.append(QString::fromStdString(notice));
+    if (!credits.empty())
+        notices.append("STL has no field for a source credit. The credit is written in this report "
+                       "only, not in the file.");
     result.report = {
         {"apiVersion", 1},
         {"encoding", binary ? "binary" : "ascii"},
@@ -146,6 +157,8 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
                                {"referenceImagesOmitted", qint64(images)},
                                {"annotationsOmitted", qint64(doc.annotations().size())}}},
         {"notices", notices}};
+    if (!credits.empty())
+        result.report["credits"] = written;
     return result;
 }
 void writeStlExport(const StlExport &result, const QString &path) {

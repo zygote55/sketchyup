@@ -30,6 +30,9 @@ class PresentationCapture {
     const QString &sha256() const { return sha256_; }
     const std::string &documentId() const { return documentId_; }
     std::uint64_t revision() const { return revision_; }
+    // R107.c1 (ADR 0181 §3.3, owner decision 8): the DEM notices of the terrain the frames show; empty
+    // when no keyframe shows DEM-derived terrain.
+    const std::vector<std::string> &credits() const { return credits_; }
 
   private:
     PresentationCapture(Document document, QByteArray encoded, PresentationPlan plan);
@@ -40,6 +43,7 @@ class PresentationCapture {
     std::uint64_t revision_{};
     PresentationPlan plan_;
     std::vector<CameraFrame> frames_;
+    std::vector<std::string> credits_;
 };
 // The answer of a Blender's video probe (UX_DESIGN 17.5): whether the probe reported its FFmpeg
 // codec list, the identifiers it reported ("H264", "MPEG4", ...) and, when it did not, the reason.

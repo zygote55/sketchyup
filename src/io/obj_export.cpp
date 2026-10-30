@@ -1,6 +1,7 @@
 #include "io/obj_export.hpp"
 #include "core/face_textures.hpp"
 #include "core/shading_normals.hpp"
+#include "core/source_credits.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -45,6 +46,7 @@ struct Writer {
     using MaterialKey = std::tuple<Id, std::array<float, 3>, float, Id>;
     std::map<MaterialKey, size_t> materials;
     std::map<Id, QString> assets;
+    SourceCredits credits; // R107.c1: the DEM notices of the terrain written
     explicit Writer(const Document &document, ObjImportOptions units)
         : doc(document), options(units) {}
     void loss(const char *key, int count = 1) { losses[key] = losses[key].toInt() + count; }
@@ -273,6 +275,9 @@ struct Writer {
             }
             if (!b->surface.faces.empty() || !b->surface.wires.empty())
                 geometry(id, *b);
+            if (!b->surface.faces.empty())
+                if (const auto *dem = demSourceOf(doc, id))
+                    credits.add(*dem);
         }
         require(faceCount + wireCount > 0, "OBJ export contains no supported faces or wires");
         require(faceCount + wireCount <= 100000, "OBJ export exceeds 100000 combined elements");
@@ -285,9 +290,12 @@ struct Writer {
         if (!doc.sections().empty())
             loss("sectionPlanesOmitted", int(doc.sections().size()));
         loss("visibilityAndMetadataOmitted");
-        result.obj = "# SketchyUp OBJ; units and axis are recorded in manifest.json\nmtllib "
-                     "materials.mtl\n" +
-                     positions + coordinates + normals + elements;
+        // R107.c1 (ADR 0181 §3.3): one comment line per DEM notice, before the material library.
+        QByteArray creditLines;
+        for (const auto &notice : credits.notices())
+            creditLines += "# " + QByteArray::fromStdString(notice) + "\n";
+        result.obj = "# SketchyUp OBJ; units and axis are recorded in manifest.json\n" + creditLines +
+                     "mtllib materials.mtl\n" + positions + coordinates + normals + elements;
         QJsonObject files{{"model.obj", artifact(result.obj)},
                           {"materials.mtl", artifact(result.mtl)}};
         for (const auto &[name, bytes] : result.textures)
@@ -339,6 +347,12 @@ struct Writer {
                            {"files", files},
                            {"losses", losses},
                            {"notices", notices}};
+        if (!credits.empty()) {
+            QJsonArray written;
+            for (const auto &notice : credits.notices())
+                written.append(QString::fromStdString(notice));
+            result.manifest["credits"] = written;
+        }
         require(QJsonDocument(result.manifest).toJson().size() <= 16 * 1024 * 1024,
                 "OBJ manifest exceeds 16 MiB");
         return std::move(result);

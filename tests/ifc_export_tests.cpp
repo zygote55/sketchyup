@@ -4,6 +4,7 @@
 // tests/fixtures/ifc/export. Needs sketchyup-ifc-worker (IFC_WORKER_PATH) and python3; exits 77 (skipped) when the helper is
 // not built. IFC_UPDATE_GOLDENS=1 rewrites the golden files.
 #include "core/annotations.hpp"
+#include "dem_export_fixture.hpp"
 #include "core/assets.hpp"
 #include "core/reference_images.hpp"
 #include "core/drawing_sheets.hpp"
@@ -1314,6 +1315,62 @@ void budget() {
 }
 } // namespace
 
+// R107.c1 (ADR 0181 §3.3, V6). A site whose origin a DEM file established carries that file's notice in the property
+// set SketchyUp_SourceCredits, property Credits, and the file still checks. A document without such a site writes no
+// notice. The IFC export writes no terrain, so the notice rides on the site: a building with no site gets an IfcSite
+// above it, and a site the user made carries the notice itself. A terrain alone has nothing to write (as before).
+void demCredits() {
+    const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+    QTemporaryDir dir;
+    check(dir.isValid(), "DEM credit directory");
+    const auto addHouse = [](Document &doc, bool withSite) {
+        Edit edit{"House", {}};
+        if (withSite) {
+            auto site = group(9100, 0, "Site");
+            site->properties = {{"ifc.Class", std::string("IfcSite")}, {"ifc.Step", 10.0}};
+            edit.changes.push_back({site->id, nullptr, site});
+        }
+        auto building = group(9000, withSite ? 9100 : 0, "House");
+        building->properties = {{"ifc.Class", std::string("IfcBuilding")}, {"ifc.Step", 11.0}};
+        auto wall = box(9001, 9000, "Wall", {0, 0, 0}, {1, 1, 1});
+        edit.changes.push_back({building->id, nullptr, building});
+        edit.changes.push_back({wall->id, nullptr, wall});
+        doc.apply(std::move(edit), doc.revision());
+    };
+    const std::string notice = demCreditUsgs;
+
+    Document house;
+    importDemFixture(house, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    addHouse(house, false);
+    const auto synthesized = exportTo(house, dir.path(), "house.ifc");
+    checkFile(synthesized.path);
+    check(synthesized.bytes.contains("SketchyUp_SourceCredits") && synthesized.bytes.contains("'Credit: U.S. Geological Survey'"),
+          "The synthesized site carries the 3DEP notice in a property set");
+    check(synthesized.report["spatial"].toObject()["synthesizedSite"].toBool(),
+          "A building with no site gets an IfcSite above it");
+    check(synthesized.report["credits"].toArray() == QJsonArray{QString::fromUtf8(demCreditUsgs)},
+          "The IFC report lists the notice");
+    const auto back = reimport(synthesized.path);
+    std::string noticeOnSite;
+    for (const auto &[id, body] : back.bodies())
+        if (textOf(*body, "ifc.Class") == "IfcSite")
+            noticeOnSite = textOf(*body, "SketchyUp_SourceCredits.Credits");
+    check(noticeOnSite == notice, "Read back, the notice is a property of the site");
+
+    Document sited;
+    importDemFixture(sited, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    addHouse(sited, true);
+    const auto own = exportTo(sited, dir.path(), "sited.ifc");
+    checkFile(own.path);
+    check(!own.report["spatial"].toObject()["synthesizedSite"].toBool() &&
+              own.bytes.contains("'Credit: U.S. Geological Survey'"),
+          "A site the user made carries the notice, and none is synthesized");
+
+    const auto plain = exportTo(nativeModel().document, dir.path(), "plain.ifc");
+    check(!plain.bytes.contains("SketchyUp_SourceCredits") && !plain.report.contains("credits"),
+          "A document without DEM terrain writes no notice");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     if (!QFileInfo(workerPath()).isExecutable()) {
@@ -1329,7 +1386,8 @@ int main(int argc, char **argv) {
                                                                                               {"imported documents", exportImported},
                                                                                               {"fixture documents", exportFixtureDocuments},
                                                                                               {"command line", commandLine},
-                                                                                              {"budget", budget}}) {
+                                                                                              {"budget", budget},
+                                                                                              {"source credits", demCredits}}) {
             QElapsedTimer clock;
             clock.start();
             run();

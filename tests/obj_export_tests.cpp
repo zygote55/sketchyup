@@ -1,5 +1,7 @@
 #include "core/terrain.hpp"
+#include "dem_export_fixture.hpp"
 #include "io/obj_export.hpp"
+#include "io/obj_import.hpp"
 #include "io/texture_image.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -80,6 +82,29 @@ Document fixture() {
     doc.apply(std::move(edit), doc.revision());
     return doc;
 }
+// R107.c1 (ADR 0181 §3.3, V6): each DEM notice is a '#' comment line before the material library,
+// once each, and the file still imports. A model without DEM terrain writes no comment.
+void checkDemCredits(const QString &directory) {
+    const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+    const QString usgs = QString::fromUtf8(demCreditUsgs), glo30 = QString::fromUtf8(demCreditGlo30);
+    Document doc;
+    importDemFixture(doc, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    importDemFixture(doc, fixtures, "glo30-like-pixel-point-f32.tif", DemProduct::Glo30, "EGM2008");
+    importDemFixture(doc, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    const auto package = exportObj(doc, {.001, ObjUpAxis::Y});
+    const QByteArray head = "# SketchyUp OBJ; units and axis are recorded in manifest.json\n# " +
+                            usgs.toUtf8() + "\n# " + glo30.toUtf8() + "\nmtllib materials.mtl\n";
+    check(package.obj.startsWith(head), "OBJ carries each notice as a comment before mtllib, once");
+    check(package.manifest["credits"] == QJsonArray({usgs, glo30}), "OBJ manifest lists the notices");
+    writeObjExport(package, directory + "/dem");
+    check(loadObj(directory + "/dem/model.obj", {.001, ObjUpAxis::Y}).document.bodies().size() > 0,
+          "An OBJ with notices still imports");
+    const auto plain = exportObj(fixture(), {.001, ObjUpAxis::Y});
+    check(!plain.obj.contains("# Credit") && !plain.manifest.contains("credits") &&
+              !plain.obj.contains("Geological"),
+          "A model without DEM terrain writes no notice");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -242,6 +267,7 @@ int main(int argc, char **argv) {
                       .report["wireSegments"]
                       .toInt() == 1,
               "Wire-only package round trip");
+        checkDemCredits(dir.path());
         std::cout << "OBJ package, native round-trip, transforms, holes, materials and publication "
                      "checks passed\n";
     } catch (const std::exception &e) {
