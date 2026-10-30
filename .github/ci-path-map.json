@@ -251,6 +251,21 @@
       ]
     },
     {
+      "why": "R107.b1 (ADR 0181 sections 2.8, 7.2 to 7.3, 8 V3 to V7): the bounded GeoTIFF reader (src/io/geotiff*, the vendored miniz inflater), the elevation window import (src/io/geotiff_terrain*, the --dem options), the GeoTIFF source record (schema 34, terrain-dem-v1) and the parser fuzz target.",
+      "paths": [
+        "src/io/geotiff*",
+        "tests/geotiff_tests*",
+        "tests/fixtures/geotiff/**",
+        "tests/fuzz/parser_harness.hpp",
+        "tests/fuzz/parser_seeds.cpp"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
+      ]
+    },
+    {
       "why": "Terrain code and suites select the slow terrain suites.",
       "paths": [
         "src/**/terrain*",

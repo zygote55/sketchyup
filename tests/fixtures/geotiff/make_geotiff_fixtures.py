@@ -14,6 +14,7 @@ corner (pixel-is-area) unless noted.
 
 Refusal fixtures each carry one feature of ADR 0181 §7.3 that the reader must name.
 """
+import math
 import os
 import struct
 import sys
@@ -248,7 +249,21 @@ def f(name, fn):
     return fn
 
 
+def budget_surface(col, row):
+    # A smooth, non-linear terrain-like surface (float32), so the Deflate and predictor work is real.
+    return 120.0 + 60.0 * math.sin(col / 180.0) + 35.0 * math.cos(row / 140.0) + 0.001 * col * row
+
+
 def main(argv):
+    if len(argv) == 3 and argv[1] == '--budget':
+        # ADR 0181 §9 budget file: the size and layout of one GLO-30 tile (2400 by 3600 posts,
+        # 1 arc-second north-south and 1.5 arc-seconds east-west, pixel-is-point, Deflate, predictor 3,
+        # 1024 by 1024 tiles). Written to the given path only; never committed.
+        build(argv[2], dict(values=budget_surface, dtype='f32', little=True, layout='tile', compression=8,
+                            predictor=3, width=2400, height=3600, tile=(1024, 1024), raster_type=2,
+                            scale_x=1.0 / 2400.0, scale_y=1.0 / 3600.0, tie_lon=TIE_LON, tie_lat=TIE_LAT))
+        print('wrote budget fixture to %s' % argv[2])
+        return 0
     out = argv[1] if len(argv) > 1 else os.path.dirname(os.path.abspath(__file__))
     os.makedirs(out, exist_ok=True)
     specs = {

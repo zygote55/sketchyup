@@ -3,9 +3,14 @@
 // generator). The analytic plane is checked at every post (V3: elevation within 1e-6 m, position
 // within 1e-9 m); each §7.3 refusal names its feature; a corrupted file is refused, never crashes.
 #include "core/terrain_records.hpp"
+#include "core/model.hpp"
+#include "core/terrain.hpp"
 #include "geo/geographic.hpp"
+#include "io/document_io.hpp"
 #include "io/geotiff.hpp"
 #include "io/geotiff_terrain.hpp"
+#include "io/native_format.hpp"
+#include "io/terrain_import.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -422,6 +427,39 @@ void testFileNotRead() {
     check(!message.empty(), "a missing file is refused");
 }
 
+// R107.b1 (ADR 0181 §3.2, V9): the source record survives a save and a reopen, and the document
+// is schema 34 with terrain-dem-v1. A document without a GeoTIFF terrain keeps its schema.
+void testRecordRoundTrip() {
+    const auto path = QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif");
+    const auto centre = utmOf(tieLongitude + 24.0 / 3600.0, tieLatitude - 20.0 / 3600.0);
+    const auto set = readGeoTiffTerrain(path, optionsAround(centre, 150));
+    TerrainImportProvenance provenance{"plane-f32-strip-none-le.tif", "EPSG:32630"};
+    auto result = runTerrainImport(set, TerrainImportOptions{}, std::nullopt, provenance);
+    check(result.ok, "the window imports: " + result.message);
+    check(result.record.provenance.dem && *result.record.provenance.dem == *set.dem,
+          "the record carries the source record");
+    Document doc;
+    importTerrain(doc, result.mesh, result.record, result.establish, "Terrain");
+    check(nativeDocumentVersionFor(doc) == nativeDemTerrainDocumentVersion, "schema 34 for a GeoTIFF terrain");
+    const auto reopened = decodeContainer(encodeContainer(doc));
+    check(nativeDocumentVersionFor(reopened) == nativeDemTerrainDocumentVersion, "schema 34 on reopen");
+    std::size_t found = 0;
+    for (const auto &[id, body] : reopened.bodies())
+        if (body->terrain && body->terrain->provenance.dem) {
+            ++found;
+            check(*body->terrain->provenance.dem == *set.dem, "the source record survives a reopen");
+        }
+    check(found == 1, "one GeoTIFF terrain reopens");
+
+    // A terrain without the record keeps the schema it had (no GeoTIFF terrain is schema 34).
+    TerrainImportResult plain = result;
+    plain.record.provenance.dem.reset();
+    Document other;
+    importTerrain(other, plain.mesh, plain.record, plain.establish, "Terrain");
+    check(nativeDocumentVersionFor(other) == nativeTerrainDocumentVersion,
+          "a terrain without the record is written as before (schema 29)");
+}
+
 } // namespace
 
 int main() {
@@ -441,6 +479,7 @@ int main() {
         {"vertical offset (V5)", testOffset},
         {"decimation", testDecimation},
         {"missing file", testFileNotRead},
+        {"record round trip (V9)", testRecordRoundTrip},
     };
     int failed = 0;
     for (const auto &item : cases) {

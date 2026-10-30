@@ -127,6 +127,9 @@ std::vector<std::uint64_t> tagIntegers(const Reader &reader, const Tag &tag) {
 }
 
 std::vector<double> tagDoubles(const Reader &reader, const Tag &tag) {
+    if (tag.type != typeDouble)
+        throw GeoTiffRefusal("Malformed TIFF: a tag that should hold doubles has type " +
+                             std::to_string(tag.type));
     const auto raw = tagBytes(reader, tag);
     std::vector<double> values;
     values.reserve(tag.count);
@@ -638,7 +641,7 @@ double GeoTiffRaster::sample(double column, double row, bool &isVoid) {
             offset = (r - by * h.blockHeight) * h.blockWidth + c;
         }
         const float value = block(index)[offset];
-        if (std::isnan(value) || (h.noData && double(value) == *h.noData)) {
+        if (!std::isfinite(value) || (h.noData && double(value) == *h.noData)) {
             isVoid = true;
             continue;
         }
