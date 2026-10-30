@@ -1,5 +1,6 @@
 #include "io/terrain_import.hpp"
 #include "core/terrain_sources.hpp"
+#include "geo/geographic.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_drape.hpp"
 #include <QJsonArray>
@@ -460,7 +461,7 @@ TerrainPrepared prepareTerrainSources(const TerrainSourceSet &set,
             report.add(Severity::Notice, "site-vertical-unlabelled", 1,
                        "The site's elevation names no vertical reference; the terrain's " +
                            dem.vertical + " label is recorded only (ADR 0181 §2.7).");
-        else if (label != dem.vertical && dem.verticalNote.empty())
+        else if (label != dem.vertical && (dem.verticalNote.empty() || dem.verticalOffset == 0))
             report.locate(Severity::Refusal, "vertical-mismatch",
                           "The terrain's vertical reference differs from the site's. Enter an "
                           "offset and a note to mix them (ADR 0181 §2.7, V5).",
@@ -1020,6 +1021,44 @@ void refusalOutcome(const QJsonObject &terrain, const std::string &prefix, std::
 } // namespace
 
 namespace {
+// R107.b3 (UX §20.5): the stable code and the plain sentence of a refused import, for the dialog.
+// The site and budget refusals name their zones, references and counts; any other refusal carries
+// its first kind as the code and no sentence. The report's messages (the command line's) are kept.
+void refusalSentence(TerrainImportResult &result, const TerrainReport &report,
+                     const TerrainSourceSet &set, const std::optional<SiteOrigin> &site,
+                     std::size_t otherTerrainTriangles, std::uint64_t triangles) {
+    if (result.ok)
+        return;
+    const auto zoneText = [](int zone, bool north) {
+        return std::to_string(zone) + (north ? "N" : "S");
+    };
+    const bool sited = set.dem && site && site->geographic;
+    if (sited && report.count("zone-mismatch")) {
+        result.refusal = "zone-mismatch";
+        result.sentence = "The window is in zone " + zoneText(set.dem->zone, set.dem->north) +
+                          ", and the site is in zone " +
+                          zoneText(site->geographic->utmZone, site->geographic->utmNorth) +
+                          ". A terrain cannot cross zones.";
+    } else if (sited && report.count("vertical-mismatch")) {
+        result.refusal = "vertical-mismatch";
+        result.sentence = "The heights are " + set.dem->vertical + ", and the site's elevation is " +
+                          site->geographic->verticalReference +
+                          ". Enter an offset and a note, or change the site's reference in Site settings.";
+    } else if (set.dem && report.count("origin-outside-zone")) {
+        result.refusal = "origin-outside-zone";
+        result.sentence = "The site origin is outside the file's UTM zone " +
+                          zoneText(set.dem->zone, set.dem->north) +
+                          ", so the site cannot take the file's position. Use an origin inside the file's zone.";
+    } else if (report.count("triangle-budget")) {
+        result.refusal = "triangle-budget";
+        result.sentence = "This model's terrain would have " +
+                          terrainCountText(otherTerrainTriangles + triangles) +
+                          " triangles. The limit is " + terrainCountText(TerrainLimits::triangles) + ".";
+    } else {
+        result.refusal = report.firstRefusal();
+    }
+}
+
 TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImportOptions &options,
                                  const std::optional<SiteOrigin> &site,
                                  const TerrainImportProvenance &provenance,
@@ -1094,6 +1133,36 @@ TerrainImportResult importDryRun(const TerrainSourceSet &set, const TerrainImpor
                                       origin.elevation,
                                       provenance.crs,
                                       {provenance.sourceName, text(set.sha256)}, std::nullopt};
+    // R107.b3 (UX §20.7 item 6, §20.8 question 5; ADR 0181 §2.1): a GeoTIFF import that establishes
+    // the origin writes the site's geographic record. The record sits at the origin's own UTM
+    // position in the file's zone, with the file's datum, its chosen vertical reference and the
+    // file's name and SHA-256 as provenance "imported".
+    if (result.establish && set.dem) {
+        const auto &dem = *set.dem;
+        try {
+            const auto position =
+                utmToGeo(UtmPosition{dem.zone, dem.north, origin.easting, origin.northing});
+            SiteGeographic geographic;
+            geographic.latitude = position.latitude;
+            geographic.longitude = position.longitude;
+            geographic.datum = dem.datum;
+            geographic.utmZone = dem.zone;
+            geographic.utmNorth = dem.north;
+            geographic.convergence = utmGridConvergence(position, dem.zone);
+            geographic.verticalReference = dem.vertical;
+            geographic.provenance = {"imported", dem.sourceName, text(set.sha256)};
+            result.establish->geographic = geographic;
+        } catch (const std::runtime_error &) {
+            report.locate(Severity::Refusal, "origin-outside-zone",
+                          "The site origin is outside the file's UTM zone, so it cannot take the "
+                          "file's geographic record (ADR 0181 §2.1).",
+                          {"origin", {}, std::nullopt,
+                           std::to_string(dem.zone) + (dem.north ? "N" : "S") + " file zone"});
+        }
+    }
+    if (report.refused())
+        result.ok = false;
+    refusalSentence(result, report, set, site, options.otherTerrainTriangles, triangles);
     // The report.
     const QString outcome = !result.ok            ? "refused"
                             : report.hasNotices() ? "importedWithNotices"

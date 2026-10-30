@@ -46,10 +46,45 @@ class GeoTiffMemory final : public GeoTiffBytes {
     std::vector<std::uint8_t> bytes_;
 };
 
-// A file or a feature outside the supported subset. The message names it (ADR 0181 §7.3).
+// The stable code of a refusal (R107.b3, UX §20.5). The command line prints the message, which
+// cites ADR sections; the dialog shows geoTiffRefusalSentence instead, which cites neither.
+enum class GeoTiffRefusalCode : std::uint8_t {
+    NotTiff,           // not a TIFF file, or its header cannot be read
+    BigTiff,           // BigTIFF (magic 43)
+    Damaged,           // truncated, malformed or cut short
+    Compression,       // a compression other than none, LZW or Deflate
+    ImageLayout,       // a second full-resolution image, a mask, an image loop or a link outside the file
+    Bands,             // more than one sample per pixel
+    SampleType,        // samples other than 16-bit integer or 32-bit float
+    Projected,         // projected coordinates
+    NationalGrid,      // OSGB36 or ETRS89: a transformation this version does not have
+    CoordinateSystem,  // a geographic CRS the subset does not read, or none named
+    VerticalUnits,     // heights in units other than metres
+    VerticalReference, // a vertical reference the subset does not read
+    NotGeoreferenced,  // no map position for the posts
+    Unsupported,       // outside the subset for another reason, which the detail names
+};
+// The stable name of a code, as the refusal's "refusal" field (for example "compression").
+const char *geoTiffRefusalName(GeoTiffRefusalCode code);
+// The plain sentence of a code. `detail` fills its value (a compression's name, a band count, a
+// CRS code); a sentence with no value ignores it. No ADR section or command-line option appears.
+std::string geoTiffRefusalSentence(GeoTiffRefusalCode code, const std::string &detail);
+
+// A file or a feature outside the supported subset. The message names it for the command line
+// (ADR 0181 §7.3); code() and sentence() are for the dialog.
 class GeoTiffRefusal : public std::runtime_error {
   public:
-    using std::runtime_error::runtime_error;
+    GeoTiffRefusal(GeoTiffRefusalCode code, const std::string &message, std::string detail = {})
+        : std::runtime_error(message), code_(code), detail_(std::move(detail)) {}
+    GeoTiffRefusalCode code() const { return code_; }
+    // The sentence with the detail, or with the message when the code is given no detail.
+    std::string sentence() const {
+        return geoTiffRefusalSentence(code_, detail_.empty() ? std::string(what()) : detail_);
+    }
+
+  private:
+    GeoTiffRefusalCode code_;
+    std::string detail_;
 };
 
 // The bounds the reader keeps to (ADR 0181 §9, and the fuzzing budget of ADR 0181 §8 V7).
@@ -83,6 +118,7 @@ struct GeoTiffHeader {
     bool pixelIsArea{true};       // GeoKey 1025: 1 pixel-is-area, 2 pixel-is-point (GLO-30 is 2)
     int geographicKey{};          // 4326 or 4269
     std::string horizontalDatum;  // "WGS84" or "NAD83"
+    std::uint16_t verticalKey{};  // GeoKey 4096 (VerticalCSTypeGeoKey): 5703, 3855, 5773, or 0 when none
     std::string verticalReference; // "NAVD88", "EGM2008" or "EGM96", or empty when the file has none
     std::optional<double> noData; // GDAL_NODATA
     // The pixel-centre index of a position: column and row in [0, width - 1] and [0, height - 1]

@@ -120,6 +120,18 @@ bool TerrainReport::refused() const {
                return kind.severity == Severity::Refusal && kind.count > 0;
            });
 }
+std::string TerrainReport::firstRefusal() const {
+    for (const auto &kind : kinds_)
+        if (kind.severity == Severity::Refusal && kind.count > 0)
+            return kind.name;
+    return {};
+}
+std::string terrainCountText(std::uint64_t count) {
+    auto digits = std::to_string(count);
+    for (auto at = std::int64_t(digits.size()) - 3; at > 0; at -= 3)
+        digits.insert(std::size_t(at), ",");
+    return digits;
+}
 bool TerrainReport::hasNotices() const {
     return std::any_of(kinds_.begin(), kinds_.end(), [](const Kind &kind) {
         return kind.severity == Severity::Notice && kind.count > 0;
