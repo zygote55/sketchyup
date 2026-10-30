@@ -824,6 +824,58 @@ Where the built code differs from this ADR (each is a gap §20.7 asks to close b
 
 Owner questions raised by this record are in [UX_DESIGN §20.8](UX_DESIGN.md#208-open-questions-for-the-owner). Question 5 would make the DEM import write the site record that item 4 says is missing.
 
+## Implementation notes (R107.c1)
+
+What R107.c1 built, what each export carries, and what it does not. The sections above stay as the design. This is the first half of §3.3 and §3.4: the data exports. The visible credits (the PDF sheet's "Sources" line, the measured PDF and PNG strip, and the burned-in credit on frames) are R107.c2.
+
+**The notice.** Each DEM source has one notice (`src/core/source_credits.cpp`, `demSourceNotice`). It is the record's `credit`, then its `disclaimer` when the record has one. The GLO-30 notice therefore carries its no-liability sentence (Article 6(c) of the licence, and §3.1's "The no-liability sentence"), joined by a full stop. The 3DEP notice is its credit alone. Control characters become spaces, so a notice is one line. Several sources are joined with "; " (GLB), and line-based carriers write one line per notice. The GLO-30 text already contains "; " before "all rights reserved", so the join is readable but not unique. Each distinct notice is written once, in document order.
+
+**Carriers, as built:**
+
+| Export | Carrier | Written when | Written text (example) |
+|---|---|---|---|
+| GLB (`src/integrations/glb_export.cpp`) | `asset.copyright` (glTF 2.0 optional asset property, §3.3). The manifest gets `credits` | a visible DEM terrain tile emits at least one face | `Credit: U.S. Geological Survey` |
+| OBJ (`src/io/obj_export.cpp`) | `#` comment lines after the first header line, before `mtllib`. The manifest gets `credits` | a DEM tile contributes faces (the OBJ writer ignores visibility, as before) | `# Credit: U.S. Geological Survey` |
+| DXF (`src/io/dxf_export.cpp`) | group-code 999 comments before `0 SECTION` / `2 HEADER`. The report gets `credits` | a DEM tile's edges are written (see the conflict below: only a terrain with every height zero) | `999` / `Credit: U.S. Geological Survey` |
+| STL (`src/io/stl_export.cpp`) | no field in the format. The report gets `credits` and a notice that says the credit is in the report only | a DEM tile contributes facets | report only |
+| IFC (`src/io/ifc_export.cpp`) | property set `SketchyUp_SourceCredits`, property `Credits`, on the site. The report gets `credits` | the site origin was established from a DEM file (see below) | `'Credit: U.S. Geological Survey'` as an `IfcLabel` (an `IfcText` above 255 code points) |
+| STEP | none | not written (see below) | none |
+| Presentation batch (`src/integrations/presentation_batch.cpp`) | `credits` in `manifest.json` | a keyframe scene shows DEM terrain. Computed once when the capture is made. Each frame's GLB carries `asset.copyright` through the GLB writer | the same notices |
+| CLI | prints each exporter's report, so the keys above reach the CLI output. No CLI code changed | | |
+| MCP | no export tool exists (`src/automation/mcp.cpp` has no export call), so there is no MCP export report to change | | |
+
+**Format facts checked.**
+
+- OBJ comments. The Wavefront OBJ description on paulbourke.net (read 2026-10-30) says "Comments can appear anywhere in an .obj file", with a hash in its example. The OBJ importer reads the written file back in the test, so the comment lines do not break it.
+- DXF group 999. The Autodesk group-code value table is the reference ADR 0120 cites. The search summary (2026-10-30; the page itself was not opened) says 999 is a comment string, and that its line holds commentary. ezdxf 1.4.4 (the version the oracle pins) defines `COMMENT_MARKER = 999` and reads the file. Its reader treats 999 as a comment.
+- DXF risk. A search result cites a KLayout forum thread in which a DXF with code 999 stopped importing in one third-party reader. It was not reproduced here. The product's own reader (`dxf_source.cpp` skips code 999) and ezdxf read the files. The owner should know this before the 999 lines reach users.
+- glTF `asset.copyright` is the spec property ADR §3.3 cites (read 2026-10-26).
+- IFC property sets. The name `SketchyUp_SourceCredits` is not a `Pset_` name, so no reader can take it for a standard set. No IFC attribute for imagery copyright was checked (§3.3's note still stands).
+
+**Conflicts with the design and the decisions in this section.**
+
+1. **DXF carries no DEM content for real terrain.** The planar DXF writer requires every vertex at height zero within its tolerance and refuses anything else (`DXF export supports world XY only`, which ADR 0122's planar export rule gives). A DEM terrain has heights, so its DXF export is refused and no DEM geometry reaches a file. The 999 path is written only for a terrain whose every height is zero. The test builds such a terrain by zeroing the posts of a real fixture window. The §3.3 proposal of a 999 comment for DEM content therefore has nothing to carry until the planar export takes terrain. The refusal is tested.
+2. **IFC writes no terrain.** The IFC export skips terrain subtrees (`Disposition::Terrain` and `TerrainTile`), so no DEM geometry is in an IFC file. The only DEM-derived content is the georeference, when the site origin was established from a DEM file (the import sets the site's provenance to the file's name and digest, and the terrain's digest is the same). The notice is written on the site in that case, and only then. A document whose site was typed, with a DEM terrain added later, gets no IFC notice. This is my reading of §3.3's "a property set on the site", and the owner should confirm it.
+3. **A synthesized site.** A document with buildings and no site, whose site came from a DEM file, gets an `IfcSite` above its buildings (identity placement, so no building moves). It is added only for such documents, and only for the notice. It is counted as `synthesizedSite`, as the no-building case already was.
+4. **STEP: decided, no notice.** The STEP export skips terrain bodies (`src/io/step_export.cpp`, the `Terrain` and `ReferenceImage` check) and writes no georeference, so no DEM content is in a STEP file. §3.3 asked the choice between the `FILE_DESCRIPTION` header and the export report. The answer is neither, because the rule ("a credit appears in every export that carries source-derived content") does not apply. The header was not touched, and no test was added for the STEP export. If terrain ever reaches STEP, the notice goes into the header, through the STEP writer's header, which this slice did not inspect.
+5. **The GLO-30 notice includes the no-liability sentence.** §3.1 lists it as part of the notice, and the R107.b1 record stores it separately as `disclaimer`. The export writes both, so the Article 6(c) sentence is never dropped.
+6. **Binary STL refuses DEM terrain.** A terrain at UTM scale, exported as binary STL (float32), breaks the one-micrometre precision bound that the STL writer applies. The test writes the terrain as ASCII. The product behaviour is unchanged and is noted here, since the STL report's credit cannot be reached in binary for such a terrain.
+
+**Byte identity.** A document with no DEM content writes no `credits` key, no `copyright`, no comment line and no 999 line. The existing goldens and fixtures pass without regeneration: `glb_export`, `obj_export`, `dxf_export` (with the ezdxf oracle `dxf_export_real`, run against ezdxf 1.4.4), `stl_export`, `presentation_export`, and the IFC export suite `ifc_export_tests` (its goldens, its `ifc_export_tests: ok` run). No golden file was regenerated.
+
+**Tests.** `tests/dem_export_fixture.hpp` builds a terrain from the committed fixtures (the 3DEP plane, and the GLO-30-like file, both at the tie point the R107.b1 tests use). Each export has a check that reads the file back:
+
+- GLB: `asset.copyright` equals the 3DEP notice exactly; two 3DEP terrains and one GLO-30 terrain give the 3DEP notice once and the two notices joined; a hidden terrain gives no copyright; a scene with no terrain has none; the CLI's printed GLB manifest lists the notice.
+- OBJ: the comment lines sit before `mtllib`, each notice once; the file imports back with `loadObj`.
+- DXF: a real terrain is refused; a zero-height terrain writes the 999 line first, the report lists it, the file reads back, and a document without DEM writes no 999 line. `ezdxf` read a zero-height file as a probe (258 model-space entities, no audit errors, AC1032).
+- STL: the report lists the notice and states that the file holds none; the file bytes have no credit text (ASCII, see conflict 6).
+- Presentation: the capture's `credits()` holds the notice once; a stand-in batch's manifest lists it.
+- IFC: the site carries the notice, the file checks with the helper's `--check`, and the notice reads back as a property of the site. A building with no site gets a synthesized site that carries it. A user's site carries it, and nothing is synthesized. A document without DEM writes no notice.
+
+**Not run.** `ifcopenshell.validate` on the IFC output. The external validator in `scripts/ifc-external-validators` is not a CI gate (ADR 0171 §6.2 point 5). The helper's own `--check` ran on each file the tests wrote. The fast-tier CI build was not run here in full: only the targets above were built locally, in the CI image `sketchyup-ci-pinned:r097a-ifc` (the `ci-fast` preset with the system linker, because the image has no mold, and the `ifc` and `ifc-app` presets for IFC).
+
+**Not done in this slice.** The visible credits (R107.c2). The STEP header (decided not to write, conflict 4). The planar DXF export of terrain (a separate decision for the owner: it would need a terrain-aware writer, which ADR 0122 does not give). Lat/lon windows and holes, as before.
+
 ## Implementation notes (R107.b3)
 
 What this record adds: the engine side of the desktop DEM import. It closes [UX_DESIGN §20.7](UX_DESIGN.md#207-engine-and-command-gaps-the-design-found) items 1 to 7, 9 and 11, so that R107.b4 can build the dialog. Not in this record: the dialog, the report text, the Credit line, the preview overlays, the latitude and longitude entry, the default window and the "Nothing was imported." banners (all R107.b4). Measured on the committed fixtures in `tests/geotiff_tests.cpp`, and run under ASan and UBSan (`geotiff_tests`, `terrain_io_tests`).

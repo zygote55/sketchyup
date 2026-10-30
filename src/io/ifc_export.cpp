@@ -3,6 +3,7 @@
 
 #include "core/appearance.hpp"
 #include "core/component_parameter_records.hpp"
+#include "core/source_credits.hpp"
 #include "geometry/diagnostics.hpp"
 #include "io/new_file.hpp"
 #include "sketchyup/version.hpp"
@@ -238,6 +239,7 @@ struct Capture {
     // counters
     std::map<std::string, qint64> count;      // written / notWritten / misc counters
     std::map<std::string, qint64> notices;
+    std::vector<std::string> sourceNotices; // R107.c1: the DEM notices carried on the site
     QJsonArray locations;
     std::map<std::string, int> locationCounts;
     Id projectGroup{};
@@ -523,6 +525,35 @@ struct Capture {
                 pushChildren(id, Context{index, index, Level::Space}); // a space contains elements and aggregates spaces
             else
                 pushChildren(id, Context{index, ctx.spatial, Level::Part});
+        }
+        // R107.c1 (ADR 0181 §3.3): a site whose origin the DEM file established carries that file's notice in a
+        // property set. The IFC export writes no terrain, so the georeference is the only DEM-derived content. A
+        // document with buildings and no site gets an IfcSite above its buildings, so that the notice has a site.
+        if (const auto *dem = demSourceOfSite(doc)) {
+            SourceCredits credits;
+            credits.add(*dem);
+            sourceNotices = credits.notices();
+            int site = -1;
+            for (std::size_t i = 0; i < nodes.size() && site < 0; ++i)
+                if (nodes[i].role == "site")
+                    site = int(i);
+            if (site < 0) {
+                Node made;
+                made.role = "site";
+                made.name = "Site";
+                site = addNode(std::move(made), 0);
+                count["synthesizedSite"] = 1;
+                std::vector<int> kept;
+                for (const int child : nodes[0].children) {
+                    if (child != site && nodes[std::size_t(child)].role == "building") {
+                        nodes[std::size_t(child)].parent = site;
+                        nodes[std::size_t(site)].children.push_back(child);
+                    } else
+                        kept.push_back(child);
+                }
+                nodes[0].children = kept;
+            }
+            nodes[std::size_t(site)].props.push_back(Prop{"SketchyUp_SourceCredits", "Credits", credits.joined()});
         }
         // The default building holds what the project group or the document root holds directly: the first
         // building of the document, or one made up (and a site for it, when the document has none).
@@ -1277,6 +1308,12 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
     for (const auto &[kind, number] : c.locationCounts)
         totals[QString::fromStdString(kind)] = number;
     plan["locationTotals"] = totals;
+    if (!c.sourceNotices.empty()) {
+        QJsonArray credits;
+        for (const auto &notice : c.sourceNotices)
+            credits.append(QString::fromStdString(notice));
+        plan["credits"] = credits;
+    }
     // Nothing to write: no group, no body with faces. The refusal carries the counts of what was left out.
     if (c.writtenGroups + c.writtenBodies + c.writtenPlacements == 0)
         refuse("emptyModel", "Nothing to export: the model has no group or body with faces.", plan);

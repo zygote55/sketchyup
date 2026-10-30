@@ -1,4 +1,5 @@
 #include "core/terrain.hpp"
+#include "dem_export_fixture.hpp"
 #include "io/stl_export.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -43,11 +44,31 @@ Document fixture() {
     doc.apply(std::move(edit), doc.revision());
     return doc;
 }
+// R107.c1 (ADR 0181 §3.3, V6): STL has no field for a credit, so the notice is in the report only,
+// and the report says so. The file's bytes are the same as without the terrain's notice.
+void checkDemCredits() {
+    const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+    const QString usgs = QString::fromUtf8(demCreditUsgs);
+    Document doc;
+    importDemFixture(doc, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+    // UTM heights need more than binary STL's float32 precision, so the terrain is written as ASCII.
+    const auto exported = exportStl(doc, {.001, StlUpAxis::Z}, StlEncoding::Ascii);
+    check(exported.report["credits"] == QJsonArray{usgs}, "The STL report lists the notice");
+    bool stated = false;
+    for (const auto &notice : exported.report["notices"].toArray())
+        stated = stated || notice.toString().contains("no field for a source credit");
+    check(stated, "The STL report says the credit is not in the file");
+    check(!exported.bytes.contains("Credit"), "The STL file holds no credit");
+    check(!exportStl(fixture(), {.001, StlUpAxis::Z}, StlEncoding::Binary).report.contains("credits"),
+          "A model without DEM terrain has no credits key");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
         QTemporaryDir dir;
         check(dir.isValid(), "Scratch folder");
+        checkDemCredits();
         auto doc = fixture();
         {
             // R095.e3: with a site origin the report says the coordinates are model coordinates.
