@@ -2,9 +2,11 @@
 // 4). The packages are built by hand (tests/ifc_package_fixtures.hpp), so no worker is involved: this
 // is the contract between the worker and the application, and runs everywhere.
 #include "ifc_package_fixtures.hpp"
+#include "io/document_io.hpp"
 #include "io/ifc_import.hpp"
 #include "io/native_limits.hpp"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <algorithm>
 #include <array>
@@ -75,6 +77,30 @@ IfcPackageMesh quadMesh(std::vector<Vec3> v, std::vector<std::array<std::uint32_
     mesh.materials.assign(mesh.triangles.size(), IfcPackageMesh::noMaterial);
     return mesh;
 }
+// R098.j: a grid of triangles whose heights differ from cell to cell, so no two neighbours are coplanar: a curved
+// surface, where every triangle is its own face. Each mesh is moved by `m` so the bodies do not overlap.
+IfcPackageMesh roughGrid(std::uint32_t n, std::uint32_t m) {
+    IfcPackageMesh mesh;
+    for (std::uint32_t j = 0; j <= n; ++j)
+        for (std::uint32_t i = 0; i <= n; ++i)
+            mesh.vertices.push_back({10.0 * m + i, double(j), 0.05 * std::sin(0.9 * i + m) * std::cos(0.7 * j)});
+    const auto at = [n](std::uint32_t i, std::uint32_t j) { return j * (n + 1) + i; };
+    for (std::uint32_t j = 0; j < n; ++j)
+        for (std::uint32_t i = 0; i < n; ++i) {
+            mesh.triangles.push_back({at(i, j), at(i + 1, j), at(i + 1, j + 1)});
+            mesh.triangles.push_back({at(i, j), at(i + 1, j + 1), at(i, j + 1)});
+        }
+    mesh.materials.assign(mesh.triangles.size(), IfcPackageMesh::noMaterial);
+    return mesh;
+}
+
+// The document's encoding with its random identity fixed, and its SHA-256: the imported model, byte for byte.
+std::string encodingHash(const Document &document) {
+    auto json = QJsonDocument::fromJson(encodeDocument(document)).object();
+    json["documentId"] = "00000000000000000000000000000001";
+    return QCryptographicHash::hash(QJsonDocument(json).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex().toStdString();
+}
+
 IfcPackage withMesh(IfcPackageMesh mesh) {
     IfcPackage p;
     p.meshes = {std::move(mesh)};
@@ -558,6 +584,32 @@ int main(int argc, char **argv) {
             check(byStep(result.document, 2) == nullptr && byStep(result.document, 3) != nullptr, "the body over the limit is left out, the cube stays");
             const auto elements = result.report["elements"].toObject()["notImported"].toArray();
             check(elements.size() == 1 && elements[0].toObject()["reason"] == "bodyLimit", "and is reported with the limit");
+        }
+
+        {
+            // R098.j: the output of the conversion is pinned. Twelve curved bodies of 9,800 faces: the document takes the
+            // first ones up to its 100,000 faces, and the rest are refused with the limit named. The sample package (merged
+            // faces, edges, materials, colours and a shared mesh) must come out the same too.
+            IfcPackage rough;
+            rough.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
+            for (std::uint32_t m = 0; m < 12; ++m) {
+                rough.meshes.push_back(roughGrid(70, m));
+                rough.nodes.push_back(node(2 + m, "IfcBuildingElementProxy", "rough", 0, IfcNodeRole::Element, m));
+            }
+            const auto roughResult = import(rough);
+            std::int64_t accepted = 0;
+            for (std::uint32_t m = 0; m < 12; ++m)
+                accepted += byStep(roughResult.document, 2 + m) != nullptr;
+            const auto refusals = roughResult.report["elements"].toObject()["notImported"].toArray();
+            check(accepted == 10 && refusals.size() == 1 && refusals[0].toObject()["reason"].toString() == "documentLimit:faces" &&
+                      refusals[0].toObject()["count"].toInteger() == 2,
+                  "ten bodies (98,000 faces) fit, and the two after them are refused with the face limit named");
+            const std::string roughHash = encodingHash(roughResult.document);
+            const std::string sampleHash = encodingHash(import(samplePackage()).document);
+            const std::string pinnedRough = "58867f7f04b3094bbad588ff9be75d26aeeed6f9cbc24a46ca014443e2961135",
+                              pinnedSample = "5b7ea80f1a6205a09e04013afa5bacb3d491fedc26173e3566916b5648df7f8c";
+            if (pinnedRough != roughHash || pinnedSample != sampleHash)
+                throw std::runtime_error("pinned encodings differ: rough " + roughHash + ", sample " + sampleHash);
         }
 
         // ---- Refusals and transforms --------------------------------------------------------------
