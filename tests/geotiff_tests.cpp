@@ -6,6 +6,7 @@
 // and a ClearCode, and each malformed LZW stream refused by name when its block is decoded.
 // R107.b1.2 (ADR 0181 §7.2, §7.3): reduced-resolution overviews are skipped, and any other further
 // image, a loop, a link outside the file, or more than sixteen further images is refused by name.
+#include "automation/terrain_commands.hpp"
 #include "core/terrain_records.hpp"
 #include "core/model.hpp"
 #include "core/terrain.hpp"
@@ -19,6 +20,8 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -588,10 +591,375 @@ void testRecordRoundTrip() {
     // A terrain without the record keeps the schema it had (no GeoTIFF terrain is schema 34).
     TerrainImportResult plain = result;
     plain.record.provenance.dem.reset();
+    // R107.b3: the origin the import establishes carries the site's geographic record (schema 32),
+    // which is a feature of its own, so the case without the source record drops it too.
+    if (plain.establish)
+        plain.establish->geographic.reset();
     Document other;
     importTerrain(other, plain.mesh, plain.record, plain.establish, "Terrain");
     check(nativeDocumentVersionFor(other) == nativeTerrainDocumentVersion,
           "a terrain without the record is written as before (schema 29)");
+}
+
+// ---- R107.b3 (UX §20.7): the engine side of the desktop import ---------------------------------
+
+// The refusal of an action that must fail with a TerrainError (its code, sentence and message).
+template <class F> TerrainError terrainRefusal(F action) {
+    try {
+        action();
+    } catch (const TerrainError &error) {
+        return error;
+    }
+    throw std::runtime_error("a refusal was expected, and the action was accepted");
+}
+
+// A plain sentence: no ADR section, no section mark and no command-line option.
+bool plainSentence(const std::string &text) {
+    return !text.empty() && !contains(text, "ADR") && !contains(text, "§") && !contains(text, "--");
+}
+
+std::string sha256Hex(const QString &path) {
+    QFile file(path);
+    check(file.open(QIODevice::ReadOnly), "the file can be read for its digest");
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    hash.addData(&file);
+    return hash.result().toHex().toStdString();
+}
+
+// Item 3: the file's facts come from its header alone, and name the products, the datum, the
+// vertical key, the compression, the extent and its UTM zones.
+void testFacts() {
+    const auto plane = geoTiffFacts(QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif"));
+    check(plane.width == 48 && plane.height == 40, "the facts give the image size");
+    near(plane.postArcSecondsEastWest, 1, 1e-9, "the facts give the post east-west in arc-seconds");
+    near(plane.postArcSecondsNorthSouth, 1, 1e-9, "the facts give the post north-south in arc-seconds");
+    check(plane.products == std::vector<DemProduct>{DemProduct::Dep3, DemProduct::Glo30},
+          "one arc-second posts fit both products");
+    check(plane.horizontalDatum == "WGS84" && plane.geographicKey == 4326, "the facts give the datum");
+    check(plane.verticalKey == 0 && plane.verticalReference.empty(), "a file with no vertical key");
+    check(plane.compression == "none" && plane.pixelIsArea, "no compression, pixel-is-area");
+    // Pixel-is-area: the posts are the pixel centres, half a post inside the tie point.
+    near(plane.minLongitude, tieLongitude + 0.5 / 3600, 1e-9, "the west edge of the posts");
+    near(plane.maxLongitude, tieLongitude + 47.5 / 3600, 1e-9, "the east edge of the posts");
+    near(plane.minLatitude, tieLatitude - 39.5 / 3600, 1e-9, "the south edge of the posts");
+    near(plane.maxLatitude, tieLatitude - 0.5 / 3600, 1e-9, "the north edge of the posts");
+    check(plane.zones == std::vector<int>{30}, "the extent touches UTM zone 30 only");
+    // The nominal post at the extent's latitude: 31 m north-south and about 19 m east-west.
+    near(plane.postMetresNorthSouth, 31, 0.5, "the nominal north-south post in metres");
+    near(plane.postMetresEastWest, 19, 0.5, "the nominal east-west post in metres");
+
+    const auto navd = geoTiffFacts(QString::fromStdString(fixtures + "with-vertical-navd88-f32.tif"));
+    check(navd.verticalKey == 5703 && navd.verticalReference == "NAVD88", "NAVD88 is GeoKey 5703");
+
+    const auto glo = geoTiffFacts(QString::fromStdString(fixtures + "glo30-like-pixel-point-f32.tif"));
+    check(!glo.pixelIsArea, "the GLO-30 file is pixel-is-point");
+    check(glo.products == std::vector<DemProduct>{DemProduct::Glo30},
+          "a 1/2400 arc-second east-west post fits GLO-30 only");
+
+    const auto refused = terrainRefusal([] {
+        geoTiffFacts(QString::fromStdString(fixtures + "refuse-jpeg.tif"));
+    });
+    check(refused.refusal() == "compression", "the facts refuse a JPEG file by its code");
+    check(plainSentence(refused.sentence()), "the facts' refusal is a plain sentence");
+}
+
+// Item 8: each refusal of the reader and of the window has a stable code and a plain sentence, and
+// the message the command line prints still names its ADR section.
+void testRefusalCodes() {
+    struct FileCase {
+        const char *file, *code, *part;
+    };
+    const FileCase files[]{
+        {"refuse-bigtiff.tif", "bigtiff", "BigTIFF"},
+        {"refuse-jpeg.tif", "compression", "JPEG"},
+        {"refuse-multiband.tif", "bands", "bands"},
+        {"refuse-float64.tif", "sample-type", "64-bit"},
+        {"refuse-projected.tif", "projected", "projected"},
+        {"refuse-etrs89.tif", "national-grid", "ETRS89"},
+        {"refuse-osgb36.tif", "national-grid", "OSGB36"},
+        {"refuse-two-images.tif", "image-layout", "full-resolution"},
+        {"refuse-lzw-truncated.tif", "damaged", "damaged"},
+        {"refuse-transform.tif", "unsupported", "outside the supported subset"},
+        {"refuse-vertical-code.tif", "vertical-reference", "vertical reference"},
+    };
+    for (const auto &item : files) {
+        const auto error = terrainRefusal([&] {
+            readGeoTiffTerrain(QString::fromStdString(fixtures + item.file), optionsAround(utmOf(tieLongitude, tieLatitude), 150));
+        });
+        check(error.refusal() == item.code, std::string(item.file) + " has the refusal code " + item.code +
+                                                ", not " + error.refusal());
+        check(contains(error.sentence(), item.part), std::string(item.file) + ": the sentence names " + item.part);
+        check(plainSentence(error.sentence()), std::string(item.file) + ": the sentence is plain");
+        check(std::string(error.what()).size() > 0, std::string(item.file) + ": the command-line message is kept");
+    }
+
+    // The window and the options: the same codes, with the sentence the dialog shows.
+    const auto path = QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif");
+    const auto centre = utmOf(tieLongitude + 24.0 / 3600.0, tieLatitude - 20.0 / 3600.0);
+    const auto far = [&] {
+        auto options = optionsAround(centre, 150);
+        options.easting0 += 5000;
+        options.easting1 += 5000;
+        return terrainRefusal([&] { readGeoTiffTerrain(path, options); });
+    }();
+    check(far.refusal() == "window-outside" && contains(far.sentence(), "lie outside the file."),
+          "a window off the file is refused as outside");
+    auto fine = optionsAround(centre, 150);
+    fine.spacing = 10;
+    const auto finer = terrainRefusal([&] { readGeoTiffTerrain(path, fine); });
+    check(finer.refusal() == "spacing-fine" && contains(finer.sentence(), "Use 31 m or more."),
+          "a spacing finer than the post is refused, with the nominal post in the sentence");
+    auto zone = optionsAround(centre, 150);
+    zone.zone = 61;
+    check(terrainRefusal([&] { readGeoTiffTerrain(path, zone); }).refusal() == "window-zone",
+          "a zone outside 1 to 60 has its code");
+    auto unlabelled = optionsAround(centre, 150);
+    unlabelled.vertical.clear();
+    const auto gloPath = QString::fromStdString(fixtures + "glo30-like-pixel-point-f32.tif");
+    unlabelled.product = DemProduct::Glo30;
+    const auto choose = terrainRefusal([&] { readGeoTiffTerrain(gloPath, unlabelled); });
+    check(choose.refusal() == "vertical-not-chosen" && choose.sentence() == "Choose the vertical reference to import.",
+          "no vertical reference in the file and none chosen");
+    auto conflict = optionsAround(centre, 150);
+    conflict.vertical = "EGM2008";
+    const auto differs = terrainRefusal([&] {
+        readGeoTiffTerrain(QString::fromStdString(fixtures + "with-vertical-navd88-f32.tif"), conflict);
+    });
+    check(differs.refusal() == "vertical-choice-differs" &&
+              differs.sentence() == "The file names NAVD88 and you chose EGM2008.",
+          "a chosen reference that differs from the file's is named in the sentence");
+    auto narrow = optionsAround(centre, 15);
+    const auto small = terrainRefusal([&] { readGeoTiffTerrain(path, narrow); });
+    check(small.refusal() == "window-small", "a window narrower than one nominal post is refused");
+    auto noNote = optionsAround(centre, 150);
+    noNote.verticalOffset = 1.5;
+    check(terrainRefusal([&] { readGeoTiffTerrain(path, noNote); }).refusal() == "vertical-note",
+          "an offset with no note has its code");
+    auto zeroNote = optionsAround(centre, 150);
+    zeroNote.verticalOffset = 0;
+    zeroNote.verticalNote = "the same reference";
+    const auto zero = terrainRefusal([&] { readGeoTiffTerrain(path, zeroNote); });
+    check(zero.refusal() == "vertical-offset-zero" && contains(zero.what(), "zero"),
+          "a zero offset with a note is refused, in the reader");
+    check(plainSentence(zero.sentence()), "the zero offset's sentence is plain");
+}
+
+// Item 11: a window refused for void posts lists them, in grid order, and says how many there are.
+void testVoidPositions() {
+    const auto voidPath = QString::fromStdString(fixtures + "void-f32-tile-deflate-pred3-le.tif");
+    const auto memory = memoryOf("void-f32-tile-deflate-pred3-le.tif");
+    const auto header = readGeoTiffHeader(memory);
+    double lon = 0, lat = 0;
+    header.fromPixel(20, 15, lon, lat);
+    const auto onVoid = optionsAround(utmOf(lon, lat), 100);
+    try {
+        readGeoTiffTerrain(voidPath, onVoid);
+        throw std::runtime_error("void posts were accepted");
+    } catch (const GeoTiffVoidRefusal &refusal) {
+        check(refusal.refusal() == "window-void" && refusal.count() > 0, "void posts are refused with their count");
+        check(refusal.positions().size() == std::min<std::size_t>(refusal.count(), geoTiffVoidsListed),
+              "every void post is listed, up to the bound");
+        check(contains(refusal.sentence(), "posts depend on no-data posts of the file"),
+              "the sentence says the posts depend on no-data posts");
+        // Each listed position is a void post of the file, inside the window.
+        GeoTiffRaster raster(memory, header);
+        for (const auto &[easting, northing] : refusal.positions()) {
+            check(easting >= onVoid.easting0 && easting <= onVoid.easting1 && northing >= onVoid.northing0 &&
+                      northing <= onVoid.northing1,
+                  "a listed void post lies inside the window");
+            const auto at = utmToGeo(UtmPosition{30, true, easting, northing});
+            double x = 0, y = 0;
+            header.toPixel(at.longitude, at.latitude, x, y);
+            bool isVoid = false;
+            raster.sample(x, y, isVoid);
+            check(isVoid, "a listed position is a void post of the file");
+        }
+        std::cout << "voids: " << refusal.count() << " void posts, " << refusal.positions().size()
+                  << " listed\n";
+    }
+}
+
+// Item 4: the spacing takes the room the model leaves. Without room, the window is decimated to the
+// terrain limit; with room, to the room; with no room, it is refused; with two triangles of room, it
+// is one cell.
+void testRoomDecimation() {
+    const auto path = QString::fromStdString(fixtures + "plane-f32-tile-deflate-pred3-large-le.tif");
+    const auto memory = memoryOf("plane-f32-tile-deflate-pred3-large-le.tif");
+    const auto header = readGeoTiffHeader(memory);
+    double lon = 0, lat = 0;
+    header.fromPixel(350, 350, lon, lat);
+    auto options = optionsAround(utmOf(lon, lat), 6000);
+    const auto free = readGeoTiffTerrain(path, options);
+    options.otherTerrainTriangles = 200000; // room for 50,000 triangles
+    const auto roomed = readGeoTiffTerrain(path, options);
+    const auto triangles = 2 * (roomed.dem->columns - 1) * (roomed.dem->rows - 1);
+    check(triangles <= 50000, "the grid fits the room left");
+    check(roomed.dem->spacing > free.dem->spacing, "the room, not the terrain limit, sets a coarser spacing");
+    // The notice names the room, not the terrain limit, when the room is what decimated the grid.
+    const auto roomText = QJsonDocument(roomed.problems.json()).toJson(QJsonDocument::Compact).toStdString();
+    const auto freeText = QJsonDocument(free.problems.json()).toJson(QJsonDocument::Compact).toStdString();
+    check(contains(roomText, "leave room for 50,000 triangles"), "the notice names the room");
+    check(contains(freeText, "exceed the terrain limits"), "the terrain limit's notice is kept");
+
+    options.otherTerrainTriangles = TerrainLimits::triangles; // no room
+    const auto none = terrainRefusal([&] { readGeoTiffTerrain(path, options); });
+    check(none.code() == "LIMIT_EXCEEDED" && none.refusal() == "triangle-room",
+          "a model with no room refuses the window");
+    check(contains(none.sentence(), "250,000"), "the sentence names the limit");
+    options.otherTerrainTriangles = TerrainLimits::triangles - 1; // one triangle of room
+    check(terrainRefusal([&] { readGeoTiffTerrain(path, options); }).refusal() == "triangle-room",
+          "one triangle of room is no room for a grid");
+
+    options.otherTerrainTriangles = TerrainLimits::triangles - 2; // two triangles: one cell
+    const auto cell = readGeoTiffTerrain(path, options);
+    check(cell.dem->columns == 2 && cell.dem->rows == 2, "two triangles of room leave one cell");
+    check(cell.points.size() == 4, "one cell has four posts");
+    std::cout << "room: " << triangles << " triangles at " << roomed.dem->spacing << " m; free "
+              << free.dem->spacing << " m\n";
+}
+
+// Item 7: the digest is the SHA-256 of the whole file; a file that changes between the digest and
+// the read is refused by name, and nothing is imported.
+void testDigestBindsTheRead() {
+    const auto source = QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif");
+    const QString copy = "r107b3-bound.tif";
+    QFile::remove(copy);
+    check(QFile::copy(source, copy), "the test copies the fixture");
+    const auto options = optionsAround(utmOf(tieLongitude + 24.0 / 3600.0, tieLatitude - 20.0 / 3600.0), 150);
+    const auto set = readGeoTiffTerrainChecked(copy, options, nullptr, {});
+    check(set.sha256.toStdString() == sha256Hex(copy), "the digest is the SHA-256 of the file");
+    const auto refused = terrainRefusal([&] {
+        readGeoTiffTerrainChecked(copy, options, nullptr, [&] {
+            QFile file(copy);
+            check(file.open(QIODevice::Append), "the test appends to the copy");
+            file.write("changed");
+        });
+    });
+    check(refused.refusal() == "file-changed" && contains(refused.what(), "changed while it was read"),
+          "a file changed between the digest and the read is refused by name");
+    QFile::remove(copy);
+}
+
+// Item 5: a zero offset is no correction. The reader refuses it with a note (above), and the import
+// refuses a mismatch whose offset is zero, even with a note; a non-zero offset with its note passes.
+void testZeroOffset() {
+    const auto path = QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif");
+    const auto centre = utmOf(tieLongitude + 24.0 / 3600.0, tieLatitude - 20.0 / 3600.0);
+    const auto set = readGeoTiffTerrain(path, optionsAround(centre, 150));
+    SiteGeographic geographic;
+    geographic.latitude = tieLatitude;
+    geographic.longitude = tieLongitude;
+    geographic.datum = "WGS84";
+    geographic.utmZone = 30;
+    geographic.utmNorth = true;
+    geographic.verticalReference = "EGM2008"; // differs from the file's NAVD88
+    const SiteOrigin site{centre.easting, centre.northing, 0, "EPSG:32630", {}, geographic};
+    const TerrainImportProvenance provenance{"plane-f32-strip-none-le.tif", "EPSG:32630"};
+
+    auto zeroOffset = set;
+    zeroOffset.dem->verticalOffset = 0;
+    zeroOffset.dem->verticalNote = "a note, with no correction";
+    const auto refused = runTerrainImport(zeroOffset, TerrainImportOptions{}, site, provenance);
+    check(!refused.ok && refused.refusal == "vertical-mismatch",
+          "a mismatch with a zero offset is refused, even with a note");
+    check(contains(refused.sentence, "The heights are NAVD88, and the site's elevation is EGM2008."),
+          "the refusal names both references: " + refused.sentence);
+
+    auto corrected = set;
+    corrected.dem->verticalOffset = 1.5;
+    corrected.dem->verticalNote = "the difference at this site, from a survey";
+    const auto accepted = runTerrainImport(corrected, TerrainImportOptions{}, site, provenance);
+    check(accepted.ok, "a mismatch with a non-zero offset and its note is accepted: " + accepted.message);
+
+    auto noNote = set;
+    noNote.dem->verticalOffset = 1.5;
+    noNote.dem->verticalNote.clear();
+    check(!runTerrainImport(noNote, TerrainImportOptions{}, site, provenance).ok,
+          "a mismatch with an offset and no note is refused");
+
+    // A zone that differs is refused by name, with both zones in the sentence.
+    auto otherZone = site;
+    otherZone.geographic->utmZone = 31;
+    const auto zoned = runTerrainImport(set, TerrainImportOptions{}, otherZone, provenance);
+    check(zoned.refusal == "zone-mismatch" &&
+              zoned.sentence == "The window is in zone 30N, and the site is in zone 31N. A terrain cannot cross zones.",
+          "a window in another zone is refused with both zones: " + zoned.sentence);
+
+    // The triangle budget: the room of the model is passed to the dry run.
+    TerrainImportOptions crowded;
+    crowded.otherTerrainTriangles = TerrainLimits::triangles - 100;
+    const auto budget = runTerrainImport(set, crowded, std::nullopt, provenance);
+    check(!budget.ok && budget.refusal == "triangle-budget" && contains(budget.sentence, "250,000"),
+          "a model without room for the mesh is refused as the triangle budget: " + budget.sentence);
+}
+
+// Item 6: a GeoTIFF import that establishes the origin writes the site's geographic record: the
+// origin's own UTM position in the file's zone, the file's datum and chosen vertical reference, and
+// the file's name and SHA-256 as provenance "imported". The record survives a save and a reopen.
+void testGeographicRecord() {
+    const auto path = QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif");
+    const auto centre = utmOf(tieLongitude + 24.0 / 3600.0, tieLatitude - 20.0 / 3600.0);
+    const auto set = readGeoTiffTerrain(path, optionsAround(centre, 150));
+    const TerrainImportProvenance provenance{"plane-f32-strip-none-le.tif", "EPSG:32630"};
+    const auto result = runTerrainImport(set, TerrainImportOptions{}, std::nullopt, provenance);
+    check(result.ok, "the window imports: " + result.message);
+    check(result.establish && result.establish->geographic,
+          "a GeoTIFF import that establishes the origin writes its geographic record");
+    const auto &geographic = *result.establish->geographic;
+    check(geographic.provenance.kind == "imported" && geographic.provenance.source == "plane-f32-strip-none-le.tif" &&
+              geographic.provenance.sha256 == sha256Hex(path),
+          "the record's provenance is imported, with the file's name and SHA-256");
+    check(geographic.utmZone == 30 && geographic.utmNorth && geographic.datum == "WGS84" &&
+              geographic.verticalReference == set.dem->vertical,
+          "the record holds the zone, the hemisphere, the datum and the chosen vertical reference");
+    const auto grid = validateSiteGeographicRecord(geographic);
+    check(std::abs(grid.easting - result.origin.easting) < 1e-3 &&
+              std::abs(grid.northing - result.origin.northing) < 1e-3,
+          "the record sits at the origin's UTM position");
+    validateSiteOrigin(*result.establish); // throws when the record and the origin disagree
+
+    Document doc;
+    importTerrain(doc, result.mesh, result.record, result.establish, "Terrain");
+    check(doc.site() && doc.site()->geographic, "the document's site has the record");
+    const auto reopened = decodeContainer(encodeContainer(doc));
+    check(reopened.site() && reopened.site()->geographic &&
+              reopened.site()->geographic->provenance.kind == "imported" &&
+              reopened.site()->geographic->provenance.sha256 == sha256Hex(path),
+          "the record survives a save and a reopen");
+
+    // An origin outside the file's zone cannot take the record, and the import says why.
+    TerrainImportOptions far;
+    far.origin = TerrainOriginMetres{0, 0, 0};
+    const auto refused = runTerrainImport(set, far, std::nullopt, provenance);
+    check(!refused.ok && refused.refusal == "origin-outside-zone" && !refused.sentence.empty(),
+          "an origin outside the file's zone is refused by name");
+}
+
+// The import request from a path (item 1): the request carries the window's room and the command's
+// name, and its dry run refuses a model without room for the mesh by the same count the reader used.
+void testRequestAndDryRun() {
+    const auto path = QString::fromStdString(fixtures + "plane-f32-strip-none-le.tif");
+    const auto centre = utmOf(tieLongitude + 24.0 / 3600.0, tieLatitude - 20.0 / 3600.0);
+    auto options = optionsAround(centre, 150);
+    options.otherTerrainTriangles = TerrainLimits::triangles - 100; // room for 100 triangles
+    QJsonObject command{{"command", "terrain.import"}, {"name", "Hills"}};
+    const auto request = parseGeoTiffTerrainRequest(path, options, command);
+    check(request.name == "Hills", "the command's name applies");
+    check(request.options.otherTerrainTriangles == TerrainLimits::triangles - 100,
+          "the request's dry run counts the room the reader used");
+    check(request.provenance.crs == "EPSG:32630" && request.provenance.sourceName == "plane-f32-strip-none-le.tif",
+          "the request's provenance names the zone and the file");
+    // The window's 162 triangles do not fit 100: the reader decimates, and the dry run then fits.
+    check(request.set.dem->spacing > request.set.dem->nominalSpacing, "the room decimates the grid");
+    check(2 * (request.set.dem->columns - 1) * (request.set.dem->rows - 1) <= 100, "the grid fits the room");
+    const auto dryRun = runTerrainImport(request.set, request.options, std::nullopt, request.provenance);
+    check(dryRun.ok, "the dry run imports the decimated grid: " + dryRun.message);
+
+    // A window read from a path, without room: the request imports.
+    auto free = optionsAround(centre, 150);
+    const auto ok = parseGeoTiffTerrainRequest(path, free, QJsonObject{});
+    check(ok.name == "Terrain", "a request without a name is named Terrain");
+    check(runTerrainImport(ok.set, ok.options, std::nullopt, ok.provenance).ok, "the free window imports");
 }
 
 } // namespace
@@ -619,6 +987,14 @@ int main() {
         {"decimation", testDecimation},
         {"missing file", testFileNotRead},
         {"record round trip (V9)", testRecordRoundTrip},
+        {"facts from the header (R107.b3 item 3)", testFacts},
+        {"refusal codes and plain sentences (R107.b3 item 8)", testRefusalCodes},
+        {"void posts are located (R107.b3 item 11)", testVoidPositions},
+        {"room left in the model (R107.b3 item 4)", testRoomDecimation},
+        {"the digest binds the read (R107.b3 item 7)", testDigestBindsTheRead},
+        {"zero offset is no correction (R107.b3 item 5)", testZeroOffset},
+        {"geographic record of an establishing import (R107.b3 item 6)", testGeographicRecord},
+        {"the request from a path (R107.b3 item 1)", testRequestAndDryRun},
     };
     int failed = 0;
     for (const auto &item : cases) {

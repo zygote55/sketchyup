@@ -282,12 +282,19 @@ inline constexpr const char *terrainProtectedMessage =
 // (UNSUPPORTED_TARGET, LIMIT_EXCEEDED, NOT_FOUND, INVALID_REQUEST).
 class TerrainError : public std::runtime_error {
   public:
-    TerrainError(std::string code, const std::string &message)
-        : std::runtime_error(message), code_(std::move(code)) {}
+    // `refusal` and `sentence` (R107.b3, UX §20.5) are the stable refusal code and the plain
+    // sentence the dialog shows. They are empty when the refusal has neither; the message is
+    // what the command line prints, and it is unchanged by them.
+    TerrainError(std::string code, const std::string &message, std::string refusal = {},
+                 std::string sentence = {})
+        : std::runtime_error(message), code_(std::move(code)), refusal_(std::move(refusal)),
+          sentence_(std::move(sentence)) {}
     const std::string &code() const { return code_; }
+    const std::string &refusal() const { return refusal_; }
+    const std::string &sentence() const { return sentence_; }
 
   private:
-    std::string code_;
+    std::string code_, refusal_, sentence_;
 };
 void validateTerrainRecord(const TerrainRecord &record);
 void validateTerrainDisplay(const TerrainDisplay &display);

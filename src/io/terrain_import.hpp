@@ -80,6 +80,10 @@ struct TerrainImportResult {
     bool cancelled{};
     std::string code; // when refused: INVALID_REQUEST or LIMIT_EXCEEDED
     std::string message;
+    // R107.b3 (UX §20.5): when refused, the stable refusal code (zone-mismatch, vertical-mismatch,
+    // origin-outside-zone, triangle-budget, or the first refusal's kind) and the plain sentence the
+    // dialog shows for the first three and the GeoTIFF refusals. Empty when the import is not refused.
+    std::string refusal, sentence;
     TerrainMesh mesh;
     TerrainRecord record;                // meshDigest is set by importTerrain
     std::optional<SiteOrigin> establish; // set when the document has no site origin yet

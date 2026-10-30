@@ -60,7 +60,8 @@ QJsonObject inspectTerrainSource(const Document &doc, const QByteArray &bytes,
 // R107.b1: a GeoTIFF elevation file, read in the window the options name, imported as the same
 // labelled edit as importTerrainSource (the file is read from disk, never through `data`). The
 // command's origin and name apply as for the other sources; a refusal throws TerrainImportError or
-// TerrainError and changes nothing.
+// TerrainError and changes nothing. The spacing and the dry run count the
+// triangles the document already holds (R107.b3).
 QJsonObject importGeoTiffTerrain(Document &doc, const QString &path,
                                  const GeoTiffTerrainOptions &options, const QJsonObject &command,
                                  TerrainProgress *progress = nullptr);
@@ -85,6 +86,16 @@ struct TerrainSourceRequest {
 TerrainSourceRequest parseTerrainSourceRequest(const QByteArray &bytes, const QJsonObject &command,
                                                bool importing = true,
                                                TerrainProgress *progress = nullptr);
+// R107.b3 (UX §20.7 items 1 and 2): a GeoTIFF elevation file read from its path, in windows, as the
+// desktop dialog's parse half. It is the GeoTIFF counterpart of parseTerrainSourceRequest and is not
+// a command: terrain.import takes no GeoTIFF (ADR 0181 notes), so the 64 MiB rule of the other
+// sources does not apply. The command's origin and name apply as for the other sources; the dry run
+// is runTerrainImport on the request, and applyTerrainImport applies a successful one. The room the
+// model leaves is `options.otherTerrainTriangles`, and the dry run counts the same room.
+TerrainSourceRequest parseGeoTiffTerrainRequest(const QString &path,
+                                                const GeoTiffTerrainOptions &options,
+                                                const QJsonObject &command,
+                                                TerrainProgress *progress = nullptr);
 QJsonObject applyTerrainImport(Document &doc, TerrainImportResult result,
                                const std::string &name = "Terrain");
 // R095.h: terrain.create_from_edges in two halves, as terrain.import above, so Create terrain

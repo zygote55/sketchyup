@@ -128,7 +128,8 @@ void checkDemCredits() {
     Document joined;
     importDemFixture(joined, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
     importDemFixture(joined, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
-    importDemFixture(joined, fixtures, "glo30-like-pixel-point-f32.tif", DemProduct::Glo30, "EGM2008");
+    importDemFixture(joined, fixtures, "glo30-like-pixel-point-f32.tif", DemProduct::Glo30, "EGM2008",
+                     0.5, "Test fixture: an EGM2008 terrain on a NAVD88 site, offset by hand");
     const auto both = exportGlb(RenderSnapshot::capture(joined));
     check(Parsed(both).root["asset"].toObject()["copyright"].toString() == usgs + "; " + glo30,
           "Two sources are joined in document order, and the 3DEP notice appears once");
