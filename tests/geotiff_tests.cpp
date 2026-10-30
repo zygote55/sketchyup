@@ -4,6 +4,8 @@
 // within 1e-9 m); each §7.3 refusal names its feature; a corrupted file is refused, never crashes.
 // R107.b1.1 (ADR 0181 §7.2): LZW fixtures read exactly, the noise surface that uses every code width
 // and a ClearCode, and each malformed LZW stream refused by name when its block is decoded.
+// R107.b1.2 (ADR 0181 §7.2, §7.3): reduced-resolution overviews are skipped, and any other further
+// image, a loop, a link outside the file, or more than sixteen further images is refused by name.
 #include "core/terrain_records.hpp"
 #include "core/model.hpp"
 #include "core/terrain.hpp"
@@ -214,6 +216,11 @@ void testRefusals() {
     refuses("refuse-float64.tif", "64-bit");
     refuses("refuse-jpeg.tif", "JPEG (7)");
     refuses("refuse-two-images.tif", "More than one image");
+    refuses("refuse-mask-image.tif", "transparency mask without the reduced-resolution bit");
+    refuses("refuse-ifd-loop.tif", "loop");
+    refuses("refuse-overviews-17.tif", "more than 16 images follow the first");
+    refuses("refuse-reduced-first.tif", "The first image is reduced-resolution");
+    refuses("refuse-mask-first.tif", "The first image is a transparency mask");
     refuses("refuse-osgb36.tif", "OSGB36");
     refuses("refuse-etrs89.tif", "ETRS89");
     refuses("refuse-projected.tif", "projected");
@@ -241,6 +248,44 @@ void testLzwRefusals() {
     refusesBlock("refuse-lzw-short.tif", "are expected");
     refusesBlock("refuse-lzw-more-output.tif", "more than its 2048 bytes");
     refusesBlock("refuse-lzw-old-style.tif", "old-style LZW");
+}
+
+// The first image's link to the next directory, rewritten to `link` (a little-endian classic file).
+std::vector<std::uint8_t> withFirstLink(std::vector<std::uint8_t> bytes, std::uint32_t link) {
+    const std::size_t ifd = std::size_t(bytes[4]) | std::size_t(bytes[5]) << 8 |
+                            std::size_t(bytes[6]) << 16 | std::size_t(bytes[7]) << 24;
+    const std::size_t count = std::size_t(bytes[ifd]) | std::size_t(bytes[ifd + 1]) << 8;
+    const std::size_t at = ifd + 2 + 12 * count;
+    for (std::size_t k = 0; k < 4; ++k)
+        bytes[at + k] = std::uint8_t(link >> (8 * k));
+    return bytes;
+}
+
+// R107.b1.2 (ADR 0181 §7.2, §7.3): a 3DEP tile has reduced-resolution overviews after its full image.
+// The full image is read exactly, at its own pixel scale. The overviews are skipped, and their blocks
+// are never decoded (the undecodable file is read too). Sixteen overviews are read; seventeen, a loop,
+// and a second full-resolution image are refused by name.
+void testOverviews() {
+    testReaderExactAtPosts("plane-f32-tile-lzw-pred3-overviews-le.tif", plane, true);
+    testReaderExactAtPosts("plane-f32-tile-lzw-pred3-overviews-undecodable-le.tif", plane, true);
+    testReaderExactAtPosts("plane-f32-strip-none-overviews16-le.tif", plane, true);
+    const auto header = readGeoTiffHeader(memoryOf("plane-f32-tile-lzw-pred3-overviews-le.tif"));
+    near(header.scaleX, 1.0 / 3600.0, 1e-15, "overviews: the full image's pixel scale, not an overview's");
+    check(header.tiled && header.compression == 5, "overviews: the full image is the LZW tiles");
+    check(header.offsets.size() == 9, "overviews: the full image has its own 9 tiles");
+
+    // A second full-resolution image names the image and says why it is refused.
+    const auto message = refusal([] {
+        const auto memory = memoryOf("refuse-two-images.tif");
+        readGeoTiffHeader(memory);
+    }, "refuse-two-images.tif is accepted");
+    check(contains(message, "image 2 (directory at offset") && contains(message, "full-resolution image"),
+          "a second image is named by number and reason: " + message);
+
+    // A link from the first image past the end of the file is refused by name.
+    GeoTiffMemory outside(withFirstLink(bytesOf("plane-f32-tile-lzw-pred3-overviews-le.tif"), 0xFFFFFFF0u));
+    check(contains(refusal([&] { readGeoTiffHeader(outside); }, "accepted"), "outside the file"),
+          "a link past the end of the file is refused");
 }
 
 // Corrupted and truncated files are refused by name, or read; never a crash or another error. The
@@ -284,6 +329,7 @@ void testCorruption() {
     corruptionOf("plane-f32-tile-deflate-pred3-le.tif");
     corruptionOf("plane-f32-tile-lzw-pred3-le.tif");
     corruptionOf("noise-i16-strip-lzw-pred2-le.tif");
+    corruptionOf("plane-f32-tile-lzw-pred3-overviews-le.tif"); // the overview links are edited too
     const auto original = bytesOf("plane-f32-tile-deflate-pred3-le.tif");
     // A directory offset outside the file and a non-TIFF file are refused by name.
     auto bytes = original;
@@ -562,6 +608,7 @@ int main() {
         {"voids", testVoids},
         {"refusals", testRefusals},
         {"lzw refusals (R107.b1.1)", testLzwRefusals},
+        {"overviews and further images (R107.b1.2)", testOverviews},
         {"corruption", testCorruption},
         {"alignment (V3)", testAlignment},
         {"glo-30 record", testGloRecord},

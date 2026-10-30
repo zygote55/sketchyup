@@ -29,6 +29,10 @@ constexpr std::uint16_t tagImageWidth = 256, tagImageLength = 257, tagBitsPerSam
                         tagModelPixelScale = 33550, tagModelTiepoint = 33922,
                         tagModelTransformation = 34264, tagGeoKeys = 34735,
                         tagGeoDoubles = 34736, tagGeoAscii = 34737, tagGdalNoData = 42113;
+// NewSubfileType (TIFF 6.0, section 8): bit 0 marks a reduced-resolution image (an overview), bit 2 a
+// transparency mask. A full-resolution image has neither bit, and tag 254 is absent or 0.
+constexpr std::uint16_t tagNewSubfileType = 254;
+constexpr std::uint64_t subfileReducedResolution = 1, subfileMask = 4;
 constexpr std::uint16_t keyModelType = 1024, keyRasterType = 1025, keyGeographicType = 2048,
                         keyProjectedType = 3072, keyVerticalType = 4096, keyVerticalUnits = 4099;
 constexpr std::uint16_t compressionNone = 1, compressionLzw = 5, compressionDeflate = 8,
@@ -185,15 +189,27 @@ std::string verticalLabel(std::uint64_t code) {
     }
 }
 
-// The one image's tags, read from its directory. Refuses a second image.
-std::map<std::uint16_t, Tag> readDirectory(const GeoTiffBytes &bytes, const Reader &reader,
-                                           std::uint64_t ifd) {
-    const auto count = reader.u16(reader.bytesAt(ifd, 2).data());
+// The raw entries of the directory at `ifd`, which are `count` 12-byte entries followed by the offset
+// of the next directory (0 for none).
+std::vector<std::uint8_t> directoryBytes(const Reader &reader, std::uint64_t ifd,
+                                         std::uint16_t &count) {
+    count = reader.u16(reader.bytesAt(ifd, 2).data());
     if (count == 0 || count > GeoTiffBounds::ifdEntries)
         throw GeoTiffRefusal("GeoTIFF directory has " + std::to_string(count) +
                              " entries (the limit is " +
                              std::to_string(GeoTiffBounds::ifdEntries) + ")" + where(ifd));
-    const auto entries = reader.bytesAt(ifd + 2, 12u * count + 4);
+    return reader.bytesAt(ifd + 2, 12u * count + 4);
+}
+
+// The first image's tags, read from its directory, and the offset of the next directory (0 for none).
+struct Directory {
+    std::map<std::uint16_t, Tag> tags;
+    std::uint64_t next{};
+};
+
+Directory readDirectory(const Reader &reader, std::uint64_t ifd) {
+    std::uint16_t count = 0;
+    const auto entries = directoryBytes(reader, ifd, count);
     std::map<std::uint16_t, Tag> tags;
     for (std::uint16_t i = 0; i < count; ++i) {
         const auto *p = entries.data() + 12 * i;
@@ -217,11 +233,72 @@ std::map<std::uint16_t, Tag> readDirectory(const GeoTiffBytes &bytes, const Read
         }
         tags.emplace(tag, entry);
     }
-    const auto next = reader.u32(entries.data() + 12 * count);
-    if (next != 0)
-        throw GeoTiffRefusal("More than one image in the file: the reader takes the first image "
-                             "only (ADR 0181 §7.3)");
-    return tags;
+    return Directory{std::move(tags), reader.u32(entries.data() + 12 * count)};
+}
+
+// A later image, read only as far as its link to the next directory and its NewSubfileType (0 when
+// the directory has none). Its other tags are not read, and its blocks are never decoded.
+struct LaterImage {
+    std::uint64_t next{};
+    std::uint64_t subfileType{};
+};
+
+LaterImage readLaterImage(const Reader &reader, std::uint64_t ifd) {
+    std::uint16_t count = 0;
+    const auto entries = directoryBytes(reader, ifd, count);
+    LaterImage image;
+    image.next = reader.u32(entries.data() + 12 * count);
+    for (std::uint16_t i = 0; i < count; ++i) {
+        const auto *p = entries.data() + 12 * i;
+        if (reader.u16(p) != tagNewSubfileType)
+            continue;
+        const auto type = reader.u16(p + 2);
+        if ((type != typeShort && type != typeLong) || reader.u32(p + 4) != 1)
+            throw GeoTiffRefusal("Malformed TIFF: the NewSubfileType of the image" + where(ifd) +
+                                 " does not hold one SHORT or LONG value");
+        image.subfileType = type == typeLong ? reader.u32(p + 8) : reader.u16(p + 8);
+    }
+    return image;
+}
+
+// The images after the first (ADR 0181 §7.2 and §7.3, R107.b1.2). A reduced-resolution image (bit 0 of
+// NewSubfileType) is an overview: it is skipped, and only its directory is read. Any other image after
+// the first is a second full-resolution image or a transparency mask, and it is refused by name. At most
+// GeoTiffBounds::furtherImages images are walked. A link outside the file, and a link to a directory
+// already walked (a loop), are refused by name.
+void checkFurtherImages(const GeoTiffBytes &bytes, const Reader &reader, std::uint64_t first,
+                        std::uint64_t next) {
+    std::vector<std::uint64_t> walked{first};
+    for (std::size_t later = 1; next != 0; ++later) {
+        const auto number = std::to_string(later + 1); // the image's number in the file, from 1
+        if (later > GeoTiffBounds::furtherImages)
+            throw GeoTiffRefusal("More than one image in the file: more than " +
+                                 std::to_string(GeoTiffBounds::furtherImages) +
+                                 " images follow the first, and the reader walks at most that many "
+                                 "(ADR 0181 §7.3)");
+        if (next < 8 || next >= bytes.size())
+            throw GeoTiffRefusal("Malformed TIFF: the link to image " + number + " is at offset " +
+                                 std::to_string(next) + ", outside the file");
+        if (std::find(walked.begin(), walked.end(), next) != walked.end())
+            throw GeoTiffRefusal("Malformed TIFF: the image directories loop: image " + number +
+                                 " links back to the directory" + where(next));
+        walked.push_back(next);
+        const auto image = readLaterImage(reader, next);
+        if (image.subfileType & subfileReducedResolution) {
+            next = image.next;
+            continue;
+        }
+        const auto kind =
+            image.subfileType & subfileMask
+                ? "a transparency mask without the reduced-resolution bit (NewSubfileType " +
+                      std::to_string(image.subfileType) + ")"
+                : "a second full-resolution image (NewSubfileType " +
+                      std::to_string(image.subfileType) + ", bit 0 clear)";
+        throw GeoTiffRefusal("More than one image in the file: image " + number + " (directory" +
+                             where(next) + ") is " + kind +
+                             "; the reader reads the full-resolution image and skips only "
+                             "reduced-resolution overviews (ADR 0181 §7.3)");
+    }
 }
 
 // The TIFF LZW decoder (TIFF 6.0, section 13): MSB-first codes of 9 to 12 bits, ClearCode 256,
@@ -363,7 +440,8 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
     if (ifd < 8 || ifd >= bytes.size())
         throw GeoTiffRefusal("Malformed TIFF: the directory offset " + std::to_string(ifd) +
                              " is outside the file");
-    const auto tags = readDirectory(bytes, reader, ifd);
+    const auto first = readDirectory(reader, ifd);
+    const auto &tags = first.tags;
     const auto scalar = [&](std::uint16_t tag, std::uint64_t fallback) -> std::uint64_t {
         const auto found = tags.find(tag);
         if (found == tags.end())
@@ -380,6 +458,19 @@ GeoTiffHeader readGeoTiffHeader(const GeoTiffBytes &bytes) {
             throw GeoTiffRefusal("Malformed TIFF: tag " + std::to_string(tag) + " is missing");
         return found->second;
     };
+
+    // The first image is the full-resolution elevation image. An overview or a mask is refused by
+    // name, and the images after it are walked (ADR 0181 §7.2 and §7.3).
+    const auto subfile = scalar(tagNewSubfileType, 0);
+    if (subfile & subfileReducedResolution)
+        throw GeoTiffRefusal("The first image is reduced-resolution (NewSubfileType " +
+                             std::to_string(subfile) + ", bit 0 set): the reader reads the "
+                             "full-resolution image, not an overview (ADR 0181 §7.2)");
+    if (subfile & subfileMask)
+        throw GeoTiffRefusal("The first image is a transparency mask (NewSubfileType " +
+                             std::to_string(subfile) + ", bit 2 set): the reader reads the "
+                             "elevation image (ADR 0181 §7.2)");
+    checkFurtherImages(bytes, reader, ifd, first.next);
 
     GeoTiffHeader header;
     header.littleEndian = little;

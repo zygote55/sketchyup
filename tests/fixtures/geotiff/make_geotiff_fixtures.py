@@ -18,6 +18,10 @@ R107.b1.1 (ADR 0181 §7.2): LZW (compression 5) is written by lzw_encode, a TIFF
 written here from the specification, and checked against tifffile (see the notes in the
 R107.b1.1 implementation record). The corrupt LZW streams are built with lzw_pack, which writes
 codes the way the decoder reads them, so each one is wrong in exactly one way.
+
+R107.b1.2 (ADR 0181 §7.2 and §7.3): a spec's 'overviews' are further images after its own, written
+in order, each with NewSubfileType 1 unless it says otherwise (a reduced-resolution overview). The
+'loop' key links the last image back to the first. 'subfile' sets NewSubfileType on an image.
 """
 import math
 import os
@@ -34,6 +38,11 @@ LZW_CLEAR, LZW_END, LZW_FIRST = 256, 257, 258
 
 def plane(col, row):
     return 10 + 2 * col + 3 * row
+
+
+def plane_at(scale):
+    """The plane sampled at every `scale`-th post: an overview of the same surface."""
+    return lambda col, row: plane(col * scale, row * scale)
 
 
 def paraboloid(col, row):
@@ -168,31 +177,21 @@ def predictor2_encode(row_values, little):
     return struct.pack(fmt % len(out), *out)
 
 
-def build(path, spec):
-    """spec keys: values(col,row)->number, dtype 'f32'|'i16', little (bool), layout 'strip'|'tile',
-    compression 1|5|7|8, predictor 1|2|3, tie_lon, tie_lat, scale_x, scale_y, width, height,
-    nodata (str or None), raster_type 1|2, geo_key 4326|4269|4258|4277 (default 4326),
-    vertical (int or None), samples (1), bits (override), sample_format (override),
-    extra_ifd (bool), projected (int or None), transform (bool), rows_per_strip (int),
-    payloads (bytes per block, written as they are instead of the encoded blocks)."""
+def encode_blocks(spec):
+    """One image's block payloads, and its block shape: (payloads, block width, block height)."""
     little = spec.get('little', True)
     e = '<' if little else '>'
     w = spec.get('width', WIDTH)
     h = spec.get('height', HEIGHT)
     dtype = spec.get('dtype', 'f32')
-    bits = spec.get('bits', 32 if dtype == 'f32' else 16)
-    sample_format = spec.get('sample_format', 3 if dtype == 'f32' else 2)
-    samples = spec.get('samples', 1)
     compression = spec.get('compression', 1)
     predictor = spec.get('predictor', 1)
     layout = spec.get('layout', 'strip')
     values = spec['values']
     if dtype == 'f32':
         pack = lambda v: struct.pack(e + 'f', v)
-        bps = 4
     else:
         pack = lambda v: struct.pack(e + 'h', v)
-        bps = 2
 
     if layout == 'tile':
         tw, th = spec.get('tile', (16, 16))
@@ -244,20 +243,22 @@ def build(path, spec):
         payloads.append(data)
     if spec.get('payloads') is not None:
         payloads = list(spec['payloads'])
+    return payloads, block_width, block_height
 
-    # Layout: header, block data, then the tags' values and the directory.
-    header_len = 8
-    body = bytearray()
-    offsets, counts = [], []
-    cursor = header_len
-    for data in payloads:
-        offsets.append(cursor)
-        counts.append(len(data))
-        body += data
-        cursor += len(data)
-    if len(body) % 2:
-        body += b'\x00'
-        cursor += 1
+
+def image_tags(spec, offsets, counts, block_width, block_height):
+    """One image's directory entries, by tag: (type, count, raw value bytes)."""
+    little = spec.get('little', True)
+    e = '<' if little else '>'
+    w = spec.get('width', WIDTH)
+    h = spec.get('height', HEIGHT)
+    dtype = spec.get('dtype', 'f32')
+    bits = spec.get('bits', 32 if dtype == 'f32' else 16)
+    sample_format = spec.get('sample_format', 3 if dtype == 'f32' else 2)
+    samples = spec.get('samples', 1)
+    compression = spec.get('compression', 1)
+    predictor = spec.get('predictor', 1)
+    layout = spec.get('layout', 'strip')
 
     tags = {}  # tag -> (type, count, bytes)
     def add(tag, typ, count, raw):
@@ -265,11 +266,11 @@ def build(path, spec):
     SHORT, LONG, ASCII, DOUBLE = 3, 4, 2, 12
     add(256, LONG, 1, struct.pack(e + 'I', w))
     add(257, LONG, 1, struct.pack(e + 'I', h))
-    if spec.get('transform'):
-        pass
     add(258, SHORT, 1, struct.pack(e + 'H', bits))
     add(259, SHORT, 1, struct.pack(e + 'H', compression))
     add(262, SHORT, 1, struct.pack(e + 'H', 1))
+    if spec.get('subfile') is not None:
+        add(254, LONG, 1, struct.pack(e + 'I', spec['subfile']))
     if layout == 'tile':
         add(322, SHORT, 1, struct.pack(e + 'H', block_width))
         add(323, SHORT, 1, struct.pack(e + 'H', block_height))
@@ -312,12 +313,18 @@ def build(path, spec):
         if len(text) % 2:
             text += b'\x00'
         add(42113, ASCII, len(text), text)
+    return tags
 
-    # Values wider than four bytes go after the directory's header; keep the layout simple:
-    # every tag value is written after the blocks, each at an even offset.
+
+def write_ifd(tags, little, base, next_ifd):
+    """One image's directory laid out at file offset base: its tag values that do not fit in an
+    entry, then the directory. Returns the bytes, and the offset of the directory within them. Their
+    size does not depend on base or next_ifd, so a file's layout can be planned before its links are
+    written. base is even, so the alignment below is the same at any offset."""
+    e = '<' if little else '>'
     extras = bytearray()
     entries = []
-    base = cursor
+    # Values wider than four bytes go after the blocks, each at an even offset.
     for tag in sorted(tags):
         typ, count, raw = tags[tag]
         if len(raw) <= 4:
@@ -332,25 +339,73 @@ def build(path, spec):
     if ifd_offset % 2:
         extras += b'\x00'
         ifd_offset += 1
-    next_ifd = 0
-    if spec.get('extra_ifd'):
-        next_ifd = ifd_offset + 2 + 12 * len(entries) + 4
-    directory_bytes = struct.pack(e + 'H', len(entries))
+    directory = struct.pack(e + 'H', len(entries))
     for tag, typ, count, value in entries:
-        directory_bytes += struct.pack(e + 'HHI', tag, typ, count) + value
-    directory_bytes += struct.pack(e + 'I', next_ifd)
+        directory += struct.pack(e + 'HHI', tag, typ, count) + value
+    directory += struct.pack(e + 'I', next_ifd)
+    return bytes(extras) + directory, ifd_offset - base
+
+
+def build(path, spec):
+    """Writes one file: the spec's image, then its 'overviews' in order, then the bare directory of
+    'extra_ifd' if set. A 'loop' spec links the last image back to the first. Each image's keys are
+    those of encode_blocks and image_tags, and 'payloads' overrides the encoded blocks."""
+    little = spec.get('little', True)
+    e = '<' if little else '>'
+    images = [spec] + [dict(ov, little=ov.get('little', little), subfile=ov.get('subfile', 1))
+                       for ov in spec.get('overviews', [])]
+
+    # The block data of every image in order, then one pad byte if the total is odd.
+    body = bytearray()
+    cursor = 8  # the header
+    shapes = []
+    for img in images:
+        payloads, block_width, block_height = encode_blocks(img)
+        offsets, counts = [], []
+        for data in payloads:
+            offsets.append(cursor)
+            counts.append(len(data))
+            body += data
+            cursor += len(data)
+        shapes.append((offsets, counts, block_width, block_height))
+    if len(body) % 2:
+        body += b'\x00'
+        cursor += 1
+    tag_sets = [image_tags(img, offsets, counts, bw, bh)
+                for img, (offsets, counts, bw, bh) in zip(images, shapes)]
+
+    # Each image's tag values and directory follow the block data, in order. Their sizes are planned
+    # first, so that each link can name the directory after it.
+    plan = [write_ifd(tags, little, 0, 0) for tags in tag_sets]
+    starts, ifd_addresses = [], []
+    base = cursor
+    for blob, ifd_rel in plan:
+        starts.append(base)
+        ifd_addresses.append(base + ifd_rel)
+        base += len(blob)
+    bare = b''
     if spec.get('extra_ifd'):
         # A second, empty image directory: the reader must refuse the file for it.
-        directory_bytes += struct.pack(e + 'H', 1) + struct.pack(e + 'HHI', 256, 4, 1) + struct.pack(e + 'I', 0) + struct.pack(e + 'I', 0)
+        bare = struct.pack(e + 'H', 1) + struct.pack(e + 'HHI', 256, 4, 1) + struct.pack(e + 'I', 0) + struct.pack(e + 'I', 0)
+    blobs = []
+    for i, tags in enumerate(tag_sets):
+        if i + 1 < len(tag_sets):
+            link = ifd_addresses[i + 1]
+        elif spec.get('loop'):
+            link = ifd_addresses[0]
+        elif spec.get('extra_ifd'):
+            link = base
+        else:
+            link = 0
+        blobs.append(write_ifd(tags, little, starts[i], link)[0])
 
     order = b'II' if little else b'MM'
-    magic = 42 if not spec.get('bigtiff') else 43
-    head = order + struct.pack(e + 'H', magic) + struct.pack(e + 'I', ifd_offset)
     if spec.get('bigtiff'):
         head = order + struct.pack(e + 'H', 43) + struct.pack(e + 'H', 8) + struct.pack(e + 'H', 0) + struct.pack(e + 'Q', 16)
         data = head + bytes(16)
     else:
-        data = head + bytes(body) + bytes(extras) + directory_bytes
+        head = order + struct.pack(e + 'H', 42) + struct.pack(e + 'I', ifd_addresses[0])
+        data = head + bytes(body) + b''.join(blobs) + bare
     with open(path, 'wb') as handle:
         handle.write(data)
 
@@ -362,6 +417,10 @@ def f(name, fn):
 def budget_surface(col, row):
     # A smooth, non-linear terrain-like surface (float32), so the Deflate and predictor work is real.
     return 120.0 + 60.0 * math.sin(col / 180.0) + 35.0 * math.cos(row / 140.0) + 0.001 * col * row
+
+
+# A small overview (R107.b1.2): a strip of 6 by 5 posts, the plane sampled 8 posts apart.
+SMALL_OVERVIEW = dict(values=plane_at(8), dtype='f32', width=6, height=5, rows_per_strip=5)
 
 
 def main(argv):
@@ -406,6 +465,19 @@ def main(argv):
         'plane-f32-tile-lzw-pred3-le.tif': dict(values=plane, dtype='f32', little=True, layout='tile', compression=5, predictor=3),
         'plane-f32-tile-lzw-pred3-be.tif': dict(values=plane, dtype='f32', little=False, layout='tile', compression=5, predictor=3),
         'noise-i16-strip-lzw-pred2-le.tif': dict(values=noise, dtype='i16', little=True, compression=5, predictor=2, width=96, height=96, rows_per_strip=96),
+        # R107.b1.2 (ADR 0181 §7.2, §7.3): a 3DEP tile as USGS distributes it: the full image, then two
+        # reduced-resolution overviews (NewSubfileType 1), each a tiled LZW image of the same surface.
+        # The full image is the plane, and its pixel scale is one arc-second, not the overview's.
+        'plane-f32-tile-lzw-pred3-overviews-le.tif': dict(values=plane, dtype='f32', little=True, layout='tile', compression=5, predictor=3, overviews=[
+            dict(values=plane_at(2), dtype='f32', layout='tile', compression=5, predictor=3, width=24, height=20, scale_x=2 * SCALE, scale_y=2 * SCALE),
+            dict(values=plane_at(4), dtype='f32', layout='tile', compression=5, predictor=3, width=12, height=10, scale_x=4 * SCALE, scale_y=4 * SCALE)]),
+        # The same file, with the overviews' blocks made of undecodable LZW streams (0xFF codes, which
+        # point past the table). The reader never decodes an overview, so the file is still read.
+        'plane-f32-tile-lzw-pred3-overviews-undecodable-le.tif': dict(values=plane, dtype='f32', little=True, layout='tile', compression=5, predictor=3, overviews=[
+            dict(values=plane_at(2), dtype='f32', layout='tile', compression=5, predictor=3, width=24, height=20, scale_x=2 * SCALE, scale_y=2 * SCALE, payloads=[b'\xff\xff\xff'] * 4),
+            dict(values=plane_at(4), dtype='f32', layout='tile', compression=5, predictor=3, width=12, height=10, scale_x=4 * SCALE, scale_y=4 * SCALE, payloads=[b'\xff\xff\xff'])]),
+        # Sixteen overviews: the most the reader walks (GeoTiffBounds::furtherImages).
+        'plane-f32-strip-none-overviews16-le.tif': dict(values=plane, dtype='f32', little=True, overviews=[SMALL_OVERVIEW] * 16),
         # Refusal fixtures (ADR 0181 §7.3).
         'refuse-multiband.tif': dict(values=plane, dtype='f32', little=True, samples=3),
         'refuse-float64.tif': dict(values=plane, dtype='f32', little=True, bits=64, sample_format=3),
@@ -425,7 +497,20 @@ def main(argv):
                                            payloads=[lzw_pack([LZW_CLEAR] + [code % 256 for code in range(2100)] + [LZW_END])]),
         'refuse-lzw-old-style.tif': dict(values=plane, dtype='i16', little=True, layout='tile', tile=(64, 64), width=64, height=64, compression=5, predictor=2,
                                          payloads=[b'\x00\x01' + bytes(20)]),
+        # A second image: an empty full-resolution directory (NewSubfileType absent, so 0) after the first.
         'refuse-two-images.tif': dict(values=plane, dtype='f32', little=True, extra_ifd=True),
+        # R107.b1.2 (ADR 0181 §7.2, §7.3): the further images the reader refuses by name.
+        # A transparency mask (NewSubfileType 4: bit 2 without bit 0) after the first image.
+        'refuse-mask-image.tif': dict(values=plane, dtype='f32', little=True, overviews=[
+            dict(values=plane_at(2), dtype='f32', width=24, height=20, subfile=4)]),
+        # The first image's link leads back to it: the chain loops after one overview.
+        'refuse-ifd-loop.tif': dict(values=plane, dtype='f32', little=True, loop=True, overviews=[
+            dict(values=plane_at(2), dtype='f32', width=24, height=20, scale_x=2 * SCALE, scale_y=2 * SCALE)]),
+        # Seventeen overviews: one more than the reader walks.
+        'refuse-overviews-17.tif': dict(values=plane, dtype='f32', little=True, overviews=[SMALL_OVERVIEW] * 17),
+        # The first image is itself an overview (bit 0), or a mask (bit 2): the reader reads neither.
+        'refuse-reduced-first.tif': dict(values=plane, dtype='f32', little=True, subfile=1),
+        'refuse-mask-first.tif': dict(values=plane, dtype='f32', little=True, subfile=4),
         'refuse-osgb36.tif': dict(values=plane, dtype='f32', little=True, geo_key=4277),
         'refuse-etrs89.tif': dict(values=plane, dtype='f32', little=True, geo_key=4258),
         'refuse-projected.tif': dict(values=plane, dtype='f32', little=True, projected=32630),
