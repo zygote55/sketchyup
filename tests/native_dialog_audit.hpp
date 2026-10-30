@@ -253,7 +253,9 @@ inline Place placeOf(QWidget *control, QWidget &dialog) {
 }
 // A radio group is one Tab stop, the platform convention Qt follows: Tab enters its checked
 // button and the arrow keys choose within the group (R092.b's page choice). An unchecked member
-// of a group with a checked, Tab-focusable button is reached that way, not by Tab.
+// of a group with a checked, Tab-focusable button is reached that way, not by Tab. With no button
+// checked (a choice the person has not made), Tab enters at the group's first Tab-focusable
+// button, and the rest are reached by the arrow keys in the same way.
 inline bool arrowOnlyRadio(QWidget *widget, QWidget &dialog) {
     auto *radio = qobject_cast<QRadioButton *>(widget);
     if (!radio || radio->isChecked() || !radio->autoExclusive())
@@ -266,9 +268,14 @@ inline bool arrowOnlyRadio(QWidget *widget, QWidget &dialog) {
              radio->parentWidget()->findChildren<QRadioButton *>(Qt::FindDirectChildrenOnly))
             if (sibling->autoExclusive())
                 group << sibling;
-    return std::any_of(group.begin(), group.end(), [&](QAbstractButton *member) {
-        return member != radio && member->isChecked() && tabFocusable(member, dialog);
-    });
+    if (std::any_of(group.begin(), group.end(), [&](QAbstractButton *member) {
+            return member != radio && member->isChecked() && tabFocusable(member, dialog);
+        }))
+        return true;
+    for (auto *member : group)
+        if (tabFocusable(member, dialog))
+            return member != radio;
+    return false;
 }
 inline std::set<QWidget *> expectedControls(QWidget &dialog) {
     std::set<QWidget *> result;

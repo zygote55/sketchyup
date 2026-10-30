@@ -1,17 +1,23 @@
 #pragma once
 #include "app/settled_dialog.hpp"
+#include "app/terrain_dem_window.hpp"
 #include "app/terrain_preview.hpp"
 #include "app/terrain_run.hpp"
 #include "app/theme.hpp"
 #include "core/model.hpp"
+#include "io/geotiff_terrain.hpp"
 #include <QByteArray>
 #include <QDialog>
 #include <QJsonObject>
 #include <QThreadPool>
 #include <QTimer>
+#include <array>
+#include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 class QButtonGroup;
 class QCheckBox;
@@ -27,6 +33,7 @@ class QRadioButton;
 class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QVBoxLayout;
 class QWidget;
 namespace sketchy {
 class TerrainRoleTable;
@@ -44,13 +51,23 @@ struct TerrainImportDryRun;
 // closing the dialog cancels it, so the destructor waits only until its next checkpoint.
 // Import applies the current dry run through applyTerrainImport: ONE labelled "Import terrain"
 // edit on the open document (owner decision 11), the same core path as terrain.import. A
-// refusal shows a banner that nothing was changed and keeps Import disabled.
+// refusal shows a banner that nothing was imported and keeps Import disabled.
+//
+// R107.b4 (UX_DESIGN §20): a .tif or .tiff file is the GeoTIFF elevation format, the third source of
+// this dialog. Its file is read in windows from its path (`Setup::path`), so `bytes` stays empty.
+// Its settings are the product, the window (around the site origin, centre and size, or corners,
+// in UTM with latitude and longitude beside each point), the spacing, and the vertical reference
+// with the offset and note a mismatch needs. Every dry run is the engine's (parseGeoTiffTerrainRequest
+// and runTerrainImport); the dialog chooses the window and words the refusals.
 class TerrainImportDialog final : public Settled<QDialog> {
   public:
     struct Setup {
         QString fileName; // shown in the title and kept as the site provenance
-        QByteArray bytes; // the source, at most 64 MiB
+        QByteArray bytes; // the source, at most 64 MiB (not used for a GeoTIFF)
         ThemeColors colors;
+        QString path; // R107.b4: a GeoTIFF's file, read from its path in windows
+        // R107.b4: Site settings…, opened by the window (it holds the viewport the dialog does not).
+        std::function<void()> openSiteSettings;
     };
     TerrainImportDialog(Document &doc, Setup setup, QWidget *parent);
     ~TerrainImportDialog() override;
@@ -75,9 +92,37 @@ class TerrainImportDialog final : public Settled<QDialog> {
     const QJsonObject &operation() const { return operation_; }
     TerrainPreview *preview() const { return preview_; }
     QTreeWidget *reportList() const { return reportList_; }
+    // R107.b4: the file is refused, and the person chose another file (Window opens the chooser).
+    bool chooseAnotherFile() const { return chooseAnother_; }
+    bool geotiff() const;
 
   private:
     void build();
+    void buildGeoTiff(QVBoxLayout *column);
+    void initGeoTiff();
+    void refreshGeoTiff();
+    void refreshGeoTiffWindow();
+    void refreshGeoTiffLabels();
+    void refreshGeoTiffOverlays();
+    void updateLatLon(QDoubleSpinBox *easting, QDoubleSpinBox *northing, QDoubleSpinBox *latitude,
+                      QDoubleSpinBox *longitude);
+    void updateFromLatLon(QDoubleSpinBox *easting, QDoubleSpinBox *northing,
+                          QDoubleSpinBox *latitude, QDoubleSpinBox *longitude);
+    void fitToFile();
+    void setWindowMode(int mode);
+    std::optional<DemWindow> demWindow() const;
+    QString siteVertical() const; // the site's vertical label; empty when it has no location
+    QString effectiveVertical() const;
+    bool fileBlocked() const;
+    bool mismatch() const;
+    QString demBlocker() const;
+    QString demRefusalBanner() const;
+    QString demRefusalSentence(std::string &code) const;
+    QString demReportText() const;
+    QString demReadyText() const;
+    double demNominal() const;
+    QString refusalNextSteps(const std::string &code) const;
+    void setDemSpacingNominal(double nominal);
     void schedule(int delayMs = 250);
     void start();
     void finished(std::uint64_t generation, std::shared_ptr<TerrainImportDryRun> result);
@@ -115,11 +160,23 @@ class TerrainImportDialog final : public Settled<QDialog> {
     bool originEdited_{};
     bool unitsCleared_{}; // the user chose no units over the DXF's declared ones
     bool updating_{};
+    // R107.b4: the GeoTIFF page. The file's facts are read once, from its header; a file the
+    // reader cannot use (its header or its post size) is refused before any window is chosen.
+    std::optional<GeoTiffFacts> facts_;
+    std::string factsRefusal_;   // the refusal code of the header, when it has one
+    QString factsSentence_;      // its plain sentence
+    bool chooseAnother_{};
+    bool spacingEdited_{};       // the person typed a spacing; otherwise the nominal post size
+    double nominal_{};           // the file's nominal post size, metres (the reader's rounding)
+    QString positionProblem_;    // a latitude and longitude outside the window's zone, said under the window
 
     QLabel *subline_{};
     QFrame *banner_{};
     QLabel *bannerText_{};
+    QPushButton *chooseOther_{};
     QComboBox *format_{}, *units_{};
+    QLabel *unitsCaption_{}, *crsCaption_{};
+    QWidget *triangulationBox_{};
     QWidget *pointsBox_{};
     QComboBox *preset_{}, *delimiter_{}, *header_{};
     QGridLayout *columnsGrid_{};
@@ -127,6 +184,25 @@ class TerrainImportDialog final : public Settled<QDialog> {
     QTableWidget *sample_{};
     QLabel *rolesHeading_{};
     TerrainRoleTable *roleTable_{};
+    // R107.b4: the GeoTIFF page (shown for a GeoTIFF only).
+    QWidget *demBox_{};
+    QLabel *demFile_{}, *demDatum_{}, *demDatumNote_{}, *demProductCaption_{}, *demVerticalCaption_{};
+    QLabel *demSpacingCaption_{}, *demWindowCaption_{}, *demGrid_{}, *demSite_{};
+    QRadioButton *dep3_{}, *glo30_{};
+    QRadioButton *windowOrigin_{}, *windowCentre_{}, *windowCorners_{};
+    QButtonGroup *windowModes_{};
+    QWidget *sizeBox_{}, *centreBox_{}, *cornersBox_{}, *zoneRow_{};
+    QComboBox *verticalChoice_{}, *zone_{};
+    QDoubleSpinBox *width_{}, *height_{};
+    QDoubleSpinBox *centreE_{}, *centreN_{}, *centreLat_{}, *centreLon_{};
+    QDoubleSpinBox *swE_{}, *swN_{}, *swLat_{}, *swLon_{};
+    QDoubleSpinBox *neE_{}, *neN_{}, *neLat_{}, *neLon_{};
+    QPushButton *demFit_{}, *siteSettings_{};
+    QDoubleSpinBox *spacing_{};
+    QFrame *mismatchBox_{};
+    QLabel *mismatchTitle_{}, *mismatchText_{}, *mismatchCaption_{};
+    QDoubleSpinBox *offset_{};
+    QLineEdit *why_{};
     QLabel *sourceExtents_{}, *documentOrigin_{}, *formula_{}, *localExtents_{};
     QWidget *originBox_{};
     QDoubleSpinBox *originE_{}, *originN_{}, *originZ_{};

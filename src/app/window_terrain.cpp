@@ -17,6 +17,7 @@
 #include <QPushButton>
 #include <QScopedValueRollback>
 #include <QMenuBar>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidgetAction>
@@ -53,8 +54,8 @@ void Window::importTerrainDialog() {
     }
     QFileDialog file(this, "Import terrain");
     file.setObjectName("terrainImportFileDialog");
-    file.setNameFilters({"Terrain sources (*.dxf *.csv *.txt *.xyz *.pts)", "DXF contours (*.dxf)",
-                         "Point files (*.csv *.txt *.xyz *.pts)"});
+    file.setNameFilters({"Terrain sources (*.dxf *.csv *.txt *.xyz *.pts *.tif *.tiff)", "DXF contours (*.dxf)",
+                         "Point files (*.csv *.txt *.xyz *.pts)", "GeoTIFF elevation (*.tif *.tiff)"});
     file.setFileMode(QFileDialog::ExistingFile);
     if (file.exec() != QDialog::Accepted || file.selectedFiles().isEmpty())
         return;
@@ -68,10 +69,14 @@ void Window::importTerrainPath(const QString &path) {
         return;
     }
     const QFileInfo info(path);
-    if (info.size() > TerrainSourceLimits::bytes)
-        throw std::runtime_error("A terrain source is at most 64 MiB; this file is larger.");
+    // R107.b4: a GeoTIFF is read in windows from its path by the dialog, so it is never read whole
+    // here and the 64 MiB rule of the text formats does not apply to it.
+    const auto suffix = info.suffix().toLower();
+    const bool geotiff = suffix == "tif" || suffix == "tiff";
     QByteArray bytes;
-    {
+    if (!geotiff) {
+        if (info.size() > TerrainSourceLimits::bytes)
+            throw std::runtime_error("A terrain source is at most 64 MiB; this file is larger.");
         QScopedValueRollback busy(fileOperation_, true);
         bytes = runFileOperation(this, "Reading terrain source…", [path] {
             QFile source(path);
@@ -83,16 +88,29 @@ void Window::importTerrainPath(const QString &path) {
                 throw std::runtime_error("A terrain source is at most 64 MiB; this file is larger.");
             return data;
         });
+        if (bytes.isEmpty())
+            throw std::runtime_error("The terrain source is empty.");
     }
-    if (bytes.isEmpty())
-        throw std::runtime_error("The terrain source is empty.");
-    TerrainImportDialog dialog(doc_, {info.fileName(), bytes, sheetColors_}, this);
+    // Site settings… opens from the dialog, as a child of it (the window holds the viewport).
+    TerrainImportDialog *importer = nullptr;
+    TerrainImportDialog::Setup setup{info.fileName(), bytes, sheetColors_,
+                                     geotiff ? path : QString(), {}};
+    setup.openSiteSettings = [this, &importer] {
+        SiteSettingsDialog settings(doc_, *viewport_, importer);
+        settings.exec();
+    };
+    TerrainImportDialog dialog(doc_, std::move(setup), this);
+    importer = &dialog;
     terrainImport_ = &dialog;
     const bool imported = dialog.exec() == QDialog::Accepted;
     terrainImport_.clear();
     activateWindow();
     if (!imported) {
-        viewport_->setFocus(Qt::OtherFocusReason);
+        // R107.b4 (UX §20.5): "Choose another file…" on a refused file opens the chooser again.
+        if (dialog.chooseAnotherFile())
+            QTimer::singleShot(0, this, [this] { importTerrainDialog(); });
+        else
+            viewport_->setFocus(Qt::OtherFocusReason);
         return;
     }
     const auto &operation = dialog.operation();
