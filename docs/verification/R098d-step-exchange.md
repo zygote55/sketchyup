@@ -884,3 +884,106 @@ changed. The sanitizer and full-tier lines were run as the brief's CI job runs t
   limit. It can be now (section 14.2).
 - The desktop's File › Export STEP… uses the same helper, so it now writes the new file too. The IFC export does not use
   the STEP writer and is unchanged.
+
+## 15. R098.k: the STEP entity cap and the STEP geometry threads (2026-10-29)
+
+PR_ROADMAP, 1.5 follow-up 7, is the record of the parent decision (2026-10-28, R098.h): ADR 0172 section 6 names a
+2,000,000-entity cap and four geometry threads for the helper, and the STEP mode had neither. This section records the
+work. Branch `feat/r098k-step-cap-threads`, one pull request against `main`. ADR 0172 section 6 is amended in place, and
+it has "Implementation notes (R098.k)". Measurements are Release, the pinned image (`sketchyup-ci-pinned:r097a-ifc`,
+GCC 16.2.1, OCCT 7.9.3), `build/release` with `-DCMAKE_BUILD_TYPE=Release -DSKETCHYUP_BUILD_DESKTOP=OFF
+-DSKETCHYUP_BUILD_CLI=ON -DSKETCHYUP_BUILD_IFC=ON -DCMAKE_LINKER_TYPE=BFD`, on the shared machine.
+
+**Status.** The entity cap is built and tested. The threads are measured and not built: the STEP import keeps one thread,
+as the brief's rule requires, because parallel meshing gives identical output and no speed-up on the 100-sphere model.
+ADR 0172 section 6 records both.
+
+### 15.1 The entity cap
+
+- **The refusal.** `--import-step FILE --output PKG` refuses a file whose reader holds more entities than
+  `--step-max-entities N`. The default is 2,000,000, from `StepWorkerOptions::maxEntities`, which the application passes
+  as the IFC import passes its own. The code is `entityLimit`, the same code as the IFC import's over-limit refusal
+  (`src/ifc/import.cpp`), and the message is "The file has N entities; the limit is M." (under 240 bytes). A cap below 1 is
+  refused as `cap`.
+- **Where the check runs.** In `readStepModel` (`src/ifc/step_probe.cpp`), after the reader reads the file and before its
+  first transfer (`TransferRoots`). A file over the cap costs the read and nothing more, and no shape is transferred or
+  tessellated. The count is `Interface_InterfaceModel::NbEntities()` of the reader's model, which is the count the
+  metadata reports as `entities`.
+- **The metadata mode** (`--import-step` without `--output`) refuses the same file with status `refused-entities`, and the
+  exit code is 2, as for the other refusals of that mode.
+- **Nothing is created.** The refusal comes before the package is written. The application's `importStepFile` throws the
+  helper's refusal with the code, the message and the source, makes no document, and does not restart the helper (a
+  refusal is not a stop; section 13.3).
+- **Measured.** The committed fixture `tests/fixtures/step/sketchyup-step-assembly.step` holds 494 entities. With a cap of
+  494 it is imported (status `ok`); with a cap of 493 it is refused as `entityLimit` with "The file has 494 entities; the
+  limit is 493.", and no package is written. A file under the cap goes through the same code as before: the existing STEP
+  suites pass unchanged (section 15.3), and the packages are deterministic (section 15.2).
+
+### 15.2 The geometry threads: measured, one thread kept
+
+**Can this OCCT build mesh in parallel?** Yes. The pinned OCCT 7.9.3 has `BRepMesh_IncrementalMesh(shape, deflection,
+relative, angle, isInParallel)` and `IMeshTools_Parameters::InParallel`. Its parallel work runs on OCCT's own thread pool
+(`OSD_ThreadPool`, `OSD_Parallel`). The pool is not TBB: the kernel and mesh libraries of the image (`libTKMesh`,
+`libTKernel` and the rest) do not link `libtbb`, and neither does the helper binary. Only `libTKIVtk` and
+`libTKIVtkDraw`, the visualisation libraries, do.
+
+**The experiment.** The tessellation's `BRepMesh_IncrementalMesh` call was given the parallel flag, with OCCT's default
+pool created with four threads on the first use. It was run on the 100-sphere model (`step_budget_model OUT 100 1000`,
+R098.d section 9.3) and on every committed STEP fixture. The tool is `tests/step_budget_model.cpp`, built in the image.
+
+| Measurement | Result |
+| --- | --- |
+| Packages on 1 and 4 threads, every input | 19 fixtures and the 100-sphere model. Of the 19 fixtures, 17 write a package, and the sphere model writes one of 27,907,347 bytes. For all 18 packages the bytes are identical. The other 2 fixtures (`e4-pmi-ap242.step`, `spaced-units.step`) are refused on both thread counts with exit 3 and write no package. |
+| Repeated 4-thread runs of the sphere model | Four more runs: each run's bytes are identical to the first 4-thread run. |
+| Helper alone, the sphere model, 1 thread, 4 runs (interleaved with the 4-thread runs) | 3.96, 3.96, 4.00, 3.93 s: p50 3.96 s, min 3.93 s, max 4.00 s |
+| Helper alone, the sphere model, 4 threads, 4 runs | 3.97, 3.97, 3.98, 4.04 s: p50 3.97 s, min 3.97 s, max 4.04 s |
+| CPU time, one run each | 1 thread: wall 3.87 s, CPU 3.86 s. 4 threads: wall 4.00 s, CPU 3.98 s. |
+
+**The finding.** Output is deterministic on 1 and 4 threads, and the parallel path gives no speed-up on the 100-sphere
+model. The CPU time shows that no second thread does work. Each sphere is one spherical face, and the tessellation makes
+one `BRepMesh` call per base (the `P at` line of each base is what the restart rule of section 13 relies on). A call has
+no second face to mesh, and the pinned `OSD_Parallel::For` runs a range of one on the calling thread (`OSD_Parallel.hxx`).
+I did not profile `BRepMesh`'s internal loops. Meshing all the bases in one call would give it work for every thread, but it
+would also lose the per-base `P at` attribution that the restart rule uses, so it is not a small change.
+
+**The decision.** The brief's rule is: if the parallel mesh is unavailable, gives different output, or is not faster, keep
+one thread. The 100-sphere model is the brief's benchmark, and it is not faster. So the STEP mode keeps one thread:
+`threads` stays 1 in the package's engine section, `BRepMesh_IncrementalMesh` keeps its `Standard_False` flag, and no
+thread option is shipped. The determinism check that the brief asks for when threads change is not added, because
+threads did not change. The parallel flag was built and measured in the Release tree only, and reverted before this
+branch's pull request.
+
+**A contradiction, recorded.** ADR 0172 section 6 (amended by R098.h) and finding 2 of section 7 say that "BRepMesh is
+single-threaded in the pinned OCCT build". That is wrong: BRepMesh can mesh in parallel in this build (above). The
+conclusion for the STEP mode stands for the 100-sphere model, and its reason is corrected in ADR 0172 section 6.
+
+**Not measured.** A body with many faces, which may gain from the parallel flag. That is the one case where the decision
+could change, and it is not measured here. The measurements used the committed fixtures and the one-face spheres only.
+
+### 15.3 The tests
+
+- **Helper** (`tests/ifc_step_worker_tests.py`, the `ifc_step_worker` test): the cap block. A cap of 494 (the fixture's
+  count) imports; a cap of 493 is refused as `entityLimit` with the count and the limit named, under 256 bytes, with no
+  package written; the metadata mode refuses with `refused-entities` and exit 2; a cap of 0 is refused as `cap`. The suite
+  prints `ok`.
+- **Application** (`tests/step_import_tests.cpp`, the `step_import` test): the default is 2,000,000. A stand-in helper
+  refuses with `entityLimit`, and it names the limit it was given in `--step-max-entities`, so the test sees the
+  application pass a cap of 3,000 ("limit is 3000"). The refusal's code is `entityLimit`, its message names the count (3,520)
+  and the limit, it is at most 256 bytes, its report says STEP, and the stand-in ran once (a refusal is not restarted).
+- **CI's "IFC library and helper" lines**, copied from `.github/workflows/native.yml`, run in the pinned image: the
+  `build/ifc-app` selection (`step_import` among ten), the helper suites under `build/ifc` (`-R '^ifc_'`, `-LE full`), and
+  the sanitized helper suites under `build/ifc-sanitize` (six). Results, all on this branch's sources: the `build/ifc-app`
+  selection 10 of 10 pass (`step_import` 8.7 s, `ifc_step` 1.3 s, the rest as in CI); `build/ifc` with `-R '^ifc_' -LE full`
+  8 of 8 pass (`ifc_step_worker` 0.9 s); the sanitized suites 6 of 6 pass (`ifc_step_worker` 2.4 s under ASan and UBSan,
+  `ifc_worker_fault_corpus` 106 s). Section 15.4 lists what was not run.
+
+### 15.4 What was not done, and risks
+
+- **Parallel meshing is not shipped** (section 15.2). A multi-face body is not measured.
+- **The package format and the engine section are unchanged.** The engine section still records `threads` 1, which is the
+  truth now.
+- **The CPU limit** of the helper (480 s, four times its 120 s deadline; ADR 0172 section 6) was set for four threads. It
+  is not changed here, as the brief asks, and with one thread it is generous.
+- **The desktop dialog suites** were not run: no dialog changed.
+- **Risk.** The entity count is read from the reader's model, the same count the metadata reports. A file whose count is
+  just under the cap but whose transfer is slow is still bounded by the helper's 120 s deadline and 4 GiB limit, as before.

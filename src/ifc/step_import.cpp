@@ -39,7 +39,6 @@
 #include "BRep_Builder.hxx"
 #include "BRep_Tool.hxx"
 #include "HeaderSection_FileSchema.hxx"
-#include "OSD_ThreadPool.hxx"
 #include "IFSelect_ReturnStatus.hxx"
 #include "Interface_EntityIterator.hxx"
 #include "Interface_InterfaceModel.hxx"
@@ -426,11 +425,12 @@ bool mirrorLocation(const TopLoc_Location& loc) {
 // it outward, and a reversed face under a mirror instance is stored forward.
 SolidMesh tessellateSolid(const TopoDS_Shape& solid, const double deflectionMm, const double angleRadians,
                           const double metresPerUnit, const bool instanceMirror, const FaceColours& faceColours,
-                          const ColorDecision& partColour, const bool inParallel) {
+                          const ColorDecision& partColour) {
   SolidMesh out;
   try {
-    // The constructor performs the meshing: in parallel on OCCT's default pool when the options ask for threads (R098.k).
-    BRepMesh_IncrementalMesh(solid, deflectionMm, Standard_False, angleRadians, inParallel);
+    // The constructor performs the meshing (OCCT 7.9.3; one thread, not parallel, so the output is
+    // deterministic; ADR 0172 section 6, R098.k).
+    BRepMesh_IncrementalMesh(solid, deflectionMm, Standard_False, angleRadians, Standard_False);
   } catch (const Standard_Failure& failure) {
     out.error = failure.GetMessageString();
     return out;
@@ -1229,11 +1229,6 @@ int runStepImportPackage(const StepImportOptions& options) {
                                                           // state) -> its package mesh
   const double deflection = options.deflectionMm / units.mmPerUnit;  // millimetres, in the shape's (file's) unit
   const double angleRadians = options.angleDeg * kPi / 180.0;
-  // R098.k (ADR 0172 section 6): the tessellation's threads, clamped as the IFC import's are. BRepMesh runs on OCCT's
-  // default pool, which takes its size from its first use.
-  const int threads = std::max(1, std::min(options.threads, 4));
-  const bool parallel = threads > 1;
-  if (parallel) OSD_ThreadPool::DefaultPool(threads);
   progress.phase("tessellate");
   progress.tasks(static_cast<std::uint32_t>(baseLabels.size()));
   for (std::size_t baseIndex_ = 0; baseIndex_ < baseLabels.size(); ++baseIndex_) {
@@ -1315,7 +1310,7 @@ int runStepImportPackage(const StepImportOptions& options) {
     // 0172 section 7 rule; the instance's mirror is the second factor, the flip argument).
     const ColorDecision color = colorOf(base);  // the file's colour (the reader's colour propagation)
     const FaceColours faceColours = faceColoursOf(shapeTool, base);
-    SolidMesh mesh = tessellateSolid(solidShape, deflection, angleRadians, toMetres, false, faceColours, color, parallel);
+    SolidMesh mesh = tessellateSolid(solidShape, deflection, angleRadians, toMetres, false, faceColours, color);
     if (!mesh.ok) {
       report.notImported("StepPart", "tessellation-failed", 1);
       report.kernelMessage("tessellation", clip(mesh.error, 64), "error", clip(mesh.error, 240));
@@ -1384,7 +1379,7 @@ int runStepImportPackage(const StepImportOptions& options) {
         break;
       }
     if (needMirror) {
-      SolidMesh mirror = tessellateSolid(solidShape, deflection, angleRadians, toMetres, true, faceColours, color, parallel);
+      SolidMesh mirror = tessellateSolid(solidShape, deflection, angleRadians, toMetres, true, faceColours, color);
       if (mirror.ok && mirror.triangles > 0 && mirror.triangles <= options.maxTrianglesPerElement
           && triangles + mirror.triangles <= options.maxTotalTriangles) {
         PackageMesh mpm;

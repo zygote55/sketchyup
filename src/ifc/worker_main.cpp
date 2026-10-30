@@ -287,7 +287,6 @@ int main(int argc, char** argv) {
         else if (argument == "--step-max-triangles" && hasValue) options.maxTrianglesPerElement = std::stoull(argv[++i]);
         else if (argument == "--step-max-total-triangles" && hasValue) options.maxTotalTriangles = std::stoull(argv[++i]);
         else if (argument == "--step-max-entities" && hasValue) options.maxEntities = std::stoll(argv[++i]);
-        else if (argument == "--step-threads" && hasValue) options.threads = std::stoi(argv[++i]);
         else if (argument == "--exclude-step" && hasValue) options.excludeSteps.push_back(std::stoi(argv[++i]));
         else if (argument == "--rlimit-as" && hasValue) { if (!setLimit(RLIMIT_AS, argv[++i])) return fail("cannot set RLIMIT_AS"); }
         else if (argument == "--rlimit-cpu" && hasValue) { if (!setLimit(RLIMIT_CPU, argv[++i])) return fail("cannot set RLIMIT_CPU"); }
