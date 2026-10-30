@@ -177,12 +177,76 @@ void uniqueGeometry() {
                                        "limits: vertices would be 104,000 of 100,000 (definition '"),
           "Definitions together are bounded by the unique limits: " + copiedDefinition);
 }
+// A component whose definition holds `rings` flat 1,000-vertex members and nothing else.
+ComponentResult heavyComponent(Document &doc, int rings, const std::string &name,
+                               int firstLevel = 0) {
+    std::set<Id> parts;
+    for (int i = 0; i < rings; ++i)
+        parts.insert(ring(doc, firstLevel + i));
+    return createComponent(doc, createGroup(doc, parts, name), name);
+}
+Id firstMember(const Document &doc, Id definition) {
+    const auto &record = *doc.definitions().at(definition);
+    for (const auto &[member, body] : record.members)
+        if (member != record.root)
+            return member;
+    throw std::runtime_error("Definition has no member");
+}
+// D-075: the draft of a component edit holds the edited definition's members once. The
+// stored record that the edit replaces is not counted again, so a 60,000-vertex definition
+// can be edited, while the real document still refuses an edit that exceeds the limit.
+void draftCountsEditedDefinitionOnce() {
+    Document doc;
+    const auto big = heavyComponent(doc, 60, "Big");
+    check(doc.materializedTotals().vertices == 60000, "Single-instance definition is 60,000");
+    const auto member = firstMember(doc, big.definition);
+    editComponentDefinition(doc, big.definition, [&](Document &draft) {
+        draft.move(member, {1, 0, 0});
+        return ChangeReport{};
+    });
+    check(doc.materializedTotals().vertices == 60000,
+          "Moving one member of a 60,000-vertex definition succeeds");
+    doc.undo();
+    check(doc.materializedTotals().vertices == 60000, "The move undoes to the same geometry");
+
+    // Another definition shares the document: 60,000 + 30,000 fits, 80,000 + 30,000 does not.
+    Document over;
+    const auto large = heavyComponent(over, 60, "Large");
+    heavyComponent(over, 30, "Small", 60);
+    const auto refused = rejection([&] {
+        editComponentDefinition(over, large.definition, [&](Document &draft) {
+            for (int i = 0; i < 20; ++i)
+                ring(draft, 90 + i);
+            return ChangeReport{};
+        });
+    });
+    check(refused == "Document edit exceeds document unique geometry limits: vertices would be "
+                     "110,000 of 100,000 (definition 'Large' #" +
+                         std::to_string(large.definition) + ")",
+          "The real document still refuses a component edit over the limit: " + refused);
+    check(over.materializedTotals().vertices == 90000, "A refused component edit publishes nothing");
+
+    // The edited definition must still fit alone: 60,000 + 45,000 exceeds the limit in the draft.
+    Document lone;
+    const auto alone = heavyComponent(lone, 60, "Alone");
+    const auto loneRefused = rejection([&] {
+        editComponentDefinition(lone, alone.definition, [&](Document &draft) {
+            for (int i = 0; i < 45; ++i)
+                ring(draft, 90 + i);
+            return ChangeReport{};
+        });
+    });
+    check(loneRefused.starts_with("Document edit exceeds document unique geometry limits: "
+                                  "vertices would be 101,000 of 100,000"),
+          "An edited definition must fit the unique limits alone: " + loneRefused);
+}
 } // namespace
 int main() {
     try {
         diagnostics();
         placementCount();
         uniqueGeometry();
+        draftCountsEditedDefinitionOnce();
         // The full 10,000-placement public path runs in unsanitized builds only;
         // the serial sanitized CI job runs the same path at 1,000 placements.
         const size_t placements = test::sanitized ? 1000 : 10000;

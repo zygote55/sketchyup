@@ -282,6 +282,82 @@ void sharedHierarchyEdits() {
             "Identity axes still validate the requested definition");
     check(doc.bodies() == snapshot, "Rejected hierarchy operations leave scene unchanged");
 }
+// D-075: a definition that an explode or make-unique leaves without placements is
+// removed in the same edit. Undo restores it with the placement it held.
+bool sameDefinition(const ComponentDefinition &a, const ComponentDefinition &b) {
+    // The orphan tests use plain definitions, so a parameter record is only checked for presence.
+    if (a.id != b.id || a.root != b.root || a.nextMemberId != b.nextMemberId ||
+        a.name != b.name || a.references != b.references || a.glue != b.glue ||
+        a.members.size() != b.members.size() ||
+        static_cast<bool>(a.parameters) != static_cast<bool>(b.parameters))
+        return false;
+    for (const auto &[member, body] : a.members)
+        if (!b.members.contains(member) || !(*body == *b.members.at(member)))
+            return false;
+    return true;
+}
+void orphanedDefinitionDrops() {
+    Document doc;
+    const auto solo = createComponent(doc, square(doc), "Solo");
+    const auto definition = doc.definitions().at(solo.definition);
+    const auto placement = *doc.instances().at(solo.instance);
+    const auto bodies = doc.bodies();
+    explodeGroup(doc, solo.instance);
+    check(doc.definitions().empty() && doc.instances().empty(),
+          "Exploding the only placement drops its definition in the same edit");
+    doc.undo();
+    check(doc.definitions().size() == 1 &&
+              sameDefinition(*doc.definitions().at(solo.definition), *definition) &&
+              *doc.instances().at(solo.instance) == placement,
+          "Undo restores the dropped definition and its placement exactly");
+    check(doc.bodies().size() == bodies.size(), "Undo restores every exploded record");
+    for (const auto &[id, body] : bodies)
+        check(doc.bodies().contains(id) && *doc.bodies().at(id) == *body,
+              "Undo restores each exploded record exactly");
+    doc.redo();
+    check(doc.definitions().empty() && doc.instances().empty(),
+          "Redo drops the definition again");
+    doc.undo();
+    const auto replaced = makeComponentUnique(doc, solo.instance);
+    check(!doc.definitions().contains(solo.definition) && doc.definitions().size() == 1 &&
+              doc.instances().at(solo.instance)->definition == replaced.definition,
+          "Make unique of the only placement drops the replaced definition");
+    doc.undo();
+    check(doc.definitions().size() == 1 &&
+              sameDefinition(*doc.definitions().at(solo.definition), *definition) &&
+              doc.instances().at(solo.instance)->definition == solo.definition,
+          "Undo restores the replaced definition and the placement's binding");
+    Document shared;
+    const auto first = createComponent(shared, square(shared), "Shared");
+    const auto peer =
+        placeComponent(shared, first.definition, Transform::translation({3, 0, 0}));
+    explodeGroup(shared, peer.instance);
+    check(shared.definitions().contains(first.definition) && shared.instances().size() == 1 &&
+              shared.instances().contains(first.instance),
+          "Exploding one of two placements keeps the definition");
+    makeComponentUnique(shared, first.instance);
+    check(!shared.definitions().contains(first.definition) && shared.definitions().size() == 1,
+          "Make unique of the last remaining placement drops the definition");
+    Document nested;
+    const auto leaf = createComponent(nested, square(nested), "Leaf");
+    const auto leafPeer = placeComponent(nested, leaf.definition, Transform::translation({3, 0, 0}));
+    const auto assemblyRoot = createGroup(nested, {leafPeer.instance}, "Assembly");
+    const auto assembly = createComponent(nested, assemblyRoot, "Assembly");
+    // Erasing the assembly's placement leaves its definition unplaced, but its nested
+    // reference still names the leaf.
+    Selection selection;
+    selection.apply(nested, {{assembly.instance, SelectionKind::Body, 0}}, SelectionMode::Replace);
+    eraseSelected(nested, selection);
+    check(nested.instances().size() == 1 && nested.instances().contains(leaf.instance) &&
+              nested.definitions().at(assembly.definition)->references.size() == 1,
+          "Erasing the assembly placement leaves its definition unplaced");
+    explodeGroup(nested, leaf.instance);
+    check(nested.definitions().contains(leaf.definition) &&
+              nested.definitions().contains(assembly.definition) && nested.instances().empty(),
+          "A definition that another definition's nested reference names stays");
+    validateComponentDefinitions(nested.definitions(), nested.nextDefinitionId());
+    validateComponentInstances(nested.definitions(), nested.instances(), nested.bodies());
+}
 } // namespace
 int main() {
     try {
@@ -290,6 +366,7 @@ int main() {
         nestedUniqueness();
         sharedEditsAndAxes();
         sharedHierarchyEdits();
+        orphanedDefinitionDrops();
         std::cout
             << "Component creation, placement, replacement, nested uniqueness and undo passed\n";
     } catch (const std::exception &e) {

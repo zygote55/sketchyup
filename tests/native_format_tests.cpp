@@ -1,4 +1,5 @@
 #include "core/component_parameters.hpp"
+#include "core/groups.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
 #include "sketchyup/version.hpp"
@@ -71,6 +72,20 @@ int main(int argc, char **argv) {
                   "Removing the parameters returns to schema 26");
             check(!plain.isEmpty() && !encodeContainer(model).isEmpty(),
                   "A parameter-free model still saves");
+        }
+        {
+            // D-075: an explode that drops the only placement's definition saves and reopens
+            // without that definition, and the file keeps its geometry.
+            Document model;
+            const auto face = model.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+            const auto component = createComponent(model, face, "Panel");
+            explodeGroup(model, component.instance);
+            check(model.definitions().empty(), "The explode drops the orphaned definition");
+            const auto container = encodeContainer(model);
+            const auto reopened = decodeContainer(container);
+            check(reopened.definitions().empty() && reopened.instances().empty() &&
+                      encodeDocument(reopened) == encodeDocument(model),
+                  "A document saved after a dropped definition reopens unchanged");
         }
         {
             Document model;
