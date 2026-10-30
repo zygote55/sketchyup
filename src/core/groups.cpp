@@ -1,6 +1,7 @@
 #include "core/terrain.hpp"
 #include "core/groups.hpp"
 #include "core/component_regeneration.hpp"
+#include "core/components.hpp"
 #include "core/geometry_subset.hpp"
 #include <algorithm>
 namespace sketchy {
@@ -72,9 +73,11 @@ ChangeReport explodeGroup(Document &doc, Id id) {
     if (old->kind != BodyKind::Group)
         throw std::runtime_error("Explode requires a group");
     Edit edit{"Explode group", {}};
+    std::set<Id> released;
     if (doc.instances().contains(id)) {
         const auto binding = doc.instances().at(id);
         edit.instances.push_back({id, binding, nullptr});
+        released.insert(binding->definition);
         // Exploding gives the variant's records (ADR 0165 §4). Nested placements become
         // top-level and keep the values their parent's childParameter drivers supplied.
         if (const auto variant = doc.componentVariant(id))
@@ -106,6 +109,16 @@ ChangeReport explodeGroup(Document &doc, Id id) {
         promoted->transform = old->transform * child->transform;
         promoted->hidden = old->hidden || child->hidden;
         edit.changes.push_back({childId, child, promoted});
+    }
+    // D-075: a definition whose only placement this explode removes is removed in the same
+    // edit, unless something still refers to it. A component draft keeps its records.
+    if (!released.empty() && !doc.componentDraft()) {
+        std::set<Id> placed;
+        for (const auto &[root, instance] : doc.instances())
+            if (root != id)
+                placed.insert(instance->definition);
+        for (auto dropped : unreferencedDefinitions(doc.definitions(), placed, released))
+            edit.definitions.push_back({dropped, doc.definitions().at(dropped), nullptr});
     }
     return doc.apply(std::move(edit), doc.revision());
 }

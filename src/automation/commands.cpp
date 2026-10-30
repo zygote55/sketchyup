@@ -1834,10 +1834,14 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     for (const auto &change : edit.drawingViews)
         if (!change.before && change.after)
             createdDrawingViews.append(QString::number(change.id));
-    QJsonArray createdDefinitions;
-    for (const auto &change : edit.definitions)
+    QJsonArray createdDefinitions, removedDefinitions;
+    for (const auto &change : edit.definitions) {
         if (!change.before && change.after)
             createdDefinitions.append(QString::number(change.id));
+        // D-075: an explode or make-unique that leaves a definition unused removes it.
+        if (change.before && !change.after)
+            removedDefinitions.append(QString::number(change.id));
+    }
     QJsonArray createdAssets;
     for (const auto &change : edit.assets)
         if (!change.before && change.after)
@@ -1920,6 +1924,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                 {"created", created},
                 {"createdFaces", createdFaces},
                 {"createdDefinitions", createdDefinitions},
+                {"removedDefinitions", removedDefinitions},
                 {"createdTags", createdTags},
                 {"createdMaterials", createdMaterials},
                 {"createdAssets", createdAssets},
@@ -1992,6 +1997,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"created", created},
                        {"createdFaces", createdFaces},
                        {"createdDefinitions", createdDefinitions},
+                       {"removedDefinitions", removedDefinitions},
                        {"createdTags", createdTags},
                        {"createdMaterials", createdMaterials},
                        {"createdAssets", createdAssets},

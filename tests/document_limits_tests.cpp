@@ -209,14 +209,21 @@ void draftCountsEditedDefinitionOnce() {
     doc.undo();
     check(doc.materializedTotals().vertices == 60000, "The move undoes to the same geometry");
 
-    // Another definition shares the document: 60,000 + 30,000 fits, 80,000 + 30,000 does not.
+    // The document-wide check counts the real document: 40,000 + 30,000 of definitions and
+    // 20,000 loose vertices fit, and growing 'Large' by 20,000 does not. The stored records
+    // alone (70,000 before, 90,000 after) stay within the limit, so the document-wide count
+    // is what refuses the edit.
     Document over;
-    const auto large = heavyComponent(over, 60, "Large");
-    heavyComponent(over, 30, "Small", 60);
+    const auto large = heavyComponent(over, 40, "Large");
+    heavyComponent(over, 30, "Small", 40);
+    for (int i = 0; i < 20; ++i)
+        ring(over, 80 + i);
+    check(over.materializedTotals().vertices == 90000,
+          "Fixture: 90,000 unique vertices before the edit");
     const auto refused = rejection([&] {
         editComponentDefinition(over, large.definition, [&](Document &draft) {
             for (int i = 0; i < 20; ++i)
-                ring(draft, 90 + i);
+                ring(draft, 100 + i);
             return ChangeReport{};
         });
     });

@@ -649,8 +649,10 @@ ComponentResult makeComponentUnique(Document &doc, Id root) {
     Id nextDefinition = doc.nextDefinitionId(), selectedDefinition = 0;
     Id nextDriver = doc.nextComponentDriverId();
     Id current = root, replaced = 0, replacement = 0;
+    std::set<Id> replacedDefinitions;
     while (true) {
         const auto old = instances.at(current);
+        replacedDefinitions.insert(old->definition);
         auto definition = std::make_shared<ComponentDefinition>(*definitions.at(old->definition));
         definition->id = allocate(nextDefinition);
         // The copy keeps its parameters under new driver IDs; bindings keep overrides.
@@ -672,6 +674,15 @@ ComponentResult makeComponentUnique(Document &doc, Id root) {
         replaced = member;
         replacement = definition->id;
     }
+    // D-075: a replaced definition that no placement or definition uses any more is removed
+    // in this edit, so its geometry is not counted twice. A component draft keeps its records.
+    if (!doc.componentDraft()) {
+        std::set<Id> placed;
+        for (const auto &[instance, binding] : instances)
+            placed.insert(binding->definition);
+        for (auto dropped : unreferencedDefinitions(definitions, placed, replacedDefinitions))
+            definitions.erase(dropped);
+    }
     ComponentResult result{selectedDefinition, root, {}, {}};
     const auto firstDriver = doc.nextComponentDriverId();
     result.changes = publish(doc, definitions, instances, doc.bodies(), doc.nextId(),
@@ -679,6 +690,37 @@ ComponentResult makeComponentUnique(Document &doc, Id root) {
     for (Id id = firstDriver; id < nextDriver; ++id)
         result.createdDrivers.push_back(id);
     return result;
+}
+std::set<Id> unreferencedDefinitions(const ComponentDefinitions &definitions,
+                                     const std::set<Id> &placed, std::set<Id> candidates) {
+    // A definition that a library assembly identifies keeps its record (ADR 0165).
+    std::erase_if(candidates, [&](Id id) {
+        const auto found = definitions.find(id);
+        return placed.contains(id) || found == definitions.end() || !found->second ||
+               (found->second->parameters && found->second->parameters->assembly);
+    });
+    std::set<Id> dropped;
+    for (bool changed = true; changed;) {
+        changed = false;
+        for (auto id : candidates) {
+            if (dropped.contains(id))
+                continue;
+            bool referenced = false;
+            for (const auto &[other, definition] : definitions) {
+                if (other == id || dropped.contains(other))
+                    continue;
+                for (const auto &[member, target] : definition->references)
+                    referenced = referenced || target == id;
+                if (referenced)
+                    break;
+            }
+            if (!referenced) {
+                dropped.insert(id);
+                changed = true;
+            }
+        }
+    }
+    return dropped;
 }
 ComponentResult editComponentDefinition(Document &doc, Id id,
                                         const std::function<ChangeReport(Document &)> &edit,
@@ -690,13 +732,15 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     auto placedRoot = std::make_shared<Body>(*members.at(original->root));
     placedRoot->transform = editingFrame;
     members[original->root] = placedRoot;
+    // A component draft (D-075): the edited members count once, not with their stored record.
     Document draft;
     draft.restore(draft.identity(), original->nextMemberId, members, 0, doc.definitions(), {},
                   doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
                   doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
                   std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
                   doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {}, {}, doc.nextAnnotationId(), doc.solar(),
-                  doc.displayPrecision(), {}, 1, {}, 1, {}, 1, doc.nextComponentDriverId());
+                  doc.displayPrecision(), {}, 1, {}, 1, {}, 1, doc.nextComponentDriverId(),
+                  std::nullopt, {}, 1, {}, 1, true);
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();
