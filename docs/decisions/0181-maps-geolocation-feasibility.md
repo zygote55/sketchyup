@@ -875,3 +875,52 @@ What R107.c1 built, what each export carries, and what it does not. The sections
 **Not run.** `ifcopenshell.validate` on the IFC output. The external validator in `scripts/ifc-external-validators` is not a CI gate (ADR 0171 §6.2 point 5). The helper's own `--check` ran on each file the tests wrote. The fast-tier CI build was not run here in full: only the targets above were built locally, in the CI image `sketchyup-ci-pinned:r097a-ifc` (the `ci-fast` preset with the system linker, because the image has no mold, and the `ifc` and `ifc-app` presets for IFC).
 
 **Not done in this slice.** The visible credits (R107.c2). The STEP header (decided not to write, conflict 4). The planar DXF export of terrain (a separate decision for the owner: it would need a terrain-aware writer, which ADR 0122 does not give). Lat/lon windows and holes, as before.
+
+## Implementation notes (R107.c2)
+
+What R107.c2 built: the visible credits of §3.3, the second half of R107.c (owner decision 8). The data exports are R107.c1 (above). The design sections above stay as they were.
+
+**Where each credit goes.** The notice text is the shared helper's (`src/core/source_credits.cpp`). Each output places it as follows.
+
+| Output | Placement | Example | Image or page size |
+|---|---|---|---|
+| PDF sheets (`src/io/sheet_export.cpp`) | A "Sources" line in the bottom page margin, below the frame, left-aligned with the frame and centred in the margin. Printing (`printSheets`) paints the same line | `Sources: Credit: U.S. Geological Survey` | Unchanged. The default margin is 10 mm |
+| Measured PDF and SVG, vector (`src/io/measured_export.cpp`) | The notice as real text in the bottom page margin, outside the drawing's clip. In the PDF it is in the text layer | `Credit: U.S. Geological Survey` | Unchanged |
+| Measured PDF and SVG, raster appearance | The image is composed: white outside the drawing's content rectangle, the drawing in that rectangle, and the notice painted into the image's bottom margin. The SVG's group is not clipped in this case | The notice is pixels in the image | Unchanged: the image keeps its width and height, and the strip sits inside the existing size |
+| Presentation frames (`src/integrations/blender_worker.py`) | Blender's own text stamp: `render.use_stamp`, `use_stamp_note` and `stamp_note_text`, with `stamp_background` (0, 0, 0, 0.5). Blender draws the note at the top left and wraps it | The notice, burned into the frame's top rows | Unchanged. Video is encoded from these stills, so it carries the note |
+
+**How it looks.** The line is set in DejaVu Sans, which the measured annotations use. The size starts at 2.5 mm (about 7 pt) and steps down through 2.2, 2.0, 1.8, 1.6 and 1.4 mm (about 4 pt) until the notice fits the margin's width in whole words. A notice that cannot fit at 1.4 mm is refused, never cut. The GLO-30 notice, with its no-liability sentence, fits a 10 mm margin on a 128 mm wide page (a test). The line is labelled "Sources:"; the notice's own words follow unchanged.
+
+**Which content counts** (a rule, not a test).
+- A to-scale view or a measured drawing counts a DEM terrain when one of its own lines reaches the page's content rectangle. A raster appearance counts a DEM terrain when one of its opaque surfaces reaches it. The lines are the vector credit; the surfaces are the raster credit. A terrain outside the picture adds no notice.
+- A perspective (not-to-scale) view has no drawing. It counts any DEM terrain its scene shows.
+- A frame counts a DEM terrain when its scene manifest lists one. The GLB writer lists `credits` only when a visible DEM terrain tile emits faces (R107.c1). This rule does not test whether the camera sees the terrain (see gaps).
+
+**Preflight.** A page that shows DEM terrain and cannot print its line blocks the export (no opt-in, because the credit is required). `sourcesNoRoom` means the margin cannot hold the line at any size, which includes a zero margin. `sourcesOverlap` means page content (a view, an item or the title block) reaches into the bottom margin. The line never overlaps the frame, the views or the title block, because each of those must stay out of the margin.
+
+**Reports.** Each export's report lists the notices it wrote. The PDF sheet report has a top-level `credits` and `pages[].credits`. The measured report has `credits` and `creditPlacement` (`bottomMargin` or `composedRasterMargin`). The batch manifest keeps `credits` (R107.c1), and each frame's record now carries the `credits` its scene manifest listed. A document without DEM content writes none of these keys.
+
+**Frame method and the Blender facts checked.**
+- Blender's stamp is on only for a frame whose scene manifest lists credits. Every other stamp flag stays off, so a frame without DEM content is unchanged. A handoff keeps the scene's own settings, as before.
+- Blender's stamp draws the note in its own font at the top left, with a translucent box. It does not change the image size.
+- Blender keeps 767 bytes of a stamp note. A probe in the CI image (Blender 5.2.2) set notes of 700, 767, 768, 769 and 1000 bytes and read each back: 700 and 767 were kept whole, and longer notes were cut to 767 bytes. The worker therefore refuses a credit note longer than 700 bytes, so a required notice is never cut short.
+
+**Determinism evidence.** The same DEM scene rendered twice by the real worker gives identical PNG bytes (`blender_job_tests --real`, "The same DEM frame renders the same PNG bytes"). A 400 × 300 probe scene with a note rendered twice in the CI image gave the same sha256 both times (`1dbbe4d7…`). The stamp draws the same text and the stripped PNG text chunks are the same, as ADR 0173 §6 requires.
+
+**The tests (V6).**
+- Sheets: a DEM sheet's report lists the 3DEP notice once, on its page; a page without DEM names no credit; a zero margin and a crowded margin block the export. `pdftotext` finds `Sources: Credit: U.S. Geological Survey` on the page (`sheet_export_tests --pdf-real`). `qpdf --check` passes on the same file, run on the host (qpdf is not in the CI image).
+- Measured: the SVG's `<text>` sits in the bottom margin and reads the notice exactly; the PDF's text layer carries it (`pdftotext`); a 1000 × 800 raster keeps its size, its drawing stays in the margins and its top margin stays white, and its bottom margin holds more than 50 dark pixels of text. Without DEM the raster is not composed and the SVG has no `<text>`.
+- Frames: the real worker renders a DEM frame with the credit in its manifest and a scene without DEM without it; the DEM frame's top 24 rows hold at least 50 text-bright pixels (lightness above 180, where the scene behind is 138) and the other frame fewer than 50.
+
+**Unchanged output.** A document with no DEM terrain writes no `credits` key, no notice text, no `<text>` element and no composed raster. The code paths for those outputs return early on an empty credit set: `paintSources` (`src/io/sheet_export.cpp`) and the measured strip (`src/io/measured_export.cpp`). The worker's stamp stays off unless a manifest lists credits. No golden or fixture file was changed or regenerated. PDF bytes are not identical from run to run in any case: the creation date is set when the file is written. For PDFs, the proof is the code path above plus the existing suites. Raster pixels and SVG bytes are the same as before for such a document.
+
+**Limits and gaps.**
+- The frame credit is a visibility rule. A DEM terrain that is visible in a camera's scene but outside its frame adds a notice to that frame. The R107.c1 rule is carried over unchanged.
+- The stamp note sits at the top left of a frame and covers part of the picture. Blender places it, and the layout cannot be moved. The owner should decide whether that is acceptable.
+- UX section 17 designs no control for the frame credit, so the credit is always on, as decision 8 says. No control was added. The owner may want a way to turn it off, which would need a UX decision.
+- Printing a sheet paints the line too, but only the PDF output is tested.
+- The batch record's `credits` key and the video output are not covered by a test of their own. The frame's stamp is covered by the real-worker test, and video is encoded from those same stills.
+- The native (X11 and Wayland) suites that cover the sheet and measured dialogs were not run here, because no dialog changed. The full CI tier runs them.
+- SVG is not named in §3.3 for the measured output. It shares the export path, so it gets the same line. The owner should confirm that.
+
+**Contradictions with the design.** None of the design rules are contradicted. Two points go beyond §3.3. The raster credit does not shrink the image; it keeps the image size and uses the bottom margin. The raster and vector credits follow different content rules (a surface or a line), because a vector drawing shows only its lines.

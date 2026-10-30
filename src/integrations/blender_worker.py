@@ -70,7 +70,7 @@ def strip_png_text(path):
     path.write_bytes(b''.join(kept))
 
 
-# Blender keeps a stamp note in a fixed 768-byte field; a longer note would be cut short silently.
+# Blender keeps 767 bytes of a stamp note (a 768-byte field); a longer note would be cut short silently.
 CREDIT_NOTE_BYTE_LIMIT = 700
 
 
