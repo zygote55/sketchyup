@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Downloaded elevation files (R107.e, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): the user guide page "Terrain from a downloaded elevation file" and the support-matrix row for importing a USGS 3DEP or Copernicus GLO-30 GeoTIFF, with the download pages, the credits and the non-affiliation wording; documentation only.
 - Source credits in exports (R107.c1, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): a terrain made from a GeoTIFF elevation file adds its notice to the GLB `asset.copyright`, the OBJ comment lines, the IFC site's property set, the STL export report and the presentation batch manifest; a DXF export carries it only for a terrain with every height at zero.
 - GeoTIFF elevation import (R107.b1, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): `sketchyup-cli --import-terrain` reads a user-downloaded USGS 3DEP or Copernicus GLO-30 GeoTIFF in a UTM window (`--dem-source`, `--dem-window`, `--dem-zone`), labels its datum and vertical reference, and stores the source record with the terrain (schema 34, `terrain-dem-v1`; a 1.4.0 reader refuses it). The engine and the command line only; the desktop dialog waits for a UX section.
 - GeoTIFF LZW (R107.b1.1, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): the GeoTIFF reader decodes LZW-compressed rasters, which USGS uses for 3DEP; a 3DEP tile as downloaded is still refused, because it holds reduced-resolution overview images too.

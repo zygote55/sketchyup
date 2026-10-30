@@ -879,12 +879,188 @@ coordinates, and their reports say so.
 **Command line, MCP and the assistant.** `sketchyup-cli --import-terrain FILE` imports a terrain
 into `--input` (or a new model) and, with `--output`, writes a new native file. Options include `--terrain-units` (required for point
 files), `--origin E,N[,Z]`, `--terrain-crs`, `--terrain-roles` and the point-file options; on a
-terminal it shows the check's stages on stderr. A terrain source file can be up to 64 MiB. Automation sessions and MCP expose every site and
+terminal it shows the check's stages on stderr. A DXF or point file can be up to 64 MiB. A GeoTIFF elevation file has its own steps, in [Terrain from a downloaded elevation file](#terrain-from-a-downloaded-elevation-file). Automation sessions and MCP expose every site and
 terrain command and query, among them `terrain.import`, `terrain.create_from_edges`,
 `terrain.sculpt`, `terrain.edit_source`, `terrain.stamp_pad`, `terrain.drape` and
 `terrain.describe` (see the [tool reference](TOOL_REFERENCE.md)). The in-app assistant can read a
 terrain but not change one: it sees only `site.describe`, `terrain.describe` and
 `terrain.elevation_at`.
+
+## Terrain from a downloaded elevation file
+
+SketchyUp can make a terrain from an elevation file that you download yourself: a GeoTIFF of USGS 3DEP or
+Copernicus GLO-30 data. SketchyUp never fetches elevation data, and it sends no request to get one. You
+download the file in your browser, then import it. The import reads the file and never changes it. It adds
+a terrain to the open model as one undoable edit, and if the model has no site origin, it sets one.
+
+Provider names on this page only describe the data. SketchyUp is not affiliated with or endorsed by the
+U.S. Geological Survey (USGS), the European Union, the European Space Agency (ESA), DLR or Airbus.
+
+### Where to download
+
+Download the GeoTIFF file for the product you want. Choose GeoTIFF as the file type wherever the page
+offers a choice.
+
+| Product | Post size | Horizontal datum | Where to go |
+|---|---|---|---|
+| USGS 3DEP, 1/3 arc-second | About 10 m | NAD83 | The [1/3 arc-second DEM record](https://www.sciencebase.gov/catalog/item/4f70aa9fe4b058caae3f8de5) on ScienceBase, which says the DEM is tiled in GeoTIFF format. Download from [The National Map downloader](https://apps.nationalmap.gov/downloader). |
+| USGS 3DEP, 1 arc-second | About 30 m | NAD83 | [The National Map downloader](https://apps.nationalmap.gov/downloader). |
+| Copernicus GLO-30 | 30 m | WGS84 | The [COP-DEM collection page](https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM) of the Copernicus Data Space Ecosystem. Its products are COP-DEM_GLO-30-DGED and COP-DEM_GLO-30-DTED. Downloading needs a registered account. |
+
+GLO-30 is a surface model. Its heights include buildings and trees. The licence calls it a Digital Surface
+Model.
+
+A one-degree 1/3 arc-second tile is about 434 MiB, and a one-degree 1 arc-second tile about 52 MiB. The import reads only the
+window you choose, but it reads the whole file once to compute the file's SHA-256, which is stored with the
+terrain.
+
+### Import in the desktop app
+
+**File → Import terrain…** (or Ctrl+K, then "Import terrain") opens the chooser. Its terrain filter includes
+**GeoTIFF elevation (\*.tif, \*.tiff)**, and a `.tif` or `.tiff` file opens the dialog with GeoTIFF
+elevation selected. The dialog has these settings:
+
+1. **Product.** Choose **USGS 3DEP** or **Copernicus GLO-30**. The file does not say which it is, so the
+   dialog reads its post size. A file whose posts fit one product selects it, and the caption says why. A
+   file at 1 arc-second in both directions fits both products, so neither is selected until you choose.
+2. **Window.** Choose **Around the site origin**, **Centre and size**, or **Corners**. Around the site origin
+   is the default when the site has a geographic location: a 1,000 m square centred on the origin. Centre
+   and corners take UTM metres, or latitude and longitude, which are converted into the window's zone. **Zone**
+   sets the one UTM zone for the window and the grid. **Fit to the file** sets the window to the file's extent
+   in that zone.
+3. **Spacing.** Whole metres. The default is the file's nominal post size.
+4. **Vertical reference.** See [Choose the vertical reference](#choose-the-vertical-reference).
+
+The grid line under the preview gives the post count, the spacing, whether the grid was decimated, the
+triangles, and the room left in the model. Import is off until the vertical reference is chosen and any
+mismatch is resolved. Enter imports when Import is on, and Esc cancels a read that is running.
+
+After the import, the status line names the file and says that Undo removes the terrain. **Show report**
+lists the notices and the refusals. Copy the report or save it as text or JSON. The report is not stored in
+the model.
+
+### Import on the command line
+
+```
+sketchyup-cli --import-terrain USGS_1_n35w119.tif --dem-source 3dep \
+  --dem-window 361789.4,3818118.4,362789.4,3819118.4 --dem-zone 11N \
+  --dem-vertical NAVD88 --output window-1km.sketchyup
+```
+
+- `--dem-source` is `3dep` (USGS 3DEP) or `glo30` (Copernicus GLO-30).
+- `--dem-window` is `E0,N0,E1,N1`, the window's corners in UTM metres.
+- `--dem-zone` is the UTM zone of the window and the grid, from 1 to 60 with N or S, such as `30N`.
+- `--dem-spacing` is the grid spacing in metres. It is optional and defaults to the file's nominal post size.
+- `--dem-vertical` is `NAVD88`, `EGM2008` or `EGM96`.
+- `--dem-vertical-offset` and `--dem-vertical-note` give an offset and its reason. Both are needed to
+  mix references (see below).
+
+A `.tif` or `.tiff` file is read as a GeoTIFF. `--terrain-format geotiff` sets the format explicitly. The
+`--dem` options need a GeoTIFF source. `--input`, `--origin` and `--output` work as they do for the other
+terrain formats.
+
+### Choose the vertical reference
+
+Neither product's files name a vertical reference, so you choose one. Choose NAVD88 for 3DEP over the
+conterminous United States, EGM2008 for GLO-30, or EGM96. Nothing is chosen for you. The sources read do
+not cover other areas, so check the reference for your place. If a file does name a
+reference, the dialog shows it as read from the file, and a different choice is refused.
+
+A site has its own vertical reference, from its geographic location. If that reference differs from the
+terrain's, the dialog opens a mismatch block. Import then waits for an offset and a note:
+
+- The **offset** is the number of metres to add to the file's heights. It must not be zero.
+- The **note** says why the heights are offset. It is required.
+
+SketchyUp adds no geoid model. Enter the difference at this place from a source you trust. To change the
+site's reference instead, use **Site settings**.
+
+A site with no geographic location has nothing to compare, so the dialog says that the zone and the vertical
+reference are not checked. A site whose elevation names no vertical reference accepts the import with a
+notice that the terrain's reference is recorded, not checked.
+
+### Windows, spacing and decimation
+
+- The window lies in one UTM zone. A file that crosses a zone edge imports in one zone only, and the preview
+  shows the part of the file inside that zone's 6° band.
+- Every post of the grid must lie inside the file. A window that leaves the file is refused, and the refusal
+  counts the posts outside it.
+- The spacing is in whole metres. It can be coarser than the file's posts, but not finer. A finer spacing
+  would only interpolate between posts, so the dialog refuses it before any read.
+- A model's terrains together may have at most 250,000 triangles. If a window's grid would pass the limit, the
+  import decimates it to the smallest whole-metre spacing that fits the room left in the model. An amber notice
+  gives the new spacing, for example "Too many triangles at 31 m, so the spacing is 34 m." No posts are dropped
+  without a notice.
+- A whole 1° by 1° tile at 1 arc-second, at 35° N, is decimated to posts about 285 m apart. **Fit to the file**
+  sets the whole tile, and the grid line shows the spacing used.
+- On the developer's machine, a 1 km window from the 1 arc-second tile took 0.16 s, including the file's SHA-256.
+
+### Voids
+
+Some files have no-data posts. The 3DEP tiles tested mark them with -999999. A window that includes a no-data
+post is refused. SketchyUp does not fill the gap, because a fill would invent heights. The refusal counts the
+posts that depend on no-data posts, and the dialog shows where they are, so that you can move the window clear
+of them.
+
+### What is refused
+
+A file or a window that falls outside what this version reads is refused. Each refusal says first that nothing
+was imported and the model is unchanged, then gives the reason and what to do next.
+
+- A file that is not a GeoTIFF, or is a BigTIFF.
+- A file compressed with anything other than none, LZW or Deflate. JPEG, PackBits, ZSTD, WebP and LERC are
+  refused. The USGS tiles are LZW-compressed and the GLO-30 files are Deflate-compressed. Both are read.
+- A file with more than one full-resolution image. Overview images inside a file are skipped, and a 3DEP tile
+  holds three of them. A second full-resolution image, or a transparency mask, is refused.
+- A file with more than one band, or with 64-bit or unsigned samples. Heights must be 16-bit integers or 32-bit
+  floats.
+- A file in projected coordinates, or with a rotated raster. The coordinates must be geographic: WGS84, or
+  NAD83 read as a labelled approximation. OSGB36 and ETRS89 are refused, because this version has no
+  transformation for them.
+- Heights in units other than metres, or a vertical code this version does not know.
+- Posts of other sizes. 3DEP is read at 1/3 or 1 arc-second, and GLO-30 at 1 arc-second north to south and 1
+  or 1.5 arc-seconds east to west.
+- A file with no map position.
+- A damaged or cut-short file. Download it again, and compare its size with the source's listing.
+- A window outside the file, a window with fewer than two posts across, a window in the Norway or Svalbard
+  zone exceptions, or a window outside 80° S to 84° N.
+- A vertical reference that is not chosen, or a mismatch without a non-zero offset and a note.
+- A grid that no spacing can fit in the room left in the model.
+- Other formats. DTED, BIL, ASCII grids, LAZ and COPC point clouds, LandXML, GeoJSON and LAS are not imported.
+
+### Credits
+
+Each source asks for its credit, and SketchyUp writes the credit into the exports that carry the terrain.
+
+- **USGS 3DEP.** The USGS asks for credit in the form "Credit: U.S. Geological Survey". The USGS credits page
+  says that USGS-authored or produced data and information are in the U.S. Public Domain. The 3DEP program
+  page says that all 3DEP products are free of charge and without use restrictions. Neither page says that
+  every 3DEP product is in the public domain.
+- **Copernicus GLO-30.** The licence requires this notice for adapted or modified data. The import resamples
+  and crops the file, so this notice applies:
+  "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018
+  provided under COPERNICUS by the European Union and ESA; all rights reserved."
+  The licence also requires this sentence on distribution or communication to the public:
+  "The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability
+  for any use of the Copernicus WorldDEM-30."
+
+Where the terrain appears in an export, the notice is written into it. The GLB file records the notice in its
+`asset.copyright`. The OBJ file has it in comment lines, and the IFC file in a property set on the site. The
+presentation batch manifest lists it. The STL format has no place for a notice, so the STL export report
+carries it instead. On sheets, measured drawings and frames, a visible credit line is written where the
+terrain appears.
+
+A required notice cannot be removed from an export that carries its data. You can add text beside it, but you
+cannot delete the GLO-30 notice. The USGS credit is requested rather than required, and SketchyUp writes it the
+same way.
+
+Read the licence before you publish or sell work that uses the data. This section is not legal advice.
+
+### Non-affiliation
+
+SketchyUp is not affiliated with or endorsed by the U.S. Geological Survey, the European Union, ESA, DLR or
+Airbus. Their names here only say where the data come from. The Copernicus licence asks you not to give the
+impression that your work is officially endorsed by the Copernicus programme or its providers.
 
 ## Quantities, reports and schedules
 
