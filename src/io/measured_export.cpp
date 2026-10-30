@@ -1,4 +1,5 @@
 #include "io/measured_export.hpp"
+#include "io/credit_strip.hpp"
 #include "io/new_file.hpp"
 #include "io/pdf_info.hpp"
 #include "presentation/annotation_display.hpp"
@@ -240,6 +241,35 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
     result.report["rasterized"] = bool(pageRaster);
     result.report["annotationText"] = pageRaster ? "rasterized" : "shaped vector outlines";
     result.report["missingFontGlyphs"] = double(geometry.missingGlyphs);
+    // R107.c2 (ADR 0181 §3.3): the credit strip sits in the bottom page margin, below the drawing,
+    // so the drawing keeps its place and its scale. A raster is composed with the strip in its own
+    // bottom margin (white outside the drawing), so the image keeps its size and the strip is part
+    // of it.
+    std::optional<CreditStrip> strip;
+    if (!drawing.credits.empty()) {
+        strip = layoutCreditStrip(drawing.credits.joined(), page.widthMm - 2 * page.marginMm,
+                                  page.marginMm);
+        require(strip.has_value(),
+                "The source credit does not fit the page margin; use a larger page margin");
+        result.report["credits"] = creditNoticesJson(drawing.credits);
+        result.report["creditPlacement"] = pageRaster ? "composedRasterMargin" : "bottomMargin";
+    }
+    const QPointF stripTopLeft(page.marginMm,
+                               page.heightMm - page.marginMm +
+                                   (page.marginMm - (strip ? strip->heightMm : 0)) / 2);
+    std::optional<QImage> composed;
+    if (pageRaster && strip) {
+        const auto &image = *pageRaster;
+        const auto toPixels =
+            QTransform::fromScale(image.width() / page.widthMm, image.height() / page.heightMm);
+        composed = QImage(image.size(), QImage::Format_RGB32);
+        composed->fill(Qt::white);
+        QPainter painter(&*composed);
+        const auto drawn = toPixels.mapRect(content(page));
+        painter.drawImage(drawn, image, drawn);
+        paintCreditStrip(painter, toPixels, *strip, stripTopLeft);
+    }
+    const std::optional<QImage> &raster = composed ? composed : pageRaster;
     if (pageRaster) {
         result.report["mode"] = "orthographicRasterAppearance";
         result.report["technicalLineOmissions"] = result.report.take("losses");
@@ -273,12 +303,15 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
         xml.writeEndElement();
         xml.writeEndElement();
         xml.writeStartElement("g");
-        xml.writeAttribute("clip-path", "url(#paper-content)");
+        // A composed raster is white outside the drawing and carries its own strip: it is not
+        // clipped.
+        if (!composed)
+            xml.writeAttribute("clip-path", "url(#paper-content)");
         if (pageRaster) {
             QByteArray png;
             QBuffer buffer(&png);
             buffer.open(QIODevice::WriteOnly);
-            require(pageRaster->save(&buffer, "PNG"), "Could not encode drawing raster");
+            require(raster->save(&buffer, "PNG"), "Could not encode drawing raster");
             xml.writeStartElement("image");
             xml.writeAttribute("width", number(page.widthMm));
             xml.writeAttribute("height", number(page.heightMm));
@@ -305,6 +338,18 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
                 xml.writeEndElement();
             }
         xml.writeEndElement();
+        // The credit text of a vector drawing, outside the clip, in the bottom margin (R107.c2).
+        if (strip && !composed)
+            for (size_t i = 0; i < strip->lines.size(); ++i) {
+                xml.writeStartElement("text");
+                xml.writeAttribute("x", number(stripTopLeft.x()));
+                xml.writeAttribute("y", number(stripTopLeft.y() + strip->ascentMm +
+                                               static_cast<double>(i) * strip->lineMm));
+                xml.writeAttribute("font-family", creditStripFamily());
+                xml.writeAttribute("font-size", number(strip->emMm));
+                xml.writeCharacters(strip->lines[i]);
+                xml.writeEndElement();
+            }
         xml.writeEndElement();
         xml.writeEndDocument();
         require(!xml.hasError(), "SVG serialization failed or exceeded output budget");
@@ -326,9 +371,12 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
         require(painter.begin(&pdf), "PDF painter could not start");
         painter.setRenderHint(QPainter::LosslessImageRendering);
         painter.scale(100, 100);
-        painter.setClipRect(content(page));
-        if (pageRaster)
-            painter.drawImage(QRectF(0, 0, page.widthMm, page.heightMm), *pageRaster);
+        // A composed raster is white outside the drawing and carries its own strip: it is not
+        // clipped.
+        if (!composed)
+            painter.setClipRect(content(page));
+        if (raster)
+            painter.drawImage(QRectF(0, 0, page.widthMm, page.heightMm), *raster);
         else
             for (const auto &p : geometry.values) {
                 if (!p.path.boundingRect()
@@ -342,6 +390,8 @@ MeasuredExport exportMeasuredDrawing(const MeasuredDrawing &drawing, MeasuredFor
                 painter.setBrush(p.fill ? QBrush(p.color) : QBrush(Qt::NoBrush));
                 painter.drawPath(p.path);
             }
+        if (strip && !composed)
+            paintCreditStrip(painter, QTransform::fromScale(100, 100), *strip, stripTopLeft);
         require(painter.end(), "PDF painter could not finish");
         repairQtPdfInfo(output.bytes, created); // D-036: Qt 6.8.0/6.8.1 document information.
     }

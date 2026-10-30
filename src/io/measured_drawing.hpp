@@ -1,4 +1,5 @@
 #pragma once
+#include "core/source_credits.hpp"
 #include "geometry/measured_view.hpp"
 #include "integrations/render_snapshot.hpp"
 namespace sketchy {
@@ -19,6 +20,8 @@ struct MeasuredDrawing {
     DisplayUnit units{DisplayUnit::Meters};
     int precision{fullDisplayPrecision};
     QJsonObject report;
+    SourceCredits
+        credits; // R107.c2: the DEM notices of the scene (empty when it shows no DEM terrain).
 };
 // Orthographic technical line drawing. Page frame comes from the snapshot camera;
 // physical scale and page dimensions come from page. No camera near/far crop.

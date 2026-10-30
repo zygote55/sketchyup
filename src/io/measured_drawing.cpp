@@ -213,6 +213,8 @@ MeasuredDrawing captureMeasuredDrawing(const RenderSnapshot &snapshot, MeasuredP
                      {"cameraDepthClipping", false},
                      {"surfaceColorAndLighting", "unfilled technical line drawing"},
                      {"annotationTextScale", "96 logical pixels per inch; fixed physical size"}};
+    // R107.c2 (ADR 0181 §3.3): the DEM notices of the terrain the drawing's scene shows.
+    result.credits = sceneDemCredits(doc, snapshot);
     return result;
 }
 } // namespace sketchy

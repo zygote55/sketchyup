@@ -243,6 +243,22 @@ bool RenderSnapshot::visible(Id body, Id face) const {
     }
     return true;
 }
+SourceCredits sceneDemCredits(const Document &document, const RenderSnapshot &snapshot) {
+    SourceCredits credits;
+    for (const auto &[id, body] : document.bodies()) {
+        const auto *dem = demSourceOf(document, id);
+        if (!dem)
+            continue;
+        for (const auto &[face, record] : body->surface.faces) {
+            (void)record;
+            if (snapshot.visible(id, face)) {
+                credits.add(*dem);
+                break;
+            }
+        }
+    }
+    return credits;
+}
 RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions options,
                                        SelectionSet hidden) {
     validateRenderSettings(options.settings);

@@ -27,7 +27,8 @@ FRAME_IMAGE_LIMIT = 64 * 1024 * 1024
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 # The text chunks Blender writes into a PNG: the date, the times and the Cycles statistics.
 PNG_TEXT_CHUNKS = (b'tEXt', b'zTXt', b'iTXt')
-# Every stamp flag of the render settings is off, so a frame carries no stamped text (ADR 0173 §6).
+# Every stamp flag of the render settings is off, so a frame carries no stamped text (ADR 0173 §6),
+# except the credit note of a frame that shows DEM terrain (R107.c2, ADR 0181 §3.3).
 STAMP_FLAGS = ('use_stamp_camera', 'use_stamp_date', 'use_stamp_filename', 'use_stamp_frame',
                'use_stamp_frame_range', 'use_stamp_hostname', 'use_stamp_labels', 'use_stamp_lens',
                'use_stamp_marker', 'use_stamp_memory', 'use_stamp_note', 'use_stamp_render_time',
@@ -67,6 +68,27 @@ def strip_png_text(path):
             kept.append(data[position:end])
         position = end
     path.write_bytes(b''.join(kept))
+
+
+# Blender keeps a stamp note in a fixed 768-byte field; a longer note would be cut short silently.
+CREDIT_NOTE_BYTE_LIMIT = 700
+
+
+def credit_note(manifest):
+    # The notices of the DEM terrain this frame shows, from the scene manifest (R107.c2). The GLB writer
+    # lists them only when the scene holds DEM geometry, so a frame without it has no note. Joined as
+    # the GLB's asset.copyright joins them. Refused, never cut short: a required credit stays whole.
+    credits = manifest.get('credits')
+    if credits is None:
+        return ''
+    if (not isinstance(credits, list) or not 1 <= len(credits) <= 8 or
+            any(type(notice) is not str or not notice or
+                any(ord(c) < 0x20 or ord(c) == 0x7f for c in notice) for notice in credits)):
+        raise WorkerError('invalid_snapshot', 'Snapshot credits are invalid')
+    note = '; '.join(credits)
+    if len(note.encode('utf-8')) > CREDIT_NOTE_BYTE_LIMIT:
+        raise WorkerError('invalid_snapshot', 'Snapshot credits exceed the frame note limit')
+    return note
 
 
 def progress(phase):
@@ -669,11 +691,18 @@ def render(request, directory):
         data = path.read_bytes()
         return {**common, 'sceneFile': {'file': 'scene.blend', 'bytes': len(data),
                   'sha256': sha(data), 'assetsPacked': True, 'oneWay': True}}
-    # The stamp is off for the frame only; a handoff keeps the scene's own settings.
+    # The stamp is off for the frame, except the credit note of DEM terrain (R107.c2); a handoff keeps
+    # the scene's own settings. Blender draws the note at the top of the image; it changes no size.
     scene.render.metadata_input = 'SCENE'
     scene.render.use_stamp = False
     for flag in STAMP_FLAGS:
         setattr(scene.render, flag, False)
+    note = credit_note(manifest)
+    if note:
+        scene.render.use_stamp = True
+        scene.render.use_stamp_note = True
+        scene.render.stamp_note_text = note
+        scene.render.stamp_background = (0.0, 0.0, 0.0, 0.5)
     scene.render.filepath = str(directory / 'image.png')
     progress('rendering')
     camera = rendered_camera(scene.camera)
