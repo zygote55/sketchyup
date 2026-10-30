@@ -7,6 +7,7 @@
 #include "automation/mcp.hpp"
 #include "automation/terrain_commands.hpp"
 #include "core/terrain.hpp"
+#include "geo/geographic.hpp"
 #include "io/document_io.hpp"
 #include "io/dxf_source.hpp"
 #include "io/terrain_import.hpp"
@@ -738,6 +739,51 @@ void cli() {
     check(loadDocument(directory.filePath("two.sketchyup")).bodies().size() >
               document.bodies().size(),
           "--input adds a second terrain to the open model");
+    // R107.b3 (UX §20.7): a GeoTIFF import through the command line establishes the site with its
+    // geographic record (the file's name and SHA-256, the zone and the chosen reference), and its
+    // refusals keep the command line's texts (ADR section and option names included).
+    const auto tiff = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/plane-f32-strip-none-le.tif";
+    const auto tiffCentre = geoToUtm({51.6 - 20.0 / 3600, -0.2 + 24.0 / 3600}, 30);
+    const auto window = QString("%1,%2,%3,%4")
+                            .arg(tiffCentre.easting - 150, 0, 'f', 3)
+                            .arg(tiffCentre.northing - 150, 0, 'f', 3)
+                            .arg(tiffCentre.easting + 150, 0, 'f', 3)
+                            .arg(tiffCentre.northing + 150, 0, 'f', 3);
+    const QStringList demArgs{"--import-terrain", QString::fromStdString(tiff), "--terrain-format",
+                              "geotiff", "--dem-source", "3dep", "--dem-window", window,
+                              "--dem-zone", "30N", "--dem-vertical", "NAVD88"};
+    const auto native2 = directory.filePath("tiff.sketchyup");
+    const auto tiffOperation = invoke(demArgs + QStringList{"--output", native2}, true);
+    check(tiffOperation["status"] == "imported" && tiffOperation["siteEstablished"].toBool() &&
+              tiffOperation["importReport"].toObject()["format"] == "geotiff",
+          "--import-terrain reads a GeoTIFF through --dem options");
+    const auto tiffDocument = loadDocument(native2);
+    QFile tiffFile(QString::fromStdString(tiff));
+    check(tiffFile.open(QIODevice::ReadOnly), "the fixture can be read");
+    const auto tiffDigest = QCryptographicHash::hash(tiffFile.readAll(), QCryptographicHash::Sha256).toHex();
+    check(tiffDocument.site() && tiffDocument.site()->geographic &&
+              tiffDocument.site()->geographic->provenance.kind == "imported" &&
+              tiffDocument.site()->geographic->provenance.source == "plane-f32-strip-none-le.tif" &&
+              QString::fromStdString(tiffDocument.site()->geographic->provenance.sha256) == tiffDigest &&
+              tiffDocument.site()->geographic->utmZone == 30 &&
+              tiffDocument.site()->geographic->verticalReference == "NAVD88",
+          "the GeoTIFF import writes the site's geographic record");
+    const auto zeroOffset = invoke(demArgs + QStringList{"--dem-vertical-offset", "0",
+                                                         "--dem-vertical-note", "same reference"},
+                                   false);
+    check(zeroOffset["code"] == "INVALID_REQUEST" &&
+              zeroOffset["error"].toString().contains("zero") &&
+              zeroOffset["error"].toString().contains("ADR 0181"),
+          "a zero offset is refused by the command line, with its ADR section: " +
+              zeroOffset["error"].toString().toStdString());
+    const auto outside = invoke(QStringList{"--import-terrain", QString::fromStdString(tiff),
+                                            "--terrain-format", "geotiff", "--dem-source", "3dep",
+                                            "--dem-window", QString("%1,%2,%3,%4").arg(tiffCentre.easting + 5000, 0, 'f', 3).arg(tiffCentre.northing, 0, 'f', 3).arg(tiffCentre.easting + 5300, 0, 'f', 3).arg(tiffCentre.northing + 300, 0, 'f', 3),
+                                            "--dem-zone", "30N", "--dem-vertical", "NAVD88"},
+                                false);
+    check(outside["error"].toString().contains("not covered by the file") &&
+              outside["error"].toString().contains("ADR 0181 §2.8"),
+          "a window off the file keeps the command line's text");
 #endif
 }
 

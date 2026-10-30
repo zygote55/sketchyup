@@ -3,6 +3,8 @@
 // R107.b1.1 adds LZW (ADR 0181 §7.2, parent decision 2026-10-30).
 // R107.b1.2 skips reduced-resolution overview images (ADR 0181 §7.2 and §7.3, parent decision
 // 2026-10-30), so a 3DEP tile as USGS distributes it is read.
+// R107.b3 (UX §20.5, §20.7 item 9): every refusal carries a GeoTiffRefusalCode and a plain sentence;
+// the message is unchanged for the command line.
 //
 // Qt-free and offline. The reader walks the full-resolution image's IFD, checks every count and
 // offset against the bytes it has, and decodes one strip or tile at a time into a block cache of
