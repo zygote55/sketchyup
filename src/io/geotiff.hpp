@@ -3,6 +3,8 @@
 // R107.b1.1 adds LZW (ADR 0181 §7.2, parent decision 2026-10-30).
 // R107.b1.2 skips reduced-resolution overview images (ADR 0181 §7.2 and §7.3, parent decision
 // 2026-10-30), so a 3DEP tile as USGS distributes it is read.
+// R107.b2.1 (ADR 0181, R107.b2 design): an 8-bit RGB or RGBA orthophoto in a UTM zone, read beside the
+// elevation read (GeoTiffOrthoHeader, below).
 // R107.b3 (UX §20.5, §20.7 item 9): every refusal carries a GeoTiffRefusalCode and a plain sentence;
 // the message is unchanged for the command line.
 //
@@ -165,5 +167,35 @@ class GeoTiffRaster {
     std::size_t held_{}, peakHeld_{};
     std::uint64_t decoded_{};
 };
+
+
+// R107.b2.1 (ADR 0181, R107.b2 design "Inputs" and "Limits"): an 8-bit RGB or RGBA GeoTIFF in a WGS84 or
+// NAD83 UTM zone, read beside the elevation read above. The elevation refusals are unchanged. A refusal
+// is an ImageRefusal (image_refusal.hpp), named by its code and given one plain sentence.
+struct GeoTiffOrthoHeader {
+    std::uint32_t width{}, height{};
+    std::uint16_t samples{3};          // 3 (RGB), or 4 (RGBA with unassociated alpha)
+    bool littleEndian{true};
+    std::uint16_t compression{1};      // 1 none, 5 LZW, 8 Deflate (32946 is read as 8)
+    std::uint16_t predictor{1};        // 1 none, 2 horizontal differencing
+    bool tiled{};
+    std::uint32_t blockWidth{}, blockHeight{}; // a tile, or the width and rows of a strip
+    std::uint32_t blocksAcross{}, blocksDown{};
+    std::vector<std::uint64_t> offsets, byteCounts; // per block, row-major
+    int zone{};                        // 1 to 60
+    bool north{true};                  // the hemisphere of the zone grid
+    std::string datum;                 // "WGS84", or "NAD83" as a labelled approximation
+    std::uint32_t projectedKey{};      // the EPSG code of the projected CRS
+    double easting{}, northing{};      // the top-left corner, in metres of the zone
+    double pixelWidth{}, pixelHeight{}; // metres per pixel, east and north, both positive
+};
+
+// Reads the first image's directory and georeference, after every check the orthophoto subset needs.
+GeoTiffOrthoHeader readGeoTiffOrthophoto(const GeoTiffBytes &bytes);
+
+// Decodes every block to RGBA, row-major, four bytes a pixel (an RGB file has alpha 255). The
+// block is decoded in turn, so the peak is the RGBA image and one block.
+std::vector<std::uint8_t> decodeGeoTiffOrthophoto(const GeoTiffBytes &bytes,
+                                                  const GeoTiffOrthoHeader &image);
 
 } // namespace sketchy

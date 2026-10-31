@@ -1215,15 +1215,16 @@ int main(int argc, char **argv) {
                 // Newer schemas keep their own tests: release-1.1.0-v27 and the schema-28
                 // fixture (R093.c, component_parameter_io), the schema-30 fixture
                 // (R099.a, presentation_io), the schema-31 fixture (R100.a, style_bundle), the
-                // schema-32 fixture (R107.a, geographic_site) and the schema-33 fixture (R100.b2,
-                // material_texture_size).
+                // schema-32 fixture (R107.a, geographic_site), the schema-33 fixture (R100.b2,
+                // material_texture_size), the schema-34 fixture (R107.b1, terrain_io) and the
+                // schema-35 fixture (R107.b2.1, reference_image_io).
                 if (name == "drawing-sheets-v27.sketchyup" ||
                     name == "release-1.1.0-v27.sketchyup" ||
                     name == "component-parameters-v28.sketchyup" ||
                     name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup" ||
                     name == "geographic-site-v32.sketchyup" ||
                     name == "material-texture-size-v33.sketchyup" ||
-                    name == "terrain-dem-v34.sketchyup")
+                    name == "terrain-dem-v34.sketchyup" || name == "reference-geo-v35.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

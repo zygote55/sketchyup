@@ -2,8 +2,10 @@
 // R107.a (ADR 0181 §2): offline WGS84 ↔ UTM coordinates. The Krüger series of Karney (2011),
 // to order 6, is written in this repository: no PROJ, no grid files and no network (ADR 0181
 // §2.2, owner decision 13). Qt-free, so the document, the file format and the tests use it alone.
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace sketchy {
 
@@ -11,6 +13,22 @@ namespace sketchy {
 struct GeoPosition {
     double latitude{}, longitude{};
     bool operator==(const GeoPosition &) const = default;
+};
+
+// A position the UTM range checks refuse (ADR 0181 §2.2). It is a std::runtime_error whose message
+// names the refusal; kind() says which range it left, so a caller can name it to the person. The
+// name of an exception is "Norway" or "Svalbard".
+class UtmRangeRefusal : public std::runtime_error {
+  public:
+    enum class Kind { Band, Latitude, Exception };
+    UtmRangeRefusal(Kind kind, const std::string &message, std::string name = {})
+        : std::runtime_error(message), kind_(kind), name_(std::move(name)) {}
+    Kind kind() const { return kind_; }
+    const std::string &name() const { return name_; }
+
+  private:
+    Kind kind_;
+    std::string name_;
 };
 
 // A UTM position: the zone (1 to 60), the hemisphere, and the grid coordinates in metres with

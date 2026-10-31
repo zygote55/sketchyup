@@ -116,3 +116,18 @@ a 300 m square window in UTM zone 30N, referenced to NAVD88. The terrain carries
 `provenance.dem`. `terrain_io_tests` requires this build to read the file and write it back bit for
 bit, and the 1.4.x reader to refuse it and leave it unchanged. It is original synthetic data
 (`geotiff/make_geotiff_fixtures.py`).
+
+`reference-geo-v35.sketchyup` is a schema-35 document with a georeferenced reference image (R107.b2.1). It is written by
+`build/dev/sketchyup-cli --import-reference-image tests/fixtures/reference/north-up.png --reference-zone 30N --output
+tests/fixtures/reference-geo-v35.sketchyup`: the synthetic 8 by 6 PNG and its world file, in UTM zone 30N, which also
+sets a site origin with its geographic record (so the file carries `geographic-site-v1` too). `native_format_tests`
+requires this build to read the file and write it back bit for bit, and to refuse a file that names an unknown
+required feature. The 1.5.0 reader is expected to refuse it and leave it unchanged (derived from its source; the
+prior-release check runs when `SKETCHYUP_PRIOR_CLI` names that reader). It is original synthetic data.
+
+`reference/` holds the synthetic orthophoto fixtures for the R107.b2.1 reader and importer, written by
+`reference/make_reference_fixtures.py` (run with `python3 -I`; `north-up.jpg` needs `cjpeg`). They are 8 by 6
+pixels in UTM zone 30N unless their names say otherwise: PNG and JPEG with world files, 8-bit RGB and RGBA GeoTIFFs
+(strips, tiles, LZW, Deflate, predictor 2, big-endian, pixel-is-point, NAD83 UTM 10N, UTM 56S, a
+ModelTransformation), and one file per refusal (`refuse-ortho-*.tif`, `refuse-rotated.png`, `not-tiff.tif`).
+No downloaded imagery is in the repository.

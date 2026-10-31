@@ -11,6 +11,8 @@
 #include "automation/style_catalog_cli.hpp"
 #include "automation/terrain_commands.hpp"
 #include "io/geotiff_terrain.hpp"
+#include "io/image_refusal.hpp"
+#include "io/orthophoto_import.hpp"
 #include "integrations/glb_export.hpp"
 #include "integrations/presentation_request.hpp"
 #include "integrations/presentation_store.hpp"
@@ -229,6 +231,19 @@ int main(int argc, char **argv) {
                       "Metres added to the file's heights to reach the site's vertical reference", "metres"});
     parser.addOption({"dem-vertical-note", "Why the heights are offset (required with the offset)",
                       "text"});
+    // R107.b2.1 (ADR 0181, R107.b2 design "Inputs" and "Zone, CRS and datum"): an orthophoto, a PNG or JPEG
+    // with its world file or a GeoTIFF, placed as a georeferenced reference image.
+    parser.addOption({"import-reference-image",
+                      "Import a PNG or JPEG (with its world file) or an RGB or RGBA GeoTIFF as a georeferenced "
+                      "reference image; optional new --output",
+                      "path"});
+    parser.addOption({"reference-zone",
+                      "UTM zone of a world-file image with no site record, with N or S: 30N", "zone"});
+    parser.addOption({"reference-datum", "Datum of a world-file image: WGS84, or NAD83 as an approximation",
+                      "datum"});
+    parser.addOption({"reference-credit", "Credit line of the image, at most 256 bytes", "text"});
+    parser.addOption({"reference-elevation",
+                      "Elevation of the image in site metres (default: the site origin's)", "metres"});
     parser.addOption({"context", "Body context for geometry.inspect", "id"});
     parser.addOption({"input", "Open a model", "path"});
     parser.addOption(
@@ -464,7 +479,7 @@ int main(int argc, char **argv) {
         // option names.
         for (const auto *option :
              {"import-terrain", "import-dxf", "import-stl", "import-obj", "import-ifc",
-              "import-step", "import-skp", "import-gltf", "import-formline"})
+              "import-step", "import-skp", "import-gltf", "import-formline", "import-reference-image"})
             if (parser.isSet(option))
                 if (const auto refusal = sketchy::refusedImportFile(parser.value(option)))
                     throw sketchy::InspectionError(
@@ -675,6 +690,52 @@ int main(int argc, char **argv) {
             if (option.startsWith("terrain-") || option == "origin")
                 throw sketchy::InspectionError(
                     "INVALID_REQUEST", "Terrain options require --import-terrain");
+        if (parser.isSet("import-reference-image")) {
+            // R107.b2.1: one edit on --input or a new model, with the image's refusal named by its code.
+            const QStringList allowed{"import-reference-image", "input", "output", "reference-zone",
+                                      "reference-datum", "reference-credit", "reference-elevation"};
+            for (const auto &option : parser.optionNames())
+                if (!allowed.contains(option))
+                    throw sketchy::InspectionError(
+                        "INVALID_REQUEST", "This option does not apply to --import-reference-image: --" +
+                                               option.toStdString());
+            sketchy::OrthophotoOptions options;
+            if (parser.isSet("reference-zone")) {
+                const auto zone = parser.value("reference-zone").trimmed().toUpper();
+                bool ok{};
+                const int number = zone.left(zone.size() - 1).toInt(&ok);
+                if (zone.size() < 2 || !ok || number < 1 || number > 60 || (zone.back() != 'N' && zone.back() != 'S'))
+                    throw sketchy::InspectionError("INVALID_REQUEST", "--reference-zone is 1 to 60 with N or S, such as 30N");
+                options.zone = number;
+                options.north = zone.back() == 'N';
+            }
+            if (parser.isSet("reference-datum"))
+                options.datum = parser.value("reference-datum").toStdString();
+            if (parser.isSet("reference-credit"))
+                options.credit = parser.value("reference-credit").toUtf8().toStdString();
+            if (parser.isSet("reference-elevation")) {
+                bool ok{};
+                const double elevation = parser.value("reference-elevation").trimmed().toDouble(&ok);
+                if (!ok)
+                    throw sketchy::InspectionError("INVALID_REQUEST", "--reference-elevation is a number of metres");
+                options.elevation = elevation;
+            }
+            auto document = parser.isSet("input") ? sketchy::loadDocument(parser.value("input"))
+                                                  : sketchy::Document();
+            QJsonObject result;
+            try {
+                result = sketchy::importOrthophoto(document, parser.value("import-reference-image"), options);
+            } catch (const sketchy::ImageRefusal &refusal) {
+                throw sketchy::InspectionError("INPUT_ERROR", refusal.sentence(),
+                                               QJsonObject{{"refusalCode", QString::fromStdString(refusal.code())}});
+            } catch (const std::runtime_error &error) {
+                throw sketchy::InspectionError("INPUT_ERROR", error.what());
+            }
+            if (parser.isSet("output"))
+                result["nativeFile"] = sketchy::createNativeFile(document, parser.value("output"));
+            std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << '\n';
+            return 0;
+        }
         if (parser.isSet("import-dxf") || parser.isSet("export-dxf")) {
             auto invalid = [](const char *message) {
                 throw sketchy::InspectionError("INVALID_REQUEST", message);

@@ -213,6 +213,13 @@ bool usesTextureSizes(const Document &document) {
             return true;
     return false;
 }
+// Schema 35 (R107.b2): a placed orthophoto carries its georeference.
+bool usesReferenceGeo(const Document &document) {
+    for (const auto &[id, body] : document.bodies())
+        if (body->referenceImage && body->referenceImage->georeference)
+            return true;
+    return false;
+}
 // Schema 34 (ADR 0181 §3.2): a terrain made from a GeoTIFF elevation file carries its source record.
 bool usesDemTerrain(const Document &document) {
     for (const auto &[id, body] : document.bodies())
@@ -232,6 +239,9 @@ bool usesEdgeStrokes(const Document &document) {
 } // namespace
 
 int nativeDocumentVersionFor(const Document &document) {
+    // Schema 35 (R107.b2): a reference image with a georeference.
+    if (usesReferenceGeo(document))
+        return nativeReferenceGeoDocumentVersion;
     // Schema 34 (ADR 0181 §3.2): a GeoTIFF terrain source record.
     if (usesDemTerrain(document))
         return nativeDemTerrainDocumentVersion;

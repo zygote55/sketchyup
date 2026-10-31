@@ -85,13 +85,17 @@ void requirePosition(const GeoPosition &position) {
 // in either is refused by name in both directions (ADR 0181 §2.2).
 void refuseZoneException(double latitude, double longitude) {
     if (latitude >= 56 && latitude < 64 && longitude >= 3 && longitude < 12)
-        throw std::runtime_error("This position is in the Norway zone exception (56° to 64°N, 3° "
-                                 "to 12°E), which SketchyUp refuses: its zone boundaries are not "
-                                 "verified (ADR 0181 §2.2)");
+        throw UtmRangeRefusal(UtmRangeRefusal::Kind::Exception,
+                              "This position is in the Norway zone exception (56° to 64°N, 3° "
+                              "to 12°E), which SketchyUp refuses: its zone boundaries are not "
+                              "verified (ADR 0181 §2.2)",
+                              "Norway");
     if (latitude >= 72 && latitude < 84 && longitude >= 0 && longitude < 42)
-        throw std::runtime_error("This position is in the Svalbard zone exception (72° to 84°N, 0° "
-                                 "to 42°E), which SketchyUp refuses: its zone boundaries are not "
-                                 "verified (ADR 0181 §2.2)");
+        throw UtmRangeRefusal(UtmRangeRefusal::Kind::Exception,
+                              "This position is in the Svalbard zone exception (72° to 84°N, 0° "
+                              "to 42°E), which SketchyUp refuses: its zone boundaries are not "
+                              "verified (ADR 0181 §2.2)",
+                              "Svalbard");
 }
 
 // The zone to project in.
@@ -247,12 +251,14 @@ GeoPosition utmToGeo(const UtmPosition &position) {
         unprojectNorth(northing / scale, (position.easting - utmFalseEasting) / scale);
     const double offsetDegrees = lambda / degree;
     if (std::abs(offsetDegrees) > utmZoneHalfWidth + bandTolerance)
-        throw std::runtime_error("UTM position is outside the 6° band of zone " +
-                                 std::to_string(position.zone));
+        throw UtmRangeRefusal(UtmRangeRefusal::Kind::Band,
+                              "UTM position is outside the 6° band of zone " +
+                                  std::to_string(position.zone));
     const double latitude = (position.north ? phi : -phi) / degree;
     if (latitude < utmMinLatitude || latitude > utmMaxLatitude)
-        throw std::runtime_error("UTM position is outside the UTM latitude band, 80°S to 84°N "
-                                 "(ADR 0181 §2.2)");
+        throw UtmRangeRefusal(UtmRangeRefusal::Kind::Latitude,
+                              "UTM position is outside the UTM latitude band, 80°S to 84°N "
+                              "(ADR 0181 §2.2)");
     const double longitude = wrapDegrees(centralMeridian(position.zone) + offsetDegrees);
     refuseZoneException(latitude, longitude);
     return {latitude, longitude};

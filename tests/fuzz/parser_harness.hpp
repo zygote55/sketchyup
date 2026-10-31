@@ -3,6 +3,8 @@
 #include "io/catalog_io.hpp"
 #include "io/dxf_source.hpp"
 #include "io/geotiff.hpp"
+#include "io/image_refusal.hpp"
+#include "io/world_file.hpp"
 #include "io/model_style_io.hpp"
 #include "io/gltf_import.hpp"
 #include "io/ifc_package.hpp"
@@ -52,7 +54,8 @@ inline constexpr const char *formats[] = {"native-json",
                                           "catalog",
                                           "material-texture-size",
                                           "geographic-site",
-                                          "geotiff"};
+                                          "geotiff",
+                                          "world-file"};
 [[noreturn]] inline void fail(const char *message) {
     std::fprintf(stderr, "Parser fuzz invariant failed: %s\n", message);
     std::abort();
@@ -519,7 +522,20 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             try {
                 header = readGeoTiffHeader(memory);
             } catch (const GeoTiffRefusal &) {
-                return false;
+                // R107.b2.1: an RGB or RGBA orthophoto is refused by the elevation reader and read here.
+                // Every refusal is named (ImageRefusal), and an accepted image decodes to its full RGBA.
+                try {
+                    const auto image = readGeoTiffOrthophoto(memory);
+                    const auto rgba = decodeGeoTiffOrthophoto(memory, image);
+                    require(rgba.size() == std::size_t(image.width) * image.height * 4,
+                            "an orthophoto decodes to RGBA for every pixel");
+                    require(std::isfinite(image.easting) && std::isfinite(image.northing) &&
+                                image.pixelWidth > 0 && image.pixelHeight > 0,
+                            "an orthophoto has a finite corner and positive pixel sizes");
+                    accepted = true;
+                } catch (const ImageRefusal &) {
+                }
+                return accepted;
             }
             accepted = true;
             require(header.width >= 2 && header.height >= 2, "a raster has two posts a side");
@@ -551,6 +567,21 @@ inline bool parseInput(const QString &format, const QByteArray &bytes, const QSt
             if (!expression)
                 return false;
             accepted = true;
+        } else if (format == "world-file") {
+            // R107.b2 (ADR 0181 §8 V7): an accepted world file is six finite numbers, north-up, with
+            // positive pixel sizes; every refusal is named (ImageRefusal).
+            WorldFile file;
+            try {
+                file = readWorldFile(std::string_view(bytes.constData(), std::size_t(bytes.size())));
+            } catch (const ImageRefusal &) {
+                return false;
+            }
+            accepted = true;
+            const auto placement = northUpPlacement(file);
+            require(std::isfinite(placement.easting) && std::isfinite(placement.northing),
+                    "a world file places its corner at finite coordinates");
+            require(placement.pixelWidth > 0 && placement.pixelHeight > 0,
+                    "a world file's pixel sizes are positive");
         } else if (format == "ifc-package") {
             // The digest check is off so mutated mesh chunks reach the structural checks.
             const auto package = decodeIfcPackage(bytes, {false});

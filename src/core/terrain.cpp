@@ -1105,6 +1105,20 @@ void setSiteGeographic(Document &doc, std::optional<SiteGeographic> geographic) 
     if (doc.site()->geographic == geographic)
         refuse("INVALID_REQUEST", geographic ? "The site already has this geographic record"
                                              : "The site has no geographic record to clear");
+    // R107.b2: a georeferenced image keeps its own zone, so the site's zone must match it. Clearing
+    // the record is not refused: the image keeps its zone.
+    if (geographic) {
+        for (const auto &[id, body] : doc.bodies()) {
+            if (!body->referenceImage || !body->referenceImage->georeference)
+                continue;
+            const auto imageZone = body->referenceImage->georeference->zone;
+            if (imageZone != geographic->utmZone)
+                refuse("INVALID_REQUEST",
+                       "A georeferenced reference image is in UTM zone " + std::to_string(imageZone) +
+                           ", so the site cannot be in zone " + std::to_string(geographic->utmZone) +
+                           " while it is in the document (ADR 0181 §2.2)");
+        }
+    }
     auto origin = *doc.site();
     origin.geographic = std::move(geographic);
     validateSiteOrigin(origin);
@@ -1137,6 +1151,19 @@ ChangeReport reanchorSite(Document &doc, double easting, double northing, double
         } catch (const std::runtime_error &error) {
             refuse("INVALID_REQUEST",
                    std::string("Re-anchor would move the geographic record: ") + error.what());
+        }
+    }
+    // R107.b2: a georeferenced image keeps its own zone, so the new origin must still lie in it. The
+    // image's stored corner is in site coordinates and does not move.
+    for (const auto &[id, body] : doc.bodies()) {
+        if (!body->referenceImage || !body->referenceImage->georeference)
+            continue;
+        const auto &image = *body->referenceImage->georeference;
+        try {
+            utmToGeo({image.zone, image.north, easting, northing});
+        } catch (const std::runtime_error &error) {
+            refuse("INVALID_REQUEST", std::string("Re-anchor would leave the zone of a georeferenced "
+                                                   "reference image: ") + error.what());
         }
     }
     validateSiteOrigin(origin);
