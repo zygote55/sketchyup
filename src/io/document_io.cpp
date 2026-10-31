@@ -572,7 +572,8 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
         auto b = std::make_shared<Body>();
         b->id = readId(o["id"]);
         if (o.contains("referenceImage"))
-            b->referenceImage = decodeReferenceImage(object(o["referenceImage"]));
+            b->referenceImage = decodeReferenceImage(object(o["referenceImage"]),
+                                                     version >= nativeReferenceGeoDocumentVersion);
         if (o.contains("textSource")) b->textSource = decodeTextSource(object(o["textSource"]));
         if (o.contains("terrain")) {
             bool old = false;

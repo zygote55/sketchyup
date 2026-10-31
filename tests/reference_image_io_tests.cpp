@@ -27,6 +27,115 @@ template <class F> void rejects(F operation) {
     throw std::runtime_error("Invalid reference-image edit accepted");
 }
 } // namespace
+
+// R107.b2.1 (ADR 0181, R107.b2 design "The record (schema 35)"): the georeference record. A placed image
+// without one keeps its four keys; with one it is schema 35 with required feature reference-geo-v1.
+ImageGeoreference sampleGeoreference() {
+    ImageGeoreference geo;
+    geo.zone = 30;
+    geo.north = true;
+    geo.datum = "WGS84";
+    geo.easting = 499800;
+    geo.northing = 5710000;
+    geo.pixelWidth = 2;
+    geo.pixelHeight = 2;
+    geo.columns = 8;
+    geo.rows = 6;
+    geo.source.format = "png";
+    geo.source.file = "north-up.png";
+    geo.source.sha256 = std::string(64, 'a');
+    geo.source.worldFile = "north-up.pgw";
+    geo.source.worldSha256 = std::string(64, 'b');
+    geo.credit = "Imagery (test)";
+    return geo;
+}
+
+void testGeoreferenceRecord() {
+    Document doc;
+    const auto png = encodeTexturePng(TextureImage(2, 1, {255, 0, 0, 255, 0, 255, 0, 128}));
+    const auto asset = createAsset(
+        doc, "Orthophoto pixels", "image/png",
+        std::make_shared<AssetPayload>(std::vector<std::uint8_t>(png.begin(), png.end())));
+    ReferenceImage placed{asset, 16, 12, 1, sampleGeoreference()};
+    placed.validate();
+    const auto encoded = encodeReferenceImage(placed);
+    check(encoded.size() == 5 && encoded.contains("georeference"), "A georeferenced image encodes five keys");
+    check(decodeReferenceImage(encoded) == placed, "The georeference round-trips exactly");
+    const auto plain = encodeReferenceImage(ReferenceImage{asset, 16, 12, 1});
+    check(plain.size() == 4 && !plain.contains("georeference"),
+          "An image without a georeference keeps exactly four keys");
+    rejects([&] { decodeReferenceImage(encoded, false); });
+    for (const auto &key : {"zone", "hemisphere", "datum", "easting", "northing", "pixelWidth",
+                            "pixelHeight", "columns", "rows", "source"}) {
+        auto record = encoded["georeference"].toObject();
+        record.remove(key);
+        auto broken = encoded;
+        broken["georeference"] = record;
+        rejects([&] { decodeReferenceImage(broken); });
+    }
+    const auto place = [&](ImageGeoreference geo, double width = 16, double height = 12) {
+        ReferenceImage image{asset, width, height, 1, geo};
+        image.validate();
+    };
+    auto bad = sampleGeoreference();
+    bad.zone = 61;
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.datum = "ETRS89";
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.pixelHeight = 0;
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.columns = 4097;
+    rejects([&] { place(bad); });
+    rejects([&] { place(sampleGeoreference(), 17, 12); });
+    bad = sampleGeoreference();
+    bad.credit = std::string(257, 'c');
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.credit = "line\nbreak";
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.source.file = "folder/north-up.png";
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.source.sha256 = std::string(64, 'A');
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.source.format = "geotiff";
+    rejects([&] { place(bad); });
+    bad = sampleGeoreference();
+    bad.source.worldFile.clear();
+    rejects([&] { place(bad); });
+    auto hemisphere = encoded;
+    auto record = encoded["georeference"].toObject();
+    record["hemisphere"] = "X";
+    hemisphere["georeference"] = record;
+    rejects([&] { decodeReferenceImage(hemisphere); });
+
+    // The record in a document: schema 35, and the feature a 1.5.0 reader does not know.
+    const auto body = [&] {
+        auto b = std::make_shared<Body>();
+        b->id = doc.nextId();
+        b->kind = BodyKind::ReferenceImage;
+        b->referenceImage = placed;
+        return b;
+    }();
+    doc.apply({"Create orthophoto", {{body->id, nullptr, body}}}, doc.revision());
+    const auto bytes = encodeContainer(doc);
+    const auto reloaded = decodeContainer(bytes);
+    check(reloaded.bodies().at(body->id)->referenceImage->georeference == sampleGeoreference(),
+          "A georeferenced image survives a save and a reload");
+    check(encodeContainer(reloaded) == bytes, "A georeferenced document saves byte-exactly");
+    auto raw = QJsonDocument::fromJson(encodeDocument(doc)).object();
+    check(raw["version"] == 35, "A georeferenced document is schema 35");
+    auto older = raw;
+    older["version"] = 34;
+    rejects([&] { decodeDocument(QJsonDocument(older).toJson()); });
+    rejects([&] { calibrateReferenceImage(doc, body->id, {0, 0}, {1, 1}, 1); });
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -188,6 +297,7 @@ int main(int argc, char **argv) {
                   migrated.bodies().size() == 1 &&
                   !migrated.bodies().begin()->second->referenceImage,
               "Actual schema-23 study migrates without invented reference images");
+        testGeoreferenceRecord();
         std::cout << "Reference image records, assets, calibration history, components and "
                      "persistence passed\n";
     } catch (const std::exception &error) {

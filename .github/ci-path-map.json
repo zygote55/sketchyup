@@ -266,6 +266,26 @@
       ]
     },
     {
+      "why": "R107.b2.1 (ADR 0181, R107.b2 design): the orthophoto engine and CLI, the world file reader, the image refusals, the georeference record of a reference image (schema 35 with reference-geo-v1, in the native and reference-image codecs) and the reference fixtures.",
+      "paths": [
+        "src/io/world_file*",
+        "src/io/image_refusal*",
+        "src/io/orthophoto_import*",
+        "src/io/reference_image_io*",
+        "src/core/reference_image*",
+        "src/automation/reference_image_commands*",
+        "tests/world_file*",
+        "tests/reference_image*",
+        "tests/fixtures/reference/**",
+        "tests/fixtures/reference-geo-v35.sketchyup"
+      ],
+      "areas": [
+        "build",
+        "native",
+        "slow-core"
+      ]
+    },
+    {
       "why": "Terrain code and suites select the slow terrain suites.",
       "paths": [
         "src/**/terrain*",

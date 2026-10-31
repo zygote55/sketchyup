@@ -4,7 +4,11 @@
 #include "automation/commands.hpp"
 #include "automation/inspection.hpp"
 #include "automation/solar_commands.hpp"
+#include "core/assets.hpp"
+#include "core/reference_images.hpp"
 #include "core/terrain.hpp"
+#include "io/reference_image_io.hpp"
+#include "io/texture_image.hpp"
 #include "geo/geographic.hpp"
 #include "io/document_io.hpp"
 #include "io/native_format.hpp"
@@ -309,6 +313,67 @@ void priorRelease(const QString &directory) {
 
 } // namespace
 
+
+// R107.b2.1 (ADR 0181, R107.b2 design "Re-anchor and zone changes"): a georeferenced image keeps its zone.
+// The site's zone may not change while the image uses the old one, clearing the record is not refused,
+// and a re-anchor that would leave the image's zone is refused by name.
+ReferenceImage orthophotoIn(Document &doc, int zone, bool north) {
+    const auto png = encodeTexturePng(TextureImage(2, 1, {255, 0, 0, 255, 0, 255, 0, 128}));
+    const auto asset = createAsset(
+        doc, "Orthophoto pixels", "image/png",
+        std::make_shared<AssetPayload>(std::vector<std::uint8_t>(png.begin(), png.end())));
+    ImageGeoreference geo;
+    geo.zone = zone;
+    geo.north = north;
+    geo.datum = "WGS84";
+    const auto origin = doc.site()->easting;
+    geo.easting = origin - 100;
+    geo.northing = doc.site()->northing + 100;
+    geo.pixelWidth = 2;
+    geo.pixelHeight = 2;
+    geo.columns = 8;
+    geo.rows = 6;
+    geo.source = {"png", "north-up.png", std::string(64, 'a'), "north-up.pgw", std::string(64, 'b')};
+    const ReferenceImage image{asset, 16, 12, 1, geo};
+    createReferenceImage(doc, image, Transform::translation({0, 0, 0}));
+    return image;
+}
+
+void orthophotoZones() {
+    // A site with a record in zone 30N and an image in the same zone.
+    Document doc = geographicFixture();
+    const auto image = orthophotoIn(doc, 30, true);
+    auto eastern = londonRecord();
+    eastern.utmZone = 31;
+    const auto zoneRefusal =
+        refusal([&] { setSiteGeographic(doc, eastern); }, "A zone change under an image was accepted");
+    check(contains(zoneRefusal, "georeferenced reference image is in UTM zone 30"),
+          "A zone change names the image's zone: " + zoneRefusal);
+    check(doc.site()->geographic->utmZone == 30, "A refused zone change leaves the record in zone 30");
+    setSiteGeographic(doc, std::nullopt);
+    check(!doc.site()->geographic, "Clearing the record is not refused under an image");
+    for (const auto &[id, body] : doc.bodies())
+        if (body->referenceImage)
+            check(*body->referenceImage->georeference == *image.georeference,
+                  "The image keeps its own zone when the record is cleared");
+
+    // A site with no record: a re-anchor that leaves the zone is refused; one inside it moves the origin
+    // and leaves the image where it is on the ground.
+    Document plain;
+    setSiteOrigin(plain, londonOrigin());
+    const auto plainImage = orthophotoIn(plain, 30, true);
+    const auto origin = *plain.site();
+    const auto leftZone = refusal([&] { reanchorSite(plain, origin.easting + 400000, origin.northing, 0); },
+                                  "A re-anchor out of the image's zone was accepted");
+    check(contains(leftZone, "Re-anchor would leave the zone of a georeferenced reference image"),
+          "A re-anchor out of the zone is named: " + leftZone);
+    reanchorSite(plain, origin.easting + 500, origin.northing + 300, 0);
+    for (const auto &[id, body] : plain.bodies())
+        if (body->referenceImage)
+            check(*body->referenceImage->georeference == *plainImage.georeference,
+                  "A re-anchor inside the zone leaves the image's record where it was");
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     // --write-fixture PATH regenerates the checked-in schema-32 fixture.
@@ -328,6 +393,7 @@ int main(int argc, char **argv) {
         QTemporaryDir directory;
         check(directory.isValid(), "A temporary directory is available");
         priorRelease(directory.path());
+        orthophotoZones();
         // The checked-in fixture reopens bit for bit as schema 32.
         const auto fixture = read(QString::fromLocal8Bit(SOURCE_DIR) +
                                   "/tests/fixtures/geographic-site-v32.sketchyup");

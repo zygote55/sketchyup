@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- R107.b2.1: the orthophoto engine and `--import-reference-image`. A PNG or JPEG with its world file, or an 8-bit RGB or RGBA GeoTIFF in WGS84 or NAD83 UTM, is placed as a georeferenced reference image, saved at schema 35 (`reference-geo-v1`), which 1.5.0 refuses.
+
 ## 1.5.0 — 2026-10-31
 
 Tag `v1.5.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.5.0).

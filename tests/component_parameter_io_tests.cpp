@@ -355,10 +355,11 @@ int main(int argc, char **argv) {
         // the site origin, ADR 0168; 30 adds camera paths and presets, ADR 0173; 31 adds
         // an edge stroke on the style, ADR 0174; 32 adds a geographic site record, ADR 0181;
         // 33 adds a material texture size, ADR 0174 section 3; 34 adds a GeoTIFF terrain source
-        // record, ADR 0181 section 3.2); parameter-free content stays 27
-        // or 26.
+        // record, ADR 0181 section 3.2; 35 adds a georeferenced reference image, R107.b2); parameter-free
+        // content stays 27 or 26.
         static_assert(
-            nativeDocumentVersion == 34 && nativeDemTerrainDocumentVersion == 34 &&
+            nativeDocumentVersion == 35 && nativeDemTerrainDocumentVersion == 34 &&
+            nativeReferenceGeoDocumentVersion == 35 &&
             nativeEdgeStylesDocumentVersion == 31 &&
             nativePresentationDocumentVersion == 30 && nativeTerrainDocumentVersion == 29 &&
             nativeTerrainFreeDocumentVersion == 28 && nativeParameterFreeDocumentVersion == 27 &&
@@ -1093,12 +1094,12 @@ int main(int argc, char **argv) {
                 fixtures.entryList({"*.sketchyup", "raw-*.json"}, QDir::Files, QDir::Name);
             int historical{}, exact{};
             for (const auto &name : names) {
-                // Schema-28 and schema-30 to schema-34 fixtures carry records this loop is not about.
+                // Schema-28 and schema-30 to schema-35 fixtures carry records this loop is not about.
                 if (name == "component-parameters-v28.sketchyup" ||
                     name == "presentation-v30.sketchyup" || name == "edge-styles-v31.sketchyup" ||
                     name == "geographic-site-v32.sketchyup" ||
                     name == "material-texture-size-v33.sketchyup" ||
-                    name == "terrain-dem-v34.sketchyup")
+                    name == "terrain-dem-v34.sketchyup" || name == "reference-geo-v35.sketchyup")
                     continue;
                 const auto source = fixtures.filePath(name);
                 const auto original = read(source);

@@ -684,6 +684,32 @@ int main(int argc, char **argv) {
                   "refuse-lzw-truncated.tif", "refuse-lzw-short.tif", "refuse-lzw-more-output.tif",
                   "refuse-lzw-old-style.tif"})
                 publish("geotiff", fixture(name), QString::fromLatin1(name));
+            // R107.b2.1 (ADR 0181 §8 V7): the RGB and RGBA orthophotos, accepted, and their refusals by name.
+            const auto referenceFixture = [](const char *name) {
+                QFile file(QStringLiteral(SOURCE_DIR "/tests/fixtures/reference/") + QString::fromLatin1(name));
+                fuzz::require(file.open(QIODevice::ReadOnly), "reference fixture");
+                return file.readAll();
+            };
+            for (const char *name :
+                 {"utm-rgb-strip-none.tif", "utm-rgb-be-strip-lzw.tif", "utm-rgba-tile-deflate.tif",
+                  "utm-rgba-tile-lzw-pred2.tif", "utm-rgb-point-deflate.tif",
+                  "utm-rgb-nad83-26910.tif", "utm-rgb-south.tif", "utm-rgb-transform.tif"})
+                publish("geotiff", referenceFixture(name), QString::fromLatin1(name));
+            for (const char *name :
+                 {"refuse-ortho-jpeg.tif", "refuse-ortho-grey.tif", "refuse-ortho-16bit.tif",
+                  "refuse-ortho-planar.tif", "refuse-ortho-associated.tif",
+                  "refuse-ortho-predictor3.tif", "refuse-ortho-geographic.tif",
+                  "refuse-ortho-user-crs.tif", "refuse-ortho-feet.tif", "refuse-ortho-both.tif",
+                  "refuse-ortho-rotated.tif", "refuse-ortho-untagged.tif", "refuse-ortho-size.tif"})
+                publishRejected("geotiff", referenceFixture(name), QString::fromLatin1(name));
+            // R107.b2.1: a world file is six lines of numbers; these are the accepted and refused shapes.
+            publish("world-file", QByteArray("2.0\n0.0\n0.0\n-2.0\n499801.0\n5710001.0\n"), "north-up");
+            publish("world-file", QByteArray("2.0\r\n0\r\n0\r\n-2.0\r\n1\r\n1\r\n"), "north-up-crlf");
+            publishRejected("world-file", QByteArray("2.0\n0.0\n0.5\n-2.0\n1\n1\n"), "rotated");
+            publishRejected("world-file", QByteArray("2.0\n0.0\n0.0\n2.0\n1\n1\n"), "flipped");
+            publishRejected("world-file", QByteArray("2.0\n0.0\n0.0\n-2.0\n1\n"), "five-lines");
+            publishRejected("world-file", QByteArray("2,0\n0\n0\n-2\n1\n1\n"), "comma-decimal");
+            publishRejected("world-file", QByteArray("nan\n0\n0\n-2\n1\n1\n"), "not-finite");
             publish("geographic-site",
                     bytes(geographic(51.50735, -0.12776, 30, "WGS84", "unknown", "typed", "")),
                     "london-typed");

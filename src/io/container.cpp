@@ -103,6 +103,10 @@ QByteArray encodeContainer(const Document &doc) {
     const bool demTerrain = std::any_of(doc.bodies().begin(), doc.bodies().end(), [](const auto &entry) {
         return entry.second->terrain && entry.second->terrain->provenance.dem;
     });
+    // Schema 35 (R107.b2): a reference image with a georeference.
+    const bool referenceGeo = std::any_of(doc.bodies().begin(), doc.bodies().end(), [](const auto &entry) {
+        return entry.second->referenceImage && entry.second->referenceImage->georeference;
+    });
     const auto document = encodeDocument(doc, AssetStorage::External);
     QByteArray payload = document;
     QJsonArray chunks{QJsonObject{{"kind", "document"},
@@ -160,6 +164,8 @@ QByteArray encodeContainer(const Document &doc) {
         features.append("material-texture-size-v1");
     if (demTerrain)
         features.append("terrain-dem-v1");
+    if (referenceGeo)
+        features.append("reference-geo-v1");
     const auto manifest =
         QJsonDocument(QJsonObject{{"documentId", QString::fromStdString(doc.identity())},
                                   {"epoch", "1"},
@@ -211,10 +217,13 @@ Document decodeContainer(const QByteArray &bytes) {
     const bool textureSizes = features.contains("material-texture-size-v1");
     // Schema 34 (ADR 0181 §3.2): the GeoTIFF terrain source record, independent of the others.
     const bool demTerrain = features.contains("terrain-dem-v1");
+    // Schema 35 (R107.b2): a georeferenced reference image, independent of the others.
+    const bool referenceGeo = features.contains("reference-geo-v1");
     auto schema31 = features;
     schema31.erase("geographic-site-v1");
     schema31.erase("material-texture-size-v1");
     schema31.erase("terrain-dem-v1");
+    schema31.erase("reference-geo-v1");
     const bool edgeStyles = schema31 == std::set<QString>{"scene-v2",
                                                           "topology-v1",
                                                           "curves-v1",
@@ -245,7 +254,7 @@ Document decodeContainer(const QByteArray &bytes) {
                                                           "terrain-v1",
                                                           "presentation-v1",
                                                           "edge-styles-v1"};
-    if ((geographicSite || textureSizes || demTerrain) && !edgeStyles)
+    if ((geographicSite || textureSizes || demTerrain || referenceGeo) && !edgeStyles)
         throw std::runtime_error("Invalid required features");
     const bool presentation = edgeStyles || features == std::set<QString>{"scene-v2",
                                                                           "topology-v1",
@@ -430,7 +439,8 @@ Document decodeContainer(const QByteArray &bytes) {
     const auto total = quint64(bytes.size() - 16 - length);
     const auto documentSize = integer(chunk["bytes"]);
     if (chunk["kind"] != "document" ||
-        chunk["encoding"] != (demTerrain            ? "json-v34"
+        chunk["encoding"] != (referenceGeo          ? "json-v35"
+                              : demTerrain            ? "json-v34"
                               : textureSizes        ? "json-v33"
                               : geographicSite      ? "json-v32"
                               : edgeStyles          ? "json-v31"
@@ -509,7 +519,8 @@ Document decodeContainer(const QByteArray &bytes) {
     QJsonParseError payloadError;
     const auto parsedPayload = QJsonDocument::fromJson(payload, &payloadError);
     const auto payloadTree = parsedPayload.object();
-    if (payloadTree["version"] != (demTerrain            ? 34
+    if (payloadTree["version"] != (referenceGeo          ? 35
+                                   : demTerrain            ? 34
                                    : textureSizes        ? 33
                                    : geographicSite      ? 32
                                    : edgeStyles          ? 31

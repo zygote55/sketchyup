@@ -14,15 +14,18 @@
 #include "io/document_io.hpp"
 #include "io/geotiff.hpp"
 #include "io/geotiff_terrain.hpp"
+#include "io/image_refusal.hpp"
 #include "io/native_format.hpp"
 #include "io/terrain_import.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
+#include <QIODevice>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -964,6 +967,201 @@ void testRequestAndDryRun() {
 
 } // namespace
 
+
+// ---- R107.b2.1: the 8-bit RGB and RGBA orthophoto read (ADR 0181, R107.b2 design) ---------------
+// The pixel formulas are those of tests/fixtures/reference/make_reference_fixtures.py.
+
+const std::string referenceFixtures = std::string(SOURCE_DIR) + "/tests/fixtures/reference/";
+
+std::vector<std::uint8_t> readFixture(const std::string &name) {
+    // A name with a slash is a path under tests/fixtures; the BigTIFF refusal is an elevation fixture.
+    const auto path = name.find('/') != std::string::npos ? std::string(SOURCE_DIR) + "/tests/fixtures/" + name
+                                                         : referenceFixtures + name;
+    QFile file(QString::fromStdString(path));
+    check(file.open(QIODevice::ReadOnly), "the fixture is committed: " + name);
+    const auto bytes = file.readAll();
+    return {bytes.begin(), bytes.end()};
+}
+
+std::array<std::uint8_t, 3> orthoRgb(int col, int row) {
+    return {std::uint8_t((col * 37 + row * 11) & 255), std::uint8_t((col * 5 + row * 29 + 40) & 255),
+            std::uint8_t((255 - col * 13 - row * 7) & 255)};
+}
+
+std::uint8_t orthoAlpha(int row) { return std::uint8_t((255 - 20 * row) & 255); }
+
+// The decoded image must hold each pixel of the formula, with alpha 255 for an RGB file.
+void checkOrthoPixels(const std::vector<std::uint8_t> &rgba, bool withAlpha) {
+    check(rgba.size() == 8u * 6u * 4u, "an 8 by 6 image decodes to 192 bytes of RGBA");
+    for (int row = 0; row < 6; ++row)
+        for (int col = 0; col < 8; ++col) {
+            const auto expected = orthoRgb(col, row);
+            const auto at = (row * 8 + col) * 4;
+            for (int k = 0; k < 3; ++k)
+                check(rgba[at + k] == expected[k], "pixel " + std::to_string(col) + "," + std::to_string(row) +
+                                                       " channel " + std::to_string(k));
+            check(rgba[at + 3] == (withAlpha ? orthoAlpha(row) : 255),
+                  "alpha at " + std::to_string(col) + "," + std::to_string(row));
+        }
+}
+
+GeoTiffOrthoHeader readOrtho(const std::string &name, std::vector<std::uint8_t> *decoded = nullptr) {
+    GeoTiffMemory memory(readFixture(name));
+    const auto header = readGeoTiffOrthophoto(memory);
+    if (decoded)
+        *decoded = decodeGeoTiffOrthophoto(memory, header);
+    return header;
+}
+
+// The code and the sentence of an orthophoto refusal; the action must refuse.
+template <class F> ImageRefusal orthoRefusal(F action) {
+    try {
+        action();
+    } catch (const ImageRefusal &refusal) {
+        return refusal;
+    }
+    throw std::runtime_error("the action was not refused");
+}
+
+void testOrthoRgbStrips() {
+    std::vector<std::uint8_t> rgba;
+    const auto header = readOrtho("utm-rgb-strip-none.tif", &rgba);
+    check(header.width == 8 && header.height == 6 && header.samples == 3, "an RGB image of 8 by 6");
+    check(header.zone == 30 && header.north && header.datum == "WGS84", "zone 30N in WGS84");
+    check(header.projectedKey == 32630, "the projected key is EPSG:32630");
+    near(header.easting, 499800.0, 0, "the corner is the tie of a pixel-is-area raster");
+    near(header.northing, 5710000.0, 0, "the north corner");
+    near(header.pixelWidth, 2.0, 0, "pixel width");
+    near(header.pixelHeight, 2.0, 0, "pixel height");
+    check(header.compression == 1 && header.predictor == 1 && header.blocksDown == 2,
+          "three uncompressed strips, no predictor");
+    checkOrthoPixels(rgba, false);
+}
+
+void testOrthoBigEndianLzwPredictor2() {
+    std::vector<std::uint8_t> rgba;
+    const auto header = readOrtho("utm-rgb-be-strip-lzw.tif", &rgba);
+    check(!header.littleEndian, "the file is big-endian");
+    check(header.compression == 5 && header.predictor == 2, "LZW with horizontal differencing");
+    checkOrthoPixels(rgba, false);
+}
+
+void testOrthoRgbaTilesDeflate() {
+    std::vector<std::uint8_t> rgba;
+    const auto header = readOrtho("utm-rgba-tile-deflate.tif", &rgba);
+    check(header.samples == 4 && header.tiled && header.blockWidth == 4, "RGBA in 4 by 4 tiles");
+    check(header.compression == 8, "Deflate");
+    checkOrthoPixels(rgba, true);
+}
+
+void testOrthoRgbaTilesLzwPredictor2() {
+    std::vector<std::uint8_t> rgba;
+    const auto header = readOrtho("utm-rgba-tile-lzw-pred2.tif", &rgba);
+    check(header.samples == 4 && header.tiled && header.compression == 5 && header.predictor == 2,
+          "RGBA, LZW, tiles, predictor 2");
+    checkOrthoPixels(rgba, true);
+}
+
+void testOrthoPixelIsPoint() {
+    // The tie is the centre of pixel (0, 0): the corner is half a pixel up and left of it.
+    const auto header = readOrtho("utm-rgb-point-deflate.tif");
+    near(header.easting, 499800.0, 1e-9, "the corner of a pixel-is-point raster");
+    near(header.northing, 5710000.0, 1e-9, "the north corner of a pixel-is-point raster");
+    check(header.compression == 8, "Adobe Deflate (32946) is read as Deflate");
+}
+
+void testOrthoNad83AndSouth() {
+    const auto nad83 = readOrtho("utm-rgb-nad83-26910.tif");
+    check(nad83.zone == 10 && nad83.north && nad83.datum == "NAD83" && nad83.projectedKey == 26910,
+          "NAD83 UTM 10N (EPSG:26910) is read, labelled NAD83");
+    near(nad83.easting, 549000.0, 0, "the NAD83 corner");
+    const auto south = readOrtho("utm-rgb-south.tif");
+    check(south.zone == 56 && !south.north && south.datum == "WGS84", "zone 56S is a southern grid");
+    near(south.northing, 6250000.0, 0, "the southern corner is on the false-northing grid");
+}
+
+void testOrthoTransform() {
+    const auto header = readOrtho("utm-rgb-transform.tif");
+    near(header.easting, 499800.0, 0, "a ModelTransformation gives the corner");
+    near(header.northing, 5710000.0, 0, "a ModelTransformation gives the north corner");
+    near(header.pixelWidth, 2.0, 0, "a ModelTransformation gives the pixel width");
+    near(header.pixelHeight, 2.0, 0, "a ModelTransformation gives the pixel height");
+}
+
+void testOrthoCornerMatchesR107a() {
+    // The corner converts to geographic and back with R107.a's series to 1 µm (R107.b2.1 checks).
+    const auto header = readOrtho("utm-rgb-strip-none.tif");
+    const auto position = utmToGeo({header.zone, header.north, header.easting, header.northing});
+    const auto back = geoToUtm(position, header.zone);
+    near(back.easting, header.easting, 1e-6, "the corner's easting converts to 1 µm");
+    near(back.northing, header.northing, 1e-6, "the corner's northing converts to 1 µm");
+    const auto south = readOrtho("utm-rgb-south.tif");
+    const auto far = geoToUtm(utmToGeo({south.zone, south.north, south.easting, south.northing}), south.zone);
+    near(far.easting, south.easting, 1e-6, "a southern corner converts to 1 µm");
+    near(far.northing, south.northing, 1e-6, "a southern corner's north converts to 1 µm");
+}
+
+void testOrthoRefusalCodes() {
+    struct Expected {
+        const char *file, *code, *detail;
+    };
+    const Expected cases[] = {
+        {"refuse-ortho-jpeg.tif", "geotiff-compression", "JPEG"},
+        {"refuse-ortho-grey.tif", "geotiff-samples", "grey"},
+        {"refuse-ortho-palette.tif", "geotiff-samples", "palette"},
+        {"refuse-ortho-16bit.tif", "geotiff-samples", "16-bit"},
+        {"refuse-ortho-planar.tif", "geotiff-samples", "separate planes"},
+        {"refuse-ortho-associated.tif", "geotiff-samples", "associated"},
+        {"refuse-ortho-predictor3.tif", "geotiff-samples", "predictor 3"},
+        {"refuse-ortho-raster-type.tif", "geotiff-raster", ""},
+        {"refuse-ortho-geographic.tif", "geotiff-crs", "geographic"},
+        {"refuse-ortho-user-crs.tif", "geotiff-crs", "user-defined"},
+        {"refuse-ortho-web-mercator.tif", "geotiff-crs", "EPSG:3857"},
+        {"refuse-ortho-feet.tif", "geotiff-units", "international feet"},
+        {"refuse-ortho-both.tif", "geotiff-transform", ""},
+        {"refuse-ortho-rotated.tif", "geotiff-transform", ""},
+        {"refuse-ortho-untagged.tif", "geotiff-untagged", ""},
+        {"refuse-ortho-size.tif", "image-size", "4097 × 1"},
+        {"not-tiff.tif", "image-type", ""},
+        {"geotiff/refuse-bigtiff.tif", "geotiff-layout", ""},
+    };
+    for (const auto &item : cases) {
+        const auto refusal = orthoRefusal([&] { readOrtho(item.file, nullptr); });
+        check(refusal.code() == item.code, std::string(item.file) + " is refused as " + item.code +
+                                               ", not " + refusal.code());
+        check(!refusal.sentence().empty() && refusal.sentence().back() == '.',
+              std::string(item.file) + " has one plain sentence");
+        check(item.detail[0] == '\0' || contains(refusal.sentence(), item.detail),
+              std::string(item.file) + " names its feature: " + refusal.sentence());
+    }
+}
+
+void testOrthoTruncationIsNeverAStop() {
+    // Every truncation is read or refused by name; none crashes (V7, the fuzzer's harness, does more).
+    const auto whole = readFixture("utm-rgba-tile-lzw-pred2.tif");
+    for (std::size_t cut = 0; cut < whole.size(); cut += 5) {
+        auto bytes = std::vector<std::uint8_t>(whole.begin(), whole.begin() + std::ptrdiff_t(cut));
+        GeoTiffMemory memory(std::move(bytes));
+        try {
+            const auto header = readGeoTiffOrthophoto(memory);
+            decodeGeoTiffOrthophoto(memory, header);
+        } catch (const ImageRefusal &) {
+        }
+    }
+}
+
+void testOrthoElevationRefusalsUnchanged() {
+    // The elevation reader still refuses an orthophoto, as an RGB file is not a height field.
+    GeoTiffMemory memory(readFixture("utm-rgb-strip-none.tif"));
+    bool refused = false;
+    try {
+        readGeoTiffHeader(memory);
+    } catch (const GeoTiffRefusal &refusal) {
+        refused = refusal.code() == GeoTiffRefusalCode::Bands;
+    }
+    check(refused, "the elevation reader names the three samples as bands");
+}
+
 int main() {
     struct Case {
         const char *name;
@@ -995,6 +1193,17 @@ int main() {
         {"zero offset is no correction (R107.b3 item 5)", testZeroOffset},
         {"geographic record of an establishing import (R107.b3 item 6)", testGeographicRecord},
         {"the request from a path (R107.b3 item 1)", testRequestAndDryRun},
+        {"orthophoto RGB strips (R107.b2.1)", testOrthoRgbStrips},
+        {"orthophoto big-endian LZW with predictor 2 (R107.b2.1)", testOrthoBigEndianLzwPredictor2},
+        {"orthophoto RGBA tiles, Deflate (R107.b2.1)", testOrthoRgbaTilesDeflate},
+        {"orthophoto RGBA tiles, LZW with predictor 2 (R107.b2.1)", testOrthoRgbaTilesLzwPredictor2},
+        {"orthophoto pixel-is-point corner (R107.b2.1)", testOrthoPixelIsPoint},
+        {"orthophoto NAD83 and southern UTM (R107.b2.1)", testOrthoNad83AndSouth},
+        {"orthophoto ModelTransformation (R107.b2.1)", testOrthoTransform},
+        {"orthophoto corner matches R107.a to 1 µm (R107.b2.1)", testOrthoCornerMatchesR107a},
+        {"orthophoto refusals by code and sentence (R107.b2.1)", testOrthoRefusalCodes},
+        {"orthophoto truncations are read or refused (R107.b2.1)", testOrthoTruncationIsNeverAStop},
+        {"elevation refusals unchanged for RGB (R107.b2.1)", testOrthoElevationRefusalsUnchanged},
     };
     int failed = 0;
     for (const auto &item : cases) {

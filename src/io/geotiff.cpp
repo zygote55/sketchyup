@@ -1,5 +1,6 @@
 #include "io/geotiff.hpp"
 
+#include "io/image_refusal.hpp"
 #include "miniz_tinfl.h"
 
 #include <algorithm>
@@ -31,10 +32,12 @@ constexpr std::uint16_t tagImageWidth = 256, tagImageLength = 257, tagBitsPerSam
                         tagGeoDoubles = 34736, tagGeoAscii = 34737, tagGdalNoData = 42113;
 // NewSubfileType (TIFF 6.0, section 8): bit 0 marks a reduced-resolution image (an overview), bit 2 a
 // transparency mask. A full-resolution image has neither bit, and tag 254 is absent or 0.
-constexpr std::uint16_t tagNewSubfileType = 254;
+constexpr std::uint16_t tagNewSubfileType = 254, tagPhotometric = 262, tagPlanarConfiguration = 284,
+                        tagExtraSamples = 338;
 constexpr std::uint64_t subfileReducedResolution = 1, subfileMask = 4;
 constexpr std::uint16_t keyModelType = 1024, keyRasterType = 1025, keyGeographicType = 2048,
-                        keyProjectedType = 3072, keyVerticalType = 4096, keyVerticalUnits = 4099;
+                        keyProjectedType = 3072, keyLinearUnits = 3076, keyVerticalType = 4096,
+                        keyVerticalUnits = 4099;
 constexpr std::uint16_t compressionNone = 1, compressionLzw = 5, compressionDeflate = 8,
                         compressionAdobeDeflate = 32946;
 // LZW (TIFF 6.0, section 13): the codes, the first free code, and the table's size in codes.
@@ -931,6 +934,358 @@ std::string geoTiffRefusalSentence(GeoTiffRefusalCode code, const std::string &d
         break;
     }
     return plain("This file is outside the supported subset: " + detail);
+}
+
+
+namespace {
+
+// The GeoTIFF reader's refusals, as the orthophoto's codes. A layout refusal names the file's images;
+// anything else is damage, and the reader's own message says where.
+ImageRefusal orthoRefusalOf(const GeoTiffRefusal &refusal) {
+    if (refusal.code() == GeoTiffRefusalCode::ImageLayout)
+        return ImageRefusal("geotiff-layout");
+    return ImageRefusal("damaged", {refusal.what()});
+}
+
+// The sample's description for a photometric interpretation other than RGB (TIFF 6.0, section 8).
+std::string photometricName(std::uint64_t code) {
+    switch (code) {
+    case 0:
+        return "white-is-zero grey";
+    case 1:
+        return "grey";
+    case 3:
+        return "palette";
+    case 4:
+        return "a transparency mask";
+    case 5:
+        return "CMYK";
+    case 6:
+        return "YCbCr";
+    case 8:
+        return "CIELab";
+    default:
+        return "photometric code " + std::to_string(code);
+    }
+}
+
+// The projected CRS's UTM zone and hemisphere, and its datum. WGS84 UTM is 32601 to 32660 (north) and
+// 32701 to 32760 (south); NAD83 UTM is 26901 to 26923 (north), read as an approximation (R107.b2
+// decision 3). Anything else is refused by name.
+bool utmOfCode(std::uint32_t code, int &zone, bool &north, std::string &datum) {
+    if (code >= 32601 && code <= 32660) {
+        zone = int(code - 32600), north = true, datum = "WGS84";
+    } else if (code >= 32701 && code <= 32760) {
+        zone = int(code - 32700), north = false, datum = "WGS84";
+    } else if (code >= 26901 && code <= 26923) {
+        zone = int(code - 26900), north = true, datum = "NAD83";
+    } else {
+        return false;
+    }
+    return true;
+}
+
+// The block's decoded bytes: the compressed stream inflated (or LZW-decoded), then un-predicted by
+// horizontal differencing per channel (TIFF 6.0, section 14). `rows` is the block's row count.
+std::vector<std::uint8_t> decodeOrthoBlock(const GeoTiffBytes &bytes, const GeoTiffOrthoHeader &h,
+                                           std::size_t index, std::size_t rows) {
+    const std::size_t channels = h.samples;
+    const std::size_t width = h.blockWidth;
+    const std::size_t expected = width * rows * channels;
+    const std::size_t stored = std::size_t(h.byteCounts[index]);
+    std::vector<std::uint8_t> raw(stored);
+    if (stored != 0 && !bytes.read(h.offsets[index], stored, raw.data()))
+        throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Block " + std::to_string(index) + " cannot be read");
+    std::vector<std::uint8_t> out;
+    if (h.compression == compressionLzw) {
+        out = decodeLzw(raw.data(), stored, expected, index);
+    } else if (h.compression == compressionDeflate) {
+        out.resize(expected);
+        const auto got = tinfl_decompress_mem_to_mem(out.data(), expected, raw.data(), stored,
+                                                     TINFL_FLAG_PARSE_ZLIB_HEADER |
+                                                         TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+        if (got != expected)
+            throw GeoTiffRefusal(GeoTiffRefusalCode::Damaged, "Block " + std::to_string(index) +
+                                 " is not a valid Deflate stream of " + std::to_string(expected) +
+                                 " bytes");
+    } else {
+        out = std::move(raw);
+    }
+    if (h.predictor == 2)
+        for (std::size_t r = 0; r < rows; ++r)
+            for (std::size_t j = 1; j < width; ++j)
+                for (std::size_t k = 0; k < channels; ++k) {
+                    auto &here = out[(r * width + j) * channels + k];
+                    here = std::uint8_t(here + out[(r * width + j - 1) * channels + k]);
+                }
+    return out;
+}
+
+// The orthophoto's directory and georeference, read without the wrapper's translation of refusals.
+GeoTiffOrthoHeader readOrthoHeader(const GeoTiffBytes &bytes) {
+    if (bytes.size() < 8)
+        throw ImageRefusal("image-type");
+    std::vector<std::uint8_t> head(8);
+    if (!bytes.read(0, 8, head.data()))
+        throw ImageRefusal("image-type");
+    bool little{};
+    if (head[0] == 'I' && head[1] == 'I')
+        little = true;
+    else if (head[0] == 'M' && head[1] == 'M')
+        little = false;
+    else
+        throw ImageRefusal("image-type");
+    const Reader probe(bytes, little);
+    const auto magic = probe.u16(head.data() + 2);
+    if (magic == 43)
+        throw ImageRefusal("geotiff-layout");
+    if (magic != 42)
+        throw ImageRefusal("image-type");
+    const Reader reader(bytes, little);
+    const auto ifd = reader.u32(head.data() + 4);
+    if (ifd < 8 || ifd >= bytes.size())
+        throw ImageRefusal("damaged", {"the directory offset " + std::to_string(ifd) + " is outside the file"});
+    const auto first = readDirectory(reader, ifd);
+    const auto &tags = first.tags;
+    const auto scalar = [&](std::uint16_t tag, std::uint64_t fallback) -> std::uint64_t {
+        const auto found = tags.find(tag);
+        if (found == tags.end())
+            return fallback;
+        const auto values = tagIntegers(reader, found->second);
+        if (values.size() != 1)
+            throw ImageRefusal("damaged", {"tag " + std::to_string(tag) + " does not hold one value"});
+        return values.front();
+    };
+    const auto integers = [&](std::uint16_t tag) {
+        const auto found = tags.find(tag);
+        return found == tags.end() ? std::vector<std::uint64_t>{} : tagIntegers(reader, found->second);
+    };
+
+    // The full-resolution image only: an overview or a mask is refused as a layout (R107.b2).
+    const auto subfile = scalar(tagNewSubfileType, 0);
+    if (subfile & (subfileReducedResolution | subfileMask))
+        throw ImageRefusal("geotiff-layout");
+    checkFurtherImages(bytes, reader, ifd, first.next);
+
+    GeoTiffOrthoHeader header;
+    header.littleEndian = little;
+    const auto width = scalar(tagImageWidth, 0), height = scalar(tagImageLength, 0);
+    if (width == 0 || height == 0)
+        throw ImageRefusal("damaged", {"the image has no pixels"});
+    if (width > 4096 || height > 4096)
+        throw ImageRefusal("image-size", {std::to_string(width) + " × " + std::to_string(height)});
+    header.width = std::uint32_t(width);
+    header.height = std::uint32_t(height);
+
+    // Samples: 8-bit RGB, unsigned, chunky, with unassociated alpha for a fourth sample.
+    const auto samples = scalar(tagSamplesPerPixel, 1);
+    const auto photometric = scalar(tagPhotometric, 0);
+    if (photometric != 2 || (samples != 3 && samples != 4))
+        throw ImageRefusal("geotiff-samples", {photometric != 2
+                                                    ? photometricName(photometric)
+                                                    : std::to_string(samples) + " samples per pixel"});
+    header.samples = std::uint16_t(samples);
+    const auto bits = integers(tagBitsPerSample);
+    if (!bits.empty() && bits.size() != samples)
+        throw ImageRefusal("damaged", {"the sample sizes do not match the samples per pixel"});
+    for (const auto depth : bits)
+        if (depth != 8)
+            throw ImageRefusal("geotiff-samples", {std::to_string(depth) + "-bit samples"});
+    if (bits.empty())
+        throw ImageRefusal("geotiff-samples", {"1-bit samples"});
+    for (const auto format : integers(tagSampleFormat))
+        if (format != 1)
+            throw ImageRefusal("geotiff-samples", {format == 2 ? "signed integer samples"
+                                                                : "floating-point samples"});
+    if (scalar(tagPlanarConfiguration, 1) != 1)
+        throw ImageRefusal("geotiff-samples", {"stored in separate planes"});
+    if (samples == 4) {
+        const auto extra = integers(tagExtraSamples);
+        if (extra.size() != 1 || extra.front() != 2) {
+            const bool associated = extra.size() == 1 && extra.front() == 1;
+            throw ImageRefusal("geotiff-samples", {associated ? "associated (premultiplied) alpha"
+                                                              : "a fourth sample of unknown meaning"});
+        }
+    }
+
+    const auto compression = scalar(tagCompression, compressionNone);
+    if (compression != compressionNone && compression != compressionLzw &&
+        compression != compressionDeflate && compression != compressionAdobeDeflate)
+        throw ImageRefusal("geotiff-compression", {compressionWord(compression)});
+    header.compression = compression == compressionAdobeDeflate ? compressionDeflate
+                                                                : std::uint16_t(compression);
+    const auto predictor = scalar(tagPredictor, 1);
+    if (predictor == 3)
+        throw ImageRefusal("geotiff-samples", {"predicted with floating-point predictor 3"});
+    if (predictor != 1 && predictor != 2)
+        throw ImageRefusal("geotiff-samples", {"predicted with predictor " + std::to_string(predictor)});
+    header.predictor = std::uint16_t(predictor);
+
+    // Blocks, as the elevation reader checks them: a block holds at most 4 Mi pixels, and each stored
+    // block is no bigger than its decoded size plus the compressor's bound.
+    const bool tiled = tags.count(tagTileWidth) != 0;
+    header.tiled = tiled;
+    std::uint64_t blockWidth = 0, blockHeight = 0;
+    const auto required = [&](std::uint16_t tag) -> const Tag & {
+        const auto found = tags.find(tag);
+        if (found == tags.end())
+            throw ImageRefusal("damaged", {"tag " + std::to_string(tag) + " is missing"});
+        return found->second;
+    };
+    if (tiled) {
+        blockWidth = scalar(tagTileWidth, 0);
+        blockHeight = scalar(tagTileLength, 0);
+        if (blockWidth == 0 || blockHeight == 0 || blockWidth * blockHeight > GeoTiffBounds::blockSamples)
+            throw ImageRefusal("damaged", {"the tile size is outside the reader's limits"});
+        header.blocksAcross = std::uint32_t((width + blockWidth - 1) / blockWidth);
+        header.blocksDown = std::uint32_t((height + blockHeight - 1) / blockHeight);
+        header.offsets = tagIntegers(reader, required(tagTileOffsets));
+        header.byteCounts = tagIntegers(reader, required(tagTileByteCounts));
+    } else {
+        blockWidth = width;
+        blockHeight = std::min<std::uint64_t>(scalar(tagRowsPerStrip, height), height);
+        if (blockHeight == 0 || blockWidth * blockHeight > GeoTiffBounds::blockSamples)
+            throw ImageRefusal("damaged", {"a strip is outside the reader's limits"});
+        header.blocksAcross = 1;
+        header.blocksDown = std::uint32_t((height + blockHeight - 1) / blockHeight);
+        header.offsets = tagIntegers(reader, required(tagStripOffsets));
+        header.byteCounts = tagIntegers(reader, required(tagStripByteCounts));
+    }
+    header.blockWidth = std::uint32_t(blockWidth);
+    header.blockHeight = std::uint32_t(blockHeight);
+    const std::uint64_t blocks = std::uint64_t(header.blocksAcross) * header.blocksDown;
+    if (blocks > GeoTiffBounds::blockCount || header.offsets.size() != blocks ||
+        header.byteCounts.size() != blocks)
+        throw ImageRefusal("damaged", {"the block count does not match the image"});
+    for (std::uint64_t b = 0; b < blocks; ++b) {
+        const auto row = b / header.blocksAcross;
+        const auto rows = tiled ? blockHeight : std::min<std::uint64_t>(blockHeight, height - row * blockHeight);
+        const auto expected = blockWidth * rows * samples;
+        const auto stored = header.byteCounts[b];
+        if (header.offsets[b] > bytes.size() || stored > bytes.size() ||
+            header.offsets[b] + stored > bytes.size())
+            throw ImageRefusal("damaged", {"block " + std::to_string(b) + " lies outside the file"});
+        const bool compressed = header.compression != compressionNone;
+        const std::uint64_t limit = header.compression == compressionLzw
+                                        ? expected + expected / 2 + 1024
+                                        : expected + expected / 16 + 1024;
+        if (compressed ? stored > limit : stored != expected)
+            throw ImageRefusal("damaged", {"block " + std::to_string(b) + " stores " + std::to_string(stored) +
+                                          " bytes, not the " + std::to_string(expected) + " it decodes to"});
+    }
+
+    // The georeference: a projected CRS in WGS84 or NAD83 UTM, metres, and one tie point with a pixel
+    // scale or one north-up transformation (R107.b2 design, "The inputs").
+    const auto keyDirectory = tags.find(tagGeoKeys);
+    if (keyDirectory == tags.end())
+        throw ImageRefusal("geotiff-untagged");
+    const auto directory = tagIntegers(reader, keyDirectory->second);
+    if (directory.size() < 4 || directory[3] > GeoTiffBounds::geoKeys || directory.size() < 4 + 4 * directory[3])
+        throw ImageRefusal("damaged", {"the GeoKey directory is malformed"});
+    std::map<std::uint16_t, std::uint16_t> keys;
+    for (std::uint64_t k = 0; k < directory[3]; ++k) {
+        const auto at = 4 + 4 * k;
+        if (directory[at + 1] == 0)
+            keys[std::uint16_t(directory[at])] = std::uint16_t(directory[at + 3]);
+    }
+    const auto keyValue = [&keys](std::uint16_t id) -> std::optional<std::uint16_t> {
+        const auto found = keys.find(id);
+        return found == keys.end() ? std::nullopt : std::optional<std::uint16_t>(found->second);
+    };
+    const auto model = keyValue(keyModelType);
+    if (!model)
+        throw ImageRefusal("geotiff-crs", {"none named"});
+    if (*model != 1)
+        throw ImageRefusal("geotiff-crs", {*model == 2 ? "geographic" : "not projected"});
+    if (const auto raster = keyValue(keyRasterType); raster && *raster != 1 && *raster != 2)
+        throw ImageRefusal("geotiff-raster");
+    const bool pixelIsArea = keyValue(keyRasterType).value_or(1) == 1;
+    const auto projected = keyValue(keyProjectedType);
+    if (!projected)
+        throw ImageRefusal("geotiff-crs", {"none named"});
+    if (*projected == 32767)
+        throw ImageRefusal("geotiff-crs", {"user-defined"});
+    if (!utmOfCode(*projected, header.zone, header.north, header.datum))
+        throw ImageRefusal("geotiff-crs", {"EPSG:" + std::to_string(*projected)});
+    header.projectedKey = *projected;
+    if (const auto units = keyValue(keyLinearUnits); units && *units != 9001) {
+        const std::string name = *units == 9002 ? "international feet"
+                                 : *units == 9003 ? "US survey feet"
+                                                  : "units code " + std::to_string(*units);
+        throw ImageRefusal("geotiff-units", {name});
+    }
+
+    const bool hasTransform = tags.count(tagModelTransformation) != 0;
+    const bool hasScale = tags.count(tagModelPixelScale) != 0, hasTie = tags.count(tagModelTiepoint) != 0;
+    if (!hasTransform && !hasScale && !hasTie)
+        throw ImageRefusal("geotiff-untagged");
+    if (hasTransform && (hasScale || hasTie))
+        throw ImageRefusal("geotiff-transform");
+    // The raster position of the top-left corner: the corner itself, or half a pixel in from the centre of
+    // pixel (0, 0) when the raster is pixel-is-point.
+    const double shift = pixelIsArea ? 0.0 : -0.5;
+    if (hasTransform) {
+        const auto m = tagDoubles(reader, tags.at(tagModelTransformation));
+        if (m.size() != 16 || m[1] != 0 || m[4] != 0 || !(m[0] > 0) || !(m[5] < 0))
+            throw ImageRefusal("geotiff-transform");
+        header.easting = m[3] + m[0] * shift;
+        header.northing = m[7] + m[5] * shift;
+        header.pixelWidth = m[0];
+        header.pixelHeight = -m[5];
+    } else {
+        const auto scale = tagDoubles(reader, tags.at(tagModelPixelScale));
+        const auto tie = tagDoubles(reader, tags.at(tagModelTiepoint));
+        if (scale.size() < 2 || !(scale[0] > 0) || !(scale[1] > 0) || tie.size() != 6)
+            throw ImageRefusal("geotiff-transform");
+        header.pixelWidth = scale[0];
+        header.pixelHeight = scale[1];
+        header.easting = tie[3] + (shift - tie[0]) * scale[0];
+        header.northing = tie[4] - (shift - tie[1]) * scale[1];
+    }
+    if (!std::isfinite(header.easting) || !std::isfinite(header.northing) ||
+        !std::isfinite(header.pixelWidth) || !std::isfinite(header.pixelHeight) ||
+        std::abs(header.easting) > 1e8 || std::abs(header.northing) > 1e8)
+        throw ImageRefusal("geotiff-transform");
+    return header;
+}
+
+} // namespace
+
+GeoTiffOrthoHeader readGeoTiffOrthophoto(const GeoTiffBytes &bytes) {
+    try {
+        return readOrthoHeader(bytes);
+    } catch (const GeoTiffRefusal &refusal) {
+        throw orthoRefusalOf(refusal);
+    }
+}
+
+std::vector<std::uint8_t> decodeGeoTiffOrthophoto(const GeoTiffBytes &bytes,
+                                                  const GeoTiffOrthoHeader &image) {
+    try {
+        std::vector<std::uint8_t> out(std::size_t(image.width) * image.height * 4, 255);
+        for (std::size_t b = 0; b < image.offsets.size(); ++b) {
+            const auto row = b / image.blocksAcross, column = b % image.blocksAcross;
+            const std::size_t rows = image.tiled
+                                         ? image.blockHeight
+                                         : std::min<std::size_t>(image.blockHeight,
+                                                                 image.height - row * image.blockHeight);
+            const auto block = decodeOrthoBlock(bytes, image, b, rows);
+            const std::size_t channels = image.samples;
+            for (std::size_t r = 0; r < rows; ++r) {
+                const std::size_t y = row * image.blockHeight + r;
+                for (std::size_t c = 0; c < image.blockWidth; ++c) {
+                    const std::size_t x = column * image.blockWidth + c;
+                    if (x >= image.width || y >= image.height)
+                        continue;
+                    const auto *from = block.data() + (r * image.blockWidth + c) * channels;
+                    std::copy(from, from + channels, out.begin() + std::ptrdiff_t((y * image.width + x) * 4));
+                }
+            }
+        }
+        return out;
+    } catch (const GeoTiffRefusal &refusal) {
+        throw orthoRefusalOf(refusal);
+    }
 }
 
 } // namespace sketchy

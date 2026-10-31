@@ -49,6 +49,42 @@ int main(int argc, char **argv) {
         QTemporaryDir files;
         check(files.isValid(), "Migration fixture directory");
         {
+            // R107.b2 (ADR 0181, R107.b2 design "The record (schema 35)"): a georeferenced reference image is
+            // schema 35 with reference-geo-v1. The retained fixture reopens bit for bit, and a file that names
+            // a feature this build does not know is refused.
+            const auto fixture = read(QString(SOURCE_DIR) + "/tests/fixtures/reference-geo-v35.sketchyup");
+            const auto opened = decodeContainer(fixture);
+            bool georeferenced = false;
+            for (const auto &[id, body] : opened.bodies())
+                georeferenced = georeferenced || (body->referenceImage && body->referenceImage->georeference);
+            check(nativeDocumentVersionFor(opened) == 35 && nativeReferenceGeoDocumentVersion == 35 && georeferenced,
+                  "The schema-35 fixture holds a georeferenced reference image");
+            check(fixture.contains("reference-geo-v1") && fixture.contains("json-v35"),
+                  "Schema 35 names reference-geo-v1 and is encoded as json-v35");
+            check(encodeContainer(opened) == fixture, "The schema-35 fixture re-encodes bit for bit");
+            auto unknown = fixture;
+            unknown.replace("reference-geo-v1", "reference-geo-v2");
+            bool refused = false;
+            try {
+                decodeContainer(unknown);
+            } catch (const std::exception &) {
+                refused = true;
+            }
+            check(refused, "A container that names an unknown required feature is refused");
+            const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
+            if (!prior.isEmpty()) {
+                // The prior release (1.5.0) reads schemas 1 to 34: it must refuse this file and leave it unchanged.
+                const auto path = files.filePath("prior-reference-geo.sketchyup");
+                write(path, fixture);
+                QProcess process;
+                process.start(prior, {"--validate-native", path});
+                check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == fixture,
+                      "The prior release refuses a schema-35 file unchanged");
+                std::cout << "prior release refusal: "
+                          << process.readAllStandardError().trimmed().toStdString() << '\n';
+            }
+        }
+        {
             // R093.c: component parameters are stored in schema 28; a parameter-free model
             // keeps the lowest schema its content needs.
             Document model;
@@ -223,9 +259,14 @@ int main(int argc, char **argv) {
                 loaded.bodies().begin(), loaded.bodies().end(), [](const auto &entry) {
                     return entry.second->terrain && entry.second->terrain->provenance.dem;
                 });
+            const auto referenceGeo = std::any_of(
+                loaded.bodies().begin(), loaded.bodies().end(), [](const auto &entry) {
+                    return entry.second->referenceImage && entry.second->referenceImage->georeference;
+                });
             check(report["sourceUnmodified"] == true &&
                       report["outputDocumentVersion"] ==
-                          (demTerrain     ? nativeDemTerrainDocumentVersion
+                          (referenceGeo  ? nativeReferenceGeoDocumentVersion
+                           : demTerrain     ? nativeDemTerrainDocumentVersion
                            : textureSized ? nativeMaterialTextureSizeDocumentVersion
                            : geographic   ? nativeGeographicSiteDocumentVersion
                            : edgeStroke   ? nativeEdgeStylesDocumentVersion
