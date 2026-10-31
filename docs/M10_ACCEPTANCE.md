@@ -19,7 +19,7 @@ SketchyUp 1.4.0 on 2026-10-29. The fifth is SketchyUp 1.5.0, which follows the s
 [The 1.5.0 release](#the-150-release) below. Its record is `docs/verification/G-1.5.0.md`, written at its
 release candidate. It was released as SketchyUp 1.5.0 on 2026-10-31. The sixth is SketchyUp 1.6.0, which follows
 the same gate and is set out in [The 1.6.0 release](#the-160-release) below. Its record is
-`docs/verification/G-1.6.0.md`, written at its release candidate.
+`docs/verification/G-1.6.0.md`, written at its release candidate. It was released as SketchyUp 1.6.0 on 2026-10-31.
 
 The gate builds on the accepted 1.0 gate ([M9 acceptance](M9_ACCEPTANCE.md),
 [record](verification/M9.md)). It does not re-audit M0–M9. It shows that the
@@ -170,7 +170,7 @@ must have a green CI verdict (the fast tier) before the record is accepted.
 
 ## The 1.6.0 release
 
-SketchyUp 1.6.0 is one release with one record, `docs/verification/G-1.6.0.md`, written at its release candidate.
+SketchyUp 1.6.0 is one release with one record, `docs/verification/G-1.6.0.md`, written at its release candidate, and it was released on 2026-10-31 from RC2 (RC1 was replaced, D-088).
 It follows the gate above, with the differences below. It is not a new Extended row. It carries:
 
 - the georeferenced orthophoto as a reference image, R107.b2 (R107.b2.1 for the engine and CLI, and R107.b2.2 for the

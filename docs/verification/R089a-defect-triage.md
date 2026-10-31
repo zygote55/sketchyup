@@ -1434,6 +1434,7 @@ After the D-083 to D-085 fixes (branch `fix/d083-command-parents`, PR #554, 2026
 At the 1.6.0 RC1 `58afe4a6` (2026-10-31): 24 open (0 release-blocking, 0 Major, 8 Minor, 16 Limitation). D-086 (Limitation) and D-087 (Minor) were found by the 1.6.0 records and are open. No existing open row changed status, and the fixed count is unchanged.
 
 After the D-088 fix (2026-10-31, branch `fix/d088-cli-version`): 24 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 16 Limitation). D-088 (Major) was found by the RC1 package acceptance and fixed before the release; RC1 is replaced by RC2.
+After the 1.6.0 release (2026-10-31, [G-1.6.0](G-1.6.0.md)): 24 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 16 Limitation). The fixes listed above are in that release; D-088 was never in a release.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).

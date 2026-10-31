@@ -11,7 +11,7 @@
   ],
   "version": "1.6.0",
   "recordComplete": true,
-  "gateStatus": "approved-for-release",
+  "gateStatus": "published",
   "ownerApproval": {
     "date": "2026-10-31",
     "decision": "Release it, same permission",
@@ -23,9 +23,9 @@
     ],
     "parentConfirmation": "pending: the parent confirms that the approval covers RC2 (see contradictions and openForOwner)"
   },
-  "tagCreated": false,
-  "releaseCreated": false,
-  "published": false,
+  "tagCreated": true,
+  "releaseCreated": true,
+  "published": true,
   "rc": {
     "name": "RC2",
     "commit": "4e625298e7f0c0ab4339714019d61de323d1b9a1",
@@ -488,13 +488,13 @@
     "UX_DESIGN.md section 21 status line says approved by the owner on 2026-10-31 and amended to the built behaviour; the brief and R089.a record that the owner has not separately approved the amended text."
   ],
   "followUpsOnMain": [
-    "RELEASE_NOTES.md (two places) and PR_ROADMAP.md entry '1.6.0 CI flake fixes' say 22 open: change to 24 (8 Minor, 16 Limitation), the RC2 count (publication PR)",
-    "CHANGELOG.md heading '1.6.0 — unreleased': set the date at the tag, 2026-10-31 (M10)",
-    "PR_ROADMAP.md '1.6.0 release' entry reads 'Open until its record is accepted': update at publication",
-    "RELEASE_NOTES.md File format: verify the 'Unsupported container field' claim or remove it (publication PR)",
-    "SUPPORT_MATRIX.md Qt range versus the RC's Qt 6.8 evidence: narrow or keep, per the owner (publication PR)",
+    "RELEASE_NOTES.md (two places) and PR_ROADMAP.md entry '1.6.0 CI flake fixes' said 22 open: done in the publication PR, now 24 (8 Minor, 16 Limitation), the RC2 count",
+    "CHANGELOG.md heading '1.6.0 — unreleased': done in the publication PR, now '1.6.0 — 2026-10-31' (M10)",
+    "PR_ROADMAP.md '1.6.0 release' entry read 'Open until its record is accepted': done in the publication PR; it reads as released",
+    "RELEASE_NOTES.md File format: verify the 'Unsupported container field' claim or remove it. Open: the publication PR does not change it",
+    "SUPPORT_MATRIX.md Qt range versus the RC's Qt 6.8 evidence: narrow or keep, per the owner. Open: an owner decision, not changed by the publication PR",
     "tests/provider_release_corpus_tests.py header still says v5 is authoritative (test code; open)",
-    "a link from another document to G-1.6.0 is the parent's job at publication"
+    "a link from another document to G-1.6.0 is done in the publication PR (BUILD_PLAN, M10, PR_ROADMAP, RELEASE_NOTES, SCOPE, SUPPORT_MATRIX, R089a)"
   ],
   "openForOwner": [
     "D-086: whether to raise the durable 64 MiB outcome budget (ADR 0022, D-082 notes); an open Limitation",
@@ -508,5 +508,30 @@
     "Qt range: narrow the support matrix's Qt 6.8.0 through 6.12.0 claim or accept it as stated",
     "parent to confirm that the 2026-10-31 approval covers RC2 as well as the RC1 corpus run"
   ],
-  "publishedRelease": null
+  "publishedRelease": {
+    "tag": "v1.6.0",
+    "tagType": "annotated",
+    "tagMessage": "SketchyUp 1.6.0",
+    "tagObject": "862359c2123f5d8a7bb339b877b7408f41b25324",
+    "taggerDate": "2026-10-31T20:58:35Z",
+    "pointsAt": "4e625298e7f0c0ab4339714019d61de323d1b9a1",
+    "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.6.0",
+    "title": "SketchyUp 1.6.0",
+    "publishedAt": "2026-10-31T20:58:47Z",
+    "latest": true,
+    "prerelease": false,
+    "draft": false,
+    "assets": {
+      "sketchyup-1.6.0.tar.gz": "8ac477c2cd26b8c4c477f9b54f8c58816fe9c1dfc685f146902bf93d7de131d0",
+      "sketchyup-1.6.0-1-x86_64.pkg.tar.zst": "f701d61f7a45acd8efb243d56871344d0bf357f0cf0090ce0743b6c55baafcad",
+      "sketchyup-ifc-1.6.0-1-x86_64.pkg.tar.zst": "4f9d8f2f601f92e8b5ebc53071d7487bef5d25e1a11109c394d3a48c13cc4612",
+      "PKGBUILD": "57097d906ea7ade7ecd0ca5b5339708df4d94115100c74582a310309cc841610",
+      "SHA256SUMS": "d5bd9cbc0a4551a292c144b91a3b33fd6039e27df3b4804c384aaa48b1a4f171",
+      "MANIFEST.json": "118ce28cdc644d81b74f77a5a8eae945fcb7c1e4326263ca6d0e2f5921d81c18",
+      "THIRD_PARTY_NOTICES": "b976cba028610ebc39e776a7d7cdd2c4b6b015309eb67de36f7fa6f18adc9693"
+    },
+    "assetsVerified": "downloaded from the release by the parent; sha256sum -c SHA256SUMS passes for the four files it lists (the archive, both packages and THIRD_PARTY_NOTICES); each downloaded file is byte-identical to the RC artifact; MANIFEST.json matches the files and its gitCommit is the RC commit; GitHub's asset digests equal these values",
+    "recordPr": "PR #558 (2d9108ba) merged before the tag was made",
+    "fullTierRun": {"run": 41241385898, "headBranch": "v1.6.0", "status": "in_progress when written", "conclusion": null}
+  }
 }
