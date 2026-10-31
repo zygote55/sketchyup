@@ -57,7 +57,7 @@ it in 1.1.1. See the counts.
 shipped in 1.1.0) was found by the Qt 6.8 reference clean machine at the 1.1.0 RC and is fixed
 by the 1.1.1 patch ([F01.a](F01a-1.1.1-patch.md)). See the counts.
 **Updated 2026-10-17 (1.2.0 RC `71a6b4f3`).** The F02 RC walkthrough
-([F02-rc-1.2.0](F02-rc-1.2.0.md#triage-at-the-rc)) adds D-037 (Major, found by the gate): 1.2.0
+([F02-rc-1.2.0](F02-rc-1.2.0.md#superseded-rc1-71a6b4f3)) adds D-037 (Major, found by the gate): 1.2.0
 does not compile against Qt 6.8.0, the declared minimum. It adds the F02 follow-ups D-038
 (Minor, a paint marks a driver Changed with "changed shape" wording) and D-039 (Minor,
 `checkUniqueGeometry` cost per edit), and D-040 (Minor, a Weston segfault in one CI Wayland 2×
@@ -1056,8 +1056,8 @@ they are not counted above:
 
 1. Render limits for 250,000-triangle terrains: the GLB export's 100,000-face limit and the render
    snapshot's 20,000-body limit (the batch of such a terrain cannot start a frame; [R099e](R099e-presentation.md)).
-   **Carried in 1.5.0 (R099.f, PR #526):** a 249,218-triangle terrain and a 20,000-body capture now export and
-   render, and a 10,000-placement capture is refused by name. The 20,000-body capture prepares in 1.70 s, over the
+   **Carried in 1.5.0 (R099.f, PR #526):** a 249,218-triangle terrain and a 19,998-body capture now export and
+   render, and a 10,000-placement capture is refused by name. The 19,998-body capture prepares in 1.70 s, over the
    1 s budget, which the M10 record lists as an accepted miss.
 2. Catalog import progress and Cancel (R100.g OD-5). **Built in 1.5.0 (R100.i, PR #521):** the insert runs on a
    worker, a progress sheet opens after a second, and a Cancel before the edit is composed leaves the model and the
@@ -1216,7 +1216,7 @@ fixed by 1.1.1, so it is not open.
 At the 1.2.0 RC `71a6b4f3` (2026-10-17): 31 open (0 release-blocking, 1 Major, 16 Minor, 14
 Limitation). The gate added D-037 (Major: 1.2.0 does not build on Qt 6.8.0, the declared
 minimum); the F02 follow-ups D-038 and D-039 and the CI Weston crash D-040 are Minor. D-037 needs
-an owner decision and a new RC ([F02-rc-1.2.0](F02-rc-1.2.0.md#triage-at-the-rc)).
+an owner decision and a new RC ([F02-rc-1.2.0](F02-rc-1.2.0.md#superseded-rc1-71a6b4f3)).
 At 1.2.0 RC2 `d80fb729` (2026-10-17): 31 open (0 release-blocking, 1 Major, 16 Minor, 14
 Limitation). D-037 is fixed and verified on the Qt 6.8 reference; D-041 (Major) was added by the
 RC2 corpus run, and its fix is pending as RC3.
@@ -1281,6 +1281,7 @@ After the D-068 and D-069 fixes (2026-10-30, PR #527, branch `fix/d068-d069-warn
 After the D-075 fix (2026-10-30, PR #540): 22 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 14 Limitation). D-075 (Major) was added and fixed on the same branch: a component edit's draft counted the edited definition twice, and an explode or make-unique left the replaced definition counted.
 
 At the 1.5.0 RC1 `1ca204fd` (2026-10-30): 22 open (0 release-blocking, 0 Major, 8 Minor, 14 Limitation). D-076 to D-081 were added and fixed before the RC, so the open count is unchanged.
+After the 1.5.0 release (2026-10-31, [G-1.5.0](G-1.5.0.md)): 22 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 14 Limitation). The fixes listed above are in that release; D-081 had shipped in 1.4.0.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
