@@ -47,9 +47,15 @@ int main() {
               "Cycle failure atomic");
         rejects([&] { doc.transform(child, {}, 999); });
         rejects([&] { doc.transform(root, Transform::translation({coordinateLimit, 0, 0})); });
-        rejects([&] { doc.erase(root); });
-        check(doc.revision() == revision,
-              "Invalid parent, bounds and deletion leave scene unchanged");
+        check(doc.revision() == revision, "Invalid parent and bounds leave scene unchanged");
+        // D-083: erasing a parent erases its descendants in the same edit, and one undo restores them.
+        doc.erase(root);
+        check(!doc.bodies().contains(root) && !doc.bodies().contains(child),
+              "Erasing a parent erases its child");
+        doc.undo();
+        check(doc.bodies().contains(root) && doc.bodies().contains(child) &&
+                  doc.bodies().at(child)->parent == root,
+              "Undo restores the parent and its child");
         auto invalid = Transform{};
         invalid.m[0] = 0;
         rejects([&] { doc.transform(child, invalid, root); });

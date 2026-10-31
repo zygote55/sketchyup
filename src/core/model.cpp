@@ -965,9 +965,19 @@ void Document::transform(Id id, Transform local, Id parent) {
     apply({"Transform", {{id, old, body}}}, revision_);
 }
 void Document::erase(Id id) {
-    Edit edit{"Delete", {{id, bodies_.at(id), nullptr}}};
-    if (instances_.contains(id))
-        edit.instances.push_back({id, instances_.at(id), nullptr});
+    // Erasing a context takes its descendants with it, as erasing a selected context does: a child
+    // left behind would name a parent that no longer exists.
+    if (!bodies_.contains(id))
+        throw std::runtime_error("Missing entity to delete");
+    Edit edit{"Delete", {}};
+    for (const auto &[body, record] : bodies_)
+        for (auto ancestor = body; ancestor; ancestor = bodies_.at(ancestor)->parent)
+            if (ancestor == id) {
+                edit.changes.push_back({body, record, nullptr});
+                if (instances_.contains(body))
+                    edit.instances.push_back({body, instances_.at(body), nullptr});
+                break;
+            }
     apply(std::move(edit), revision_);
 }
 void Document::update(Edit edit, bool forward) {

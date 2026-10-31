@@ -517,6 +517,31 @@ void libraryExport(const QString &home, const QProcessEnvironment &env) {
             env, library, "INVALID_REQUEST", "A library name that ends in a dot");
 }
 
+// D-083: a --script batch looks in the same catalog library that --export-catalog --to-library
+// writes and --list-catalog reads, so catalog.import by library name finds the exported catalog.
+void scriptLibraryImport(const QProcessEnvironment &env, const QString &dir) {
+    const auto styled = sourcePath("tests/fixtures/edge-styles-v31.sketchyup");
+    auto run =
+        cli({"--input", styled, "--export-catalog", "Scripted", "--to-library", "--catalog-style"},
+            env);
+    check(run.exitCode == 0, "--to-library exports the catalog the script will import");
+    const auto entries = cli({"--list-catalog", "Scripted"}, env).json()["entries"].toArray();
+    check(!entries.isEmpty() && entries[0].toObject()["importable"].toBool(),
+          "The exported library catalog has an importable entry");
+    const auto script = dir + "/library-import.json";
+    writeFile(script,
+              QJsonDocument(QJsonArray{QJsonObject{
+                                {"command", "catalog.import"},
+                                {"library", "Scripted"},
+                                {"entries", QJsonArray{entries[0].toObject()["name"].toString()}}}})
+                  .toJson(QJsonDocument::Compact));
+    run = cli({"--script", script, "--output", dir + "/library-import.sketchyup"}, env);
+    check(run.exitCode == 0, "--script imports a library catalog entry by name");
+    check(run.json()["catalogOperations"].toArray().size() == 1 &&
+              is(run.json()["catalogOperations"].toArray()[0].toObject()["name"], "Scripted"),
+          "The script's catalog.import names the library catalog it read");
+}
+
 } // namespace
 
 int main() {
@@ -538,6 +563,7 @@ int main() {
         styleRefusals(env, dir);
         catalogFlags(home, env, dir);
         libraryExport(home, env);
+        scriptLibraryImport(env, dir);
         std::cout << "style and catalog CLI tests passed\n";
     } catch (const std::exception &error) {
         std::cerr << "style and catalog CLI tests failed: " << error.what() << '\n';

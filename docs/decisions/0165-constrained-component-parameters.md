@@ -841,3 +841,14 @@ it" for that one case. Where it differs from §4 or the notes above, it governs.
   with the stored digest is not possible either: the hash does not keep the appearance the
   driver was bound with, and storing a second digest would change the frozen schema 28.
   Rewording the strip alone would still prompt a Rebind for an edit that changes no shape.
+
+## Implementation notes (D-084)
+
+D-084 changes how a placement names its parent inside a shared definition edit (§4). Where this section and §4 differ, these notes govern.
+
+- **The IDs an edit shows.** An edit of a definition alone (`component.edit` with `definition`) works on the definition's canonical member IDs, and "0" stands for its root. An edit through an instance (`component.edit` with `instance`) works on that instance's scene IDs, which `canonicalComponentCommands` maps to the canonical members. Both forms accept "0" for the root.
+- **Finding.** The peer reported "Missing parent entity" for a member, a scene ID or "0". Before this fix, on this branch, each of these placed the part under the expected parent: a canonical group member, "0", the root's ID, a scene ID of the instance's member in an instance-scoped edit, and a placement whose host sits inside a scene group. The failure that did reproduce was an ID the edit does not show, a scene ID in a definition-only edit or a body outside the definition. That placement failed with a raw "map::at" error. The peer should re-run the report against this fix.
+- **Rule.** `placeComponent` refuses a parent that the edit does not hold before it looks the parent up: "Placement parent N is not in this edit: name a group the edit shows, or 0 for the root". The refusal publishes nothing.
+- **Not changed.** A placement under the root of an existing nested placement is still refused ("Unbound geometry inside a component instance"). That is a restriction of §4, not a defect.
+- **Tests.** `component_scope_tests`, `nestedPlacementParents`: a group member, "0", a body outside the definition and a scene ID in a definition-only edit (both refused by name, nothing published), and a scene ID inside an instance's scope.
+- **Contradictions.** None.
