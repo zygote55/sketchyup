@@ -419,8 +419,8 @@ void decoderLimits(const QTemporaryDir &files) {
            }).empty(),
           "Schema 28 cannot carry terrain");
     // A released reader (SKETCHYUP_PRIOR_CLI, 1.3.x, the first to read schema 29) opens a
-    // schema-29 file unchanged. The 1.2.x reader refused this file. A 1.4.x reader, which reads
-    // schemas 1 to 33, refuses the schema-34 GeoTIFF file below unchanged.
+    // schema-29 file unchanged. The 1.2.x reader refused this file. A 1.5.x reader, the first to
+    // read schema 34, opens the schema-34 GeoTIFF file below unchanged; the 1.4.x reader refused it.
     const auto dem = demFixture();
     const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
     if (!prior.isEmpty()) {
@@ -436,10 +436,10 @@ void decoderLimits(const QTemporaryDir &files) {
         write(demPath, dem);
         QProcess demProcess;
         demProcess.start(prior, {"--validate-native", demPath});
-        check(demProcess.waitForFinished(30000) && demProcess.exitCode() != 0 &&
+        check(demProcess.waitForFinished(30000) && demProcess.exitCode() == 0 &&
                   read(demPath) == dem,
-              "The prior release refuses a schema-34 file unchanged");
-        std::cout << "prior release refusal: "
+              "The prior release opens a schema-34 file unchanged");
+        std::cout << "prior release check: "
                   << demProcess.readAllStandardError().trimmed().toStdString() << '\n';
     } else
         std::cout << "SKETCHYUP_PRIOR_CLI not set; prior-release check not exercised\n";
