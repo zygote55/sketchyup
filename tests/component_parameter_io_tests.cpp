@@ -1225,10 +1225,11 @@ int main(int argc, char **argv) {
         // ---- The previous-release window (ADR 0165 §5) ----
         // SKETCHYUP_PRIOR_CLI names a released sketchyup-cli (package acceptance passes
         // the previous release's: 1.1.1-1 for 1.2.0, 1.2.0-1 for 1.3.0, 1.3.0-1 for 1.4.0,
-        // 1.4.0-1 for 1.5.0; R093.c also ran 1.0.1-1's and 1.1.0-1's). A prior that reads schema
-        // 26 or 27 must refuse the schema-28 fixture with its newer-format error and leave it
-        // unchanged; a prior that reads schema 28 or later must open the fixture and a schema-28
-        // save from this build unchanged (terrain_io checks the schema-29 and schema-34 files).
+        // 1.4.0-1 for 1.5.0, 1.5.0-1 for 1.6.0, 1.6.0-1 for 1.6.1; R093.c also ran 1.0.1-1's and
+        // 1.1.0-1's). A prior that reads schema 26 or 27 must refuse the schema-28 fixture with its
+        // newer-format error and leave it unchanged; a prior that reads schema 28 or later must
+        // open the fixture and a schema-28 save from this build unchanged (terrain_io checks the
+        // schema-29 and schema-34 files).
         // Either way it opens a parameter-free save from this build at the newest schema it reads.
         const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
         if (!prior.isEmpty()) {
@@ -1239,7 +1240,7 @@ int main(int argc, char **argv) {
             for (const auto &value :
                  QJsonDocument::fromJson(out).object()["readDocumentVersions"].toArray())
                 reads = std::max(reads, value.toInt());
-            check(reads >= 26 && reads <= 34, "The prior release reads schema 26 to 34");
+            check(reads >= 26 && reads <= 35, "The prior release reads schema 26 to 35");
             const auto fixturePath = files.filePath("prior-v28.sketchyup");
             const auto fixtureBytes = read(fixtures.filePath("component-parameters-v28.sketchyup"));
             write(fixturePath, fixtureBytes);

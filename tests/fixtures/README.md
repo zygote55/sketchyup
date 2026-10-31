@@ -114,7 +114,7 @@ the prior release must refuse it unchanged. It is original synthetic project dat
 `sketchyup-cli --import-terrain` on the synthetic `geotiff/plane-f32-strip-none-le.tif` as USGS 3DEP:
 a 300 m square window in UTM zone 30N, referenced to NAVD88. The terrain carries its source record in
 `provenance.dem`. `terrain_io_tests` requires this build to read the file and write it back bit for
-bit, and the 1.5.x reader to open it unchanged (the 1.4.x reader refused it). It is original synthetic data
+bit, and the 1.5.x and 1.6.x readers to open it unchanged (the 1.4.x reader refused it). It is original synthetic data
 (`geotiff/make_geotiff_fixtures.py`).
 
 `reference-geo-v35.sketchyup` is a schema-35 document with a georeferenced reference image (R107.b2.1). It is written by
@@ -122,9 +122,10 @@ bit, and the 1.5.x reader to open it unchanged (the 1.4.x reader refused it). It
 tests/fixtures/reference-geo-v35.sketchyup`: the synthetic 8 by 6 PNG and its world file, in UTM zone 30N, which also
 sets a site origin with its geographic record (so the file carries `geographic-site-v1` too). `native_format_tests`
 requires this build to read the file and write it back bit for bit, and to refuse a file that names an unknown
-required feature. The published 1.5.0-1 reader refuses it and leaves it unchanged: `--validate-native` exits with
-status 1 and prints `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}` (checked on the
-package, 2026-10-31). `native_format_tests` runs that check when `SKETCHYUP_PRIOR_CLI` names the reader. It is original
+required feature. The published 1.5.0-1 reader refused it and left it unchanged, with `--validate-native` exiting with
+status 1 and printing `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}` (checked on the
+package, 2026-10-31). The published 1.6.0-1 reader opens it unchanged, with exit status 0 (checked 2026-10-31 for the
+1.6.1 preparation). `native_format_tests` runs that check when `SKETCHYUP_PRIOR_CLI` names the reader. It is original
 synthetic data.
 
 `reference/` holds the synthetic orthophoto fixtures for the R107.b2.1 reader and importer, written by

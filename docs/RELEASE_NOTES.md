@@ -1,5 +1,102 @@
 # SketchyUp release notes
 
+## 1.6.1
+
+SketchyUp 1.6.1 is a patch release for 1.6.0. It fixes two defects in the durable outcome store, which MCP and
+assistant commits use, and it changes no format, schema or API ([ADR 0162](decisions/0162-release-versioning.md)).
+The fixes are in [ADR 0023](decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086) and the
+[open-defect triage](verification/R089a-defect-triage.md). The release is gated through its
+[M10 acceptance](M10_ACCEPTANCE.md#the-161-release); its record, `verification/G-1.6.1.md`, is written at the release
+candidate.
+
+### Fixes
+
+- **D-089 (Major, found by a peer's test of 1.6.0 on 2026-10-31): MCP and assistant commits failed on a large model.**
+  `transaction.preview` on a 27,902,643-byte model (26.6 MiB) failed with `OUTCOME_LIMIT`, "Base document exceeds durable
+  storage capacity". The outcome store measured the in-memory document, which counts each materialized placement, and not
+  the container it stores. It now measures the encoded containers: a base is refused only when two copies of its container and the
+  260 KiB result reservation do not fit the budget. The cause is confirmed by a test: a model of 95.2 MiB in memory and
+  1.63 MiB stored was refused before the fix and commits after it.
+- **D-086 (Limitation, found at the 1.6.0 release candidate): a model whose saved file was over about 32 MiB could not be
+  committed.** The durable budget was 64 MiB and had to hold both the before and the after container. The budget is now
+  2 × 126,017,628 bytes (the largest container a document can have) + 16 MiB = **268,812,472 bytes** (`outcomeBytes`
+  in the transaction capabilities). A before and an after copy of the largest container that can be saved fit in it.
+  The owner approved the raise on 2026-10-31.
+
+### What is claimed, and what is not
+
+- **"Every saved document can be committed" is arithmetic.** The budget is sized for the largest container, but commits
+  were tested only on smaller ones: a 3,000-placement model (1.63 MiB stored), and payload containers of 42 MiB and
+  64 MiB. Only the 64 MiB commit was timed. A container at the 120.2 MiB bound was not committed in a measurement.
+- **Commit memory.** A commit holds about six times its container's size while it runs (the before and after containers,
+  the encoded payload and a result copy). A 64 MiB payload commit reached a process peak of 526.3 MiB resident. At the
+  bound the estimate is about 720 MiB, which is not measured.
+- **The peer's model was not run here.** The peer reported a 27.9 MB model. Its failure is reproduced by the synthetic
+  models above, not by that model.
+- **The outcomes folder.** The peer also reported that the folder held only an empty `<documentId>-1` directory. That
+  was not reproduced, and it is not verified.
+
+### Upgrade from 1.6.0-1
+
+Run `pacman -U sketchyup-1.6.1-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install
+`sketchyup-ifc-1.6.1-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a 1.6.0-1 package built
+from the release source to 1.6.1-1. It checks that the 1.6.0-1 CLI opens, unchanged, the schema-35 reference image that
+1.6.1 writes, and that it accepts a sheet-free save. Preferences, data and cache are kept, as package acceptance checks.
+
+### Rollback to 1.6.0-1
+
+1. Remove `sketchyup-ifc` first if it is installed: `pacman -R sketchyup-ifc`. It requires the exact `sketchyup`
+   version, so pacman refuses the rollback while it is installed and changes nothing (D-071).
+2. Install `sketchyup-1.6.0-1-x86_64.pkg.tar.zst` with `pacman -U`.
+3. Install `sketchyup-ifc-1.6.0-1-x86_64.pkg.tar.zst` if you want the IFC helper.
+
+1.6.0-1 reads schemas 1 through 35, as 1.6.1 does. So every document 1.6.1 writes opens in 1.6.0-1, and no document
+needs copying before a rollback. After a rollback, a commit on a model over about 32 MiB fails again with
+`OUTCOME_LIMIT`, and no data is changed.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.6.1 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.6.1-1, x86_64; `sketchyup-ifc` 1.6.1-1 (optional, IFC and STEP helper) |
+| Native document | Schema 35 at most, in SKUPDOC container version 2; reads versions 1 through 35. Saves record the writer `SketchyUp/1.6.1`. Unchanged from 1.6.0 otherwise |
+| Transaction capabilities | `outcomeBytes` is 268812472 (1.6.0: 67108864). No field or shape changed |
+| MCP, inspection, recipes and other public schemas | Unchanged from 1.6.0 |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits, as in 1.6.0. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.6.1 writer. The assistant's tool surface did not change since 1.4.0. No live provider run was made for this patch |
+| New third-party code | None |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.6.0.
+
+### File format
+
+1.6.1 reads document versions 1 through 35 and writes the schema each document needs, as 1.6.0 does (see the
+[1.6.0 file format](#160) table). A document with a georeferenced reference image is schema 35, and 1.6.0-1 opens it.
+The published 1.5.0-1 reader still refuses it, as before.
+
+### Budgets
+
+- **No new budget is missed.** The commit measurements above have no budget in [ADR 0023](decisions/0023-durable-outcomes.md).
+  The durable budget is a storage limit, not a memory ceiling, as ADR 0023 says.
+- **Carried from 1.6.0, unchanged.** The STEP speed budgets, the render limits and the view test's cost, as listed in
+  the [1.6.0 budgets](#160). The IFC import of about 10,000 bodies is about 12 s against a 10 s budget, an accepted limit
+  since 1.4.0.
+
+### Known limitations
+
+The 1.6.0 limitations still apply where this section does not change them. In particular:
+
+- **Commits at the bound:** the outcome budget is sized for a container of 120.2 MiB, which was not committed in a
+  measurement (see "What is claimed, and what is not").
+- **Defects:** the triage lists 23 open defects: none is release-blocking or Major, 8 are Minor and 15 are Limitations.
+  D-087 (Minor, a render saved before 1.6.0 can still carry a terrain credit outside its view when it is re-rendered)
+  stays open. D-086 and D-089 are fixed.
+- **The outcomes folder** observation (see above) is not verified.
+
+### Not in this release
+
+- Everything in the [1.6.0 "Not in this release"](#160) list.
+
 ## 1.6.0
 
 SketchyUp 1.6.0 is a minor release. It places a georeferenced orthophoto as a reference image (R107.b2, part of

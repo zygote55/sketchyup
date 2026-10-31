@@ -73,14 +73,14 @@ int main(int argc, char **argv) {
             check(refused, "A container that names an unknown required feature is refused");
             const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
             if (!prior.isEmpty()) {
-                // The prior release (1.5.0) reads schemas 1 to 34: it must refuse this file and leave it unchanged.
+                // The prior release (1.6.0) reads schemas 1 to 35: it must open this file and leave it unchanged.
                 const auto path = files.filePath("prior-reference-geo.sketchyup");
                 write(path, fixture);
                 QProcess process;
                 process.start(prior, {"--validate-native", path});
-                check(process.waitForFinished(30000) && process.exitCode() != 0 && read(path) == fixture,
-                      "The prior release refuses a schema-35 file unchanged");
-                std::cout << "prior release refusal: "
+                check(process.waitForFinished(30000) && process.exitCode() == 0 && read(path) == fixture,
+                      "The prior release opens a schema-35 file unchanged");
+                std::cout << "prior release check: "
                           << process.readAllStandardError().trimmed().toStdString() << '\n';
             }
         }

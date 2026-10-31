@@ -206,3 +206,36 @@ Every merged head of those entries must have a green CI verdict (the fast tier) 
 | Accepted misses | No new budget miss is recorded for the 1.6.0 items. The STEP speed budgets and the render limits accepted at 1.5.0 carry over as accepted limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
 | Triage | Every open defect at the RC is not release-blocking. The triage holds 22 open defects (0 release-blocking, 0 Major, 7 Minor and 15 Limitation) at the 1.6.0 preparation, and the record gives the count at the RC |
 | Documentation | The release notes, the support matrix, the user guide, the changelog (its date set at the tag), SCOPE, the roadmap entry and ADR 0162's notes match the record. The changelog's date is set when the tag is made |
+
+## The 1.6.1 release
+
+SketchyUp 1.6.1 is a patch release of 1.6.0. It is one release with one record, `docs/verification/G-1.6.1.md`, written at
+its release candidate in the form of the 1.1.1 patch record ([F01.a](verification/F01a-1.1.1-patch.md)). It follows the gate
+above, with the differences below. It carries:
+
+- the durable outcome store's budget for MCP and assistant commits: D-089 (Major, the budget counts the stored containers, not
+  the in-memory model) and D-086 (Limitation, the budget is 2 × the largest container + 16 MiB, 268,812,472 bytes)
+  ([ADR 0023](decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086), [PR #560](https://github.com/zygote55/sketchyup/pull/560));
+- no feature, format or schema change. The highest schema stays 35, and 1.6.1 reads and writes what 1.6.0 does. The downgrade
+  window is to 1.6.0-1, which reads every file 1.6.1 writes.
+
+**Roadmap entries and records 1.6.1 rests on.** The roadmap entry "1.6.1 release" in [PR_ROADMAP.md](PR_ROADMAP.md), the
+implementation notes of [ADR 0023](decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086) for D-089 and
+D-086, the defect triage rows D-089 and D-086 in [R089a](verification/R089a-defect-triage.md), and the prior release record
+[G-1.6.0](verification/G-1.6.0.md). Every merged head of those entries must have a green CI verdict (the fast tier) before the
+record is accepted.
+
+**What the 1.6.1 release record must show, in addition to the required evidence above:**
+
+| Area | Required for 1.6.1 |
+| --- | --- |
+| RC | Cut by the parent after the preparation PR merges, on the release branch it creates. `release-version.sh` prints `1.6.1`, `pkgver` is 1.6.1 and `pkgrel` is 1. The record gives the commit, the source-archive and package SHA-256 values and the image digest |
+| CI | The full tier passes at the RC (`full-ci` label, or `gh workflow run native.yml --ref <branch> -f tier=full`). Its Arch package acceptance uses the published 1.6.0-1 as the prior release (`SKETCHYUP_PRIOR_RELEASE_PACKAGE`, SHA-256 `f701d61f…`, pinned in `verify-package.sh` and `native.yml`). The split package's prior, `sketchyup-ifc-1.6.0-1` (SHA-256 `4f9d8f2f…`, in the 1.6.0 `SHA256SUMS`), is not pinned, because no script reads it |
+| Downgrade window | The published 1.6.0-1 CLI opens, unchanged, `tests/fixtures/reference-geo-v35.sketchyup` (`native_format`) and the schema-35 reference-image save that the RC package writes (`verify-package.sh`), and accepts its sheet-free save. Its `--format-capabilities` reads up to schema 35, so no retained fixture is newer than it. The record gives the exit status and the unchanged bytes |
+| Split-package rollback | With `sketchyup` and `sketchyup-ifc` 1.6.1-1 installed, `pacman -U` of `sketchyup-1.6.0-1` is refused by the dependency on `sketchyup=1.6.1` and changes nothing. The documented steps (remove `sketchyup-ifc` first, then install `sketchyup-1.6.0-1`) run on a machine with both packages installed, as D-071 requires. The record gives the pacman output |
+| Corpus | The corpus content (prompts, limits, instructions and the tool surface) is unchanged from 1.6.0 (v6); only the eight `inputSha256` values in each manifest changed, for the 1.6.1 writer. The offline checks (`provider_release_corpus`, `assistant_tool_surface`) pass in CI at the RC. The owner decides whether the 1.6.0 live run (R086.j, 24 of 24) carries over, or whether a fresh live run is needed; the record states the decision and its reason. No live run is assumed |
+| Commits | The outcome-store and transaction suites pass in CI. The record states whether a commit of a container at the 120.2 MiB bound was measured, and its peak memory. If it was not measured, the release notes keep saying so |
+| Clean machines | The RC package installs over 1.6.0-1, and opens migrated documents, on the pinned and fresh machines, as for 1.6.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
+| Accepted misses | No new budget miss is recorded for the 1.6.1 items. The STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.0 as accepted or unmeasured limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
+| Triage | The triage holds 23 open defects (0 release-blocking, 0 Major, 8 Minor and 15 Limitation) after the D-089 and D-086 fixes. D-087 stays open. The record gives the count at the RC |
+| Documentation | The release notes (their 1.6.1 section), the support matrix, the user guide, the changelog (its "1.6.1 — unreleased" heading set to the date at the tag), SCOPE (unchanged: it has no outcome-budget statement), the roadmap entry "1.6.1 release" and ADR 0162's notes match the record |
