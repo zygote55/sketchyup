@@ -2,6 +2,7 @@
 #include "automation/inspection_validation.hpp"
 #include "automation/transactions.hpp"
 #include "core/assets.hpp"
+#include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonDocument>
@@ -57,6 +58,16 @@ QJsonObject draftRequest(const Document &doc, QString operation, QString id,
 QJsonObject durableRequest(const Document &doc, QString operation, const QJsonObject &sealed) {
     return request(doc, operation,
                    {{"requestId", sealed["requestId"]}, {"payloadHash", sealed["payloadHash"]}});
+}
+// The room study plus thirteen 4 MiB payloads: about 52 MiB of records, within the 64 MiB asset
+// budget, shared (not copied) by every draft and proposal taken from it.
+Document largeModel() {
+    auto doc = loadDocument(QStringLiteral(SOURCE_DIR "/examples/m4-room-study.sketchyup"));
+    for (int i = 0; i < 13; ++i)
+        createAsset(doc, "Bulk " + std::to_string(i), "application/octet-stream",
+                    std::make_shared<const AssetPayload>(
+                        std::vector<std::uint8_t>(4 * 1024 * 1024, std::uint8_t(i + 1))));
+    return doc;
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -320,14 +331,31 @@ int main(int argc, char **argv) {
             createAsset(
                 large, "Data", "application/octet-stream",
                 std::make_shared<const AssetPayload>(std::vector<uint8_t>(2 * 1024 * 1024, 17)));
+            // Owned resources are shared with the live model, so a draft that only changes units
+            // is not charged for the 2 MiB payload. A draft that really overruns its budget is
+            // refused and keeps its previous version.
             TransactionCoordinator actor(large, files.path() + "/bytes");
             TransactionDispatcher api(actor, {4, 1024 * 1024});
-            const auto id = begin(api, actor.document())["transactionId"].toString();
-            rejects("STAGE_LIMIT", [&] {
-                api.execute(applyRequest(actor.document(), id, 0, "large", {units("mm")}));
-            });
-            check(api.execute(draftRequest(actor.document(), "describe", id))["stageVersion"] == 0,
-                  "Resource limit preserves previous draft");
+            const auto &doc = actor.document();
+            const auto id = begin(api, doc)["transactionId"].toString();
+            api.execute(applyRequest(doc, id, 0, "large", {units("mm")}));
+            check(api.execute(draftRequest(doc, "describe", id))["stageVersion"] == 1,
+                  "Shared owned resources must not be charged to a draft");
+            TransactionDispatcher tiny(actor, {4, 8192});
+            const auto overrun = begin(tiny, doc)["transactionId"].toString();
+            QJsonArray commands;
+            for (int i = 0; i < 40; ++i)
+                commands.append(QJsonObject{
+                    {"command", "geometry.face"},
+                    {"name", QString::number(i)},
+                    {"loops", QJsonArray{QJsonArray{QJsonArray{double(i * 2), 0, 0},
+                                                    QJsonArray{double(i * 2 + 1), 0, 0},
+                                                    QJsonArray{double(i * 2 + 1), 1, 0},
+                                                    QJsonArray{double(i * 2), 1, 0}}}}});
+            rejects("STAGE_LIMIT",
+                    [&] { tiny.execute(applyRequest(doc, overrun, 0, "faces", commands)); });
+            check(tiny.execute(draftRequest(doc, "describe", overrun))["stageVersion"] == 0,
+                  "A draft that overruns its budget keeps its previous version");
         }
         {
             bool armed = false;
@@ -527,6 +555,44 @@ int main(int argc, char **argv) {
             rejects("INVALID_REQUEST", [&] {
                 api.execute(applyRequest(doc, id, 0, "empty-image-update", {image}));
             });
+        }
+        {
+            // D-082: a 52 MiB model admits four drafts, and a one-body draft seals, commits and
+            // undoes through the coordinator. Its proposals share the unchanged records.
+            TransactionCoordinator actor(largeModel(), files.path() + "/shared");
+            TransactionDispatcher api(actor);
+            const auto &doc = actor.document();
+            check(doc.readSnapshotBytes() > 48 * 1024 * 1024,
+                  "Synthetic model must be larger than the staging and snapshot budgets");
+            QStringList drafts;
+            for (int i = 0; i < 4; ++i)
+                drafts << begin(api, doc)["transactionId"].toString();
+            rejects("STAGE_LIMIT", [&] { begin(api, doc); });
+            const auto unchanged = api.execute(applyRequest(
+                doc, drafts[0], 0, "zero-move",
+                {QJsonObject{{"command", "geometry.translate"},
+                             {"body", "7"},
+                             {"delta", QJsonArray{0, 0, 0}}}}));
+            check(unchanged["stageVersion"] == 1 && unchanged["commandCount"] == 1,
+                  "A zero-distance draft must apply over a large shared model");
+            const auto id = drafts[1];
+            api.execute(applyRequest(doc, id, 0, "move",
+                                     {QJsonObject{{"command", "geometry.translate"},
+                                                  {"body", "7"},
+                                                  {"delta", QJsonArray{.5, 0, 0}}}}));
+            const auto described = api.execute(draftRequest(doc, "describe", id));
+            check(described["stageVersion"] == 1 && described["changeCount"] == 1,
+                  "A one-body draft over a large model must stage its exact change");
+            // A durable commit stores before and after containers within the 64 MiB outcome budget,
+            // which a 52 MiB model exceeds. That cap is not part of this fix and stays unchanged,
+            // so the refusal must name it and publish nothing.
+            const auto sealed =
+                api.execute(draftRequest(doc, "preview", id, {{"expectedVersion", 1}}));
+            check(sealed["status"] == "sealed", "Sealing a large-model draft must succeed");
+            const auto revision = doc.revision();
+            rejects("OUTCOME_LIMIT", [&] { api.execute(durableRequest(doc, "commit", sealed)); });
+            check(doc.revision() == revision,
+                  "A commit refused by the durable budget must publish nothing");
         }
         std::cout << "Incremental transactions, immutable seals, retry receipts, schemas, expiry "
                      "and limits passed\n";

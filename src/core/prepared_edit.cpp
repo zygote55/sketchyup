@@ -1,7 +1,7 @@
 #include "core/model.hpp"
 namespace sketchy {
-size_t Document::PreparedEdit::retainedBytes() const {
-    return sizeof(PreparedEdit) + edit_.bytes + snapshot_->readSnapshotBytes();
+size_t Document::PreparedEdit::retainedBytes(const Document &live) const {
+    return sizeof(PreparedEdit) + edit_.bytes + snapshot_->bytesNotSharedWith(live);
 }
 Document::PreparedEdit
 Document::prepareEdit(const std::function<void(Document &)> &operation) const {

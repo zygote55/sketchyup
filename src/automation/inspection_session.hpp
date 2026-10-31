@@ -20,7 +20,9 @@ class InspectionSession {
     explicit InspectionSession(Limits limits, Now now = Clock::now);
     QJsonObject execute(const Document &live, const QJsonObject &request,
                         const Selection *editor = nullptr);
-    size_t retainedBytes() const { return bytes_; }
+    // Charged now, against the live document: each snapshot holds only the records it does not
+    // share with it, so a snapshot of a since-edited model stays charged until it is released.
+    size_t retainedBytes(const Document &live) const;
     size_t retainedCount() const { return snapshots_.size(); }
     void clear();
 
@@ -32,12 +34,13 @@ class InspectionSession {
         uint64_t revision{};
         QDateTime capturedAt;
         Clock::time_point expires;
-        size_t retainedBytes{};
+        // Editor state captured with the snapshot, charged whatever the live document is.
+        size_t editorBytes{};
     };
     Limits limits_;
     Now now_;
-    size_t bytes_{};
     std::map<QString, Snapshot> snapshots_;
     void prune(const Document &live);
+    size_t charge(const Snapshot &snapshot, const Document &live) const;
 };
 } // namespace sketchy

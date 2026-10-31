@@ -97,19 +97,24 @@ InspectionSession::InspectionSession(Limits limits, Now now)
         limits_.retainedBytes > 32 * 1024 * 1024 || !now_)
         fail("INVALID_REQUEST", "Inspection session limits exceed supported bounds");
 }
-void InspectionSession::clear() {
-    snapshots_.clear();
-    bytes_ = 0;
-}
+void InspectionSession::clear() { snapshots_.clear(); }
 void InspectionSession::prune(const Document &live) {
     const auto now = now_();
     for (auto it = snapshots_.begin(); it != snapshots_.end();) {
-        if (now >= it->second.expires || !live.owns(it->second.source)) {
-            bytes_ -= it->second.retainedBytes;
+        if (now >= it->second.expires || !live.owns(it->second.source))
             it = snapshots_.erase(it);
-        } else
+        else
             ++it;
     }
+}
+size_t InspectionSession::charge(const Snapshot &snapshot, const Document &live) const {
+    return snapshot.document->bytesNotSharedWith(live) + snapshot.editorBytes;
+}
+size_t InspectionSession::retainedBytes(const Document &live) const {
+    size_t total = 0;
+    for (const auto &[id, snapshot] : snapshots_)
+        total += charge(snapshot, live);
+    return total;
 }
 QJsonObject InspectionSession::execute(const Document &live, const QJsonObject &request,
                                        const Selection *editor) {
@@ -124,19 +129,20 @@ QJsonObject InspectionSession::execute(const Document &live, const QJsonObject &
             fail("STALE_REVISION", "Cannot capture a changed document");
         if (snapshots_.size() >= limits_.snapshots)
             fail("SNAPSHOT_LIMIT", "Release a snapshot before capturing another");
-        // Preflight uses record sizes without constructing JSON, copying history,
-        // duplicating assets or allocating the captured editor sets.
+        // The capture copies record maps, not records: no JSON, history, assets or payloads.
         Snapshot snapshot;
-        snapshot.retainedBytes = live.readSnapshotBytes();
         if (editor) {
             if (!editor->belongsTo(live))
                 fail("STALE_SELECTION", "Editor belongs to another document session");
-            snapshot.retainedBytes +=
-                128 * (editor->entities().size() + editor->hiddenEntities().size() +
-                       editor->lockedBodies().size() + live.bodies().size()) +
-                sizeof(Selection);
+            snapshot.editorBytes = 128 * (editor->entities().size() +
+                                          editor->hiddenEntities().size() +
+                                          editor->lockedBodies().size() + live.bodies().size()) +
+                                   sizeof(Selection);
         }
-        if (snapshot.retainedBytes > limits_.retainedBytes - bytes_)
+        // Every record is shared with live at capture, so the new snapshot costs only its
+        // bookkeeping. Held snapshots are charged what they hold beyond live, now.
+        snapshot.document = std::make_unique<const Document>(live.readSnapshot());
+        if (retainedBytes(live) + charge(snapshot, live) > limits_.retainedBytes)
             fail("SNAPSHOT_LIMIT", "Snapshot exceeds the remaining retained-byte budget");
         if (editor) {
             snapshot.editor = *editor;
@@ -144,7 +150,6 @@ QJsonObject InspectionSession::execute(const Document &live, const QJsonObject &
             if (!sameEditor(*snapshot.editor, *editor))
                 fail("STALE_SELECTION", "Refresh stale editor state before capture");
         }
-        snapshot.document = std::make_unique<const Document>(live.readSnapshot());
         snapshot.source = live.saveStamp();
         snapshot.revision = live.revision();
         snapshot.capturedAt = QDateTime::currentDateTimeUtc();
@@ -158,10 +163,8 @@ QJsonObject InspectionSession::execute(const Document &live, const QJsonObject &
                            {"snapshotId", id},
                            {"capturedAt", snapshot.capturedAt.toString(Qt::ISODateWithMs)},
                            {"expiresInMs", ttl * 1000},
-                           {"retainedBytes", qint64(snapshot.retainedBytes)}};
-        const auto cost = snapshot.retainedBytes;
+                           {"retainedBytes", qint64(charge(snapshot, live))}};
         snapshots_.emplace(id, std::move(snapshot));
-        bytes_ += cost;
         return result;
     }
     if (!request.contains("snapshotId"))
@@ -175,7 +178,6 @@ QJsonObject InspectionSession::execute(const Document &live, const QJsonObject &
     if (expected != snapshot.revision)
         fail("STALE_REVISION", "Expected revision does not match the captured snapshot");
     if (query == "snapshot.release") {
-        bytes_ -= snapshot.retainedBytes;
         snapshots_.erase(found);
         return {{"apiVersion", 1},
                 {"documentId", request["documentId"]},
@@ -192,7 +194,6 @@ QJsonObject InspectionSession::execute(const Document &live, const QJsonObject &
     const auto remaining =
         std::chrono::duration_cast<std::chrono::milliseconds>(snapshot.expires - now_()).count();
     if (remaining <= 0) {
-        bytes_ -= snapshot.retainedBytes;
         snapshots_.erase(found);
         fail("SNAPSHOT_UNAVAILABLE", "Snapshot expired during inspection");
     }

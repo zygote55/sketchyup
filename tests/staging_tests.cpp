@@ -36,6 +36,16 @@ QJsonObject query(const Document &doc, QString name, QJsonObject fields = {}) {
     fields["query"] = name;
     return fields;
 }
+// The room study plus thirteen 4 MiB payloads: about 52 MiB of records, within the 64 MiB asset
+// budget, shared (not copied) by every proposal and snapshot taken from it.
+Document largeModel() {
+    auto doc = loadDocument(QStringLiteral(SOURCE_DIR "/examples/m4-room-study.sketchyup"));
+    for (int i = 0; i < 13; ++i)
+        createAsset(doc, "Bulk " + std::to_string(i), "application/octet-stream",
+                    std::make_shared<const AssetPayload>(
+                        std::vector<std::uint8_t>(4 * 1024 * 1024, std::uint8_t(i + 1))));
+    return doc;
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -109,7 +119,7 @@ int main(int argc, char **argv) {
         rejects("STALE_PROPOSAL", [&] { session.describe(live, token); });
         session.release(token);
         session.release(token);
-        check(!session.retainedCount() && !session.retainedBytes(),
+        check(!session.retainedCount() && !session.retainedBytes(live),
               "Release is idempotent and reclaims storage");
         const auto currentRequest = batch(live, {QJsonObject{{"command", "geometry.translate"},
                                                              {"body", "7"},
@@ -123,7 +133,7 @@ int main(int argc, char **argv) {
               "Admission must reclaim expired proposals without evicting live ones");
         now += std::chrono::seconds(1);
         rejects("STAGE_UNAVAILABLE", [&] { session.describe(live, fresh["stageId"].toString()); });
-        check(!session.retainedCount() && !session.retainedBytes(),
+        check(!session.retainedCount() && !session.retainedBytes(live),
               "Expiry reclaims retained bytes");
         const auto beforeQuery = session.prepare(live, currentRequest);
         const auto pinned = session.proposal(live, beforeQuery["stageId"].toString());
@@ -160,16 +170,23 @@ int main(int argc, char **argv) {
         check(invalid && encodeContainer(live) == bytes && session.retainedCount() == count,
               "Failure after a private command cannot publish or retain partial work");
         Document resource;
-        createAsset(
+        const auto asset = createAsset(
             resource, "Payload", "application/octet-stream",
             std::make_shared<const AssetPayload>(std::vector<std::uint8_t>(2 * 1024 * 1024, 17)));
         StagingSession small({4, 1024 * 1024});
+        small.prepare(resource, batch(resource, {QJsonObject{{"command", "document.units"},
+                                                             {"units", "mm"}}}));
+        check(small.retainedCount() == 1 && small.retainedBytes(resource) < 1024 * 1024,
+              "A proposal shares owned resources with the live model and is not charged for them");
+        eraseAsset(resource, asset);
+        check(small.retainedCount() == 1 && small.retainedBytes(resource) > 2 * 1024 * 1024,
+              "A held proposal is charged for resources the live model no longer holds");
         rejects("STAGE_LIMIT", [&] {
             small.prepare(resource, batch(resource, {QJsonObject{{"command", "document.units"},
                                                                  {"units", "mm"}}}));
         });
-        check(!small.retainedBytes() && !small.retainedCount(),
-              "Owned resources must be charged before staging");
+        check(small.retainedCount() == 1,
+              "Admission is refused while held proposals already exceed the budget");
         Document empty;
         QJsonArray faces;
         for (int i = 0; i < 100; ++i)
@@ -181,7 +198,14 @@ int main(int argc, char **argv) {
                                                             QJsonArray{double(i * 2 + 1), 1, 0},
                                                             QJsonArray{double(i * 2), 1, 0}}}}});
         StagingSession growthBound({4, empty.readSnapshotBytes() * 4});
-        rejects("STAGE_LIMIT", [&] { growthBound.prepare(empty, batch(empty, faces)); });
+        try {
+            growthBound.prepare(empty, batch(empty, faces));
+            throw std::runtime_error("An oversized proposal must be refused");
+        } catch (const InspectionError &e) {
+            check(e.code() == "STAGE_LIMIT" &&
+                      std::string(e.what()) == "Proposal exceeds the retained staging budget",
+                  "A real overrun keeps its STAGE_LIMIT code and message");
+        }
         check(empty.bodies().empty() && !growthBound.retainedCount(),
               "A proposal growing beyond its final charge must fail without publication");
         StagingSession many;
@@ -200,8 +224,43 @@ int main(int argc, char **argv) {
         check(!duringPreparation.retainedCount(),
               "Preparation finishing after TTL cannot be retained");
         session.clear();
-        check(!session.retainedBytes() && !session.retainedCount(),
+        check(!session.retainedBytes(live) && !session.retainedCount(),
               "Clear reclaims all staged records");
+        // D-082: a model above the old proposal pre-check (42.7 MiB) and the 32 MiB snapshot
+        // budget still stages, because each proposal shares the unchanged records with it.
+        auto large = largeModel();
+        check(large.readSnapshotBytes() > 48 * 1024 * 1024,
+              "Synthetic model must be larger than the staging and snapshot budgets");
+        const auto zeroMove = batch(large, {QJsonObject{{"command", "geometry.translate"},
+                                                        {"body", "7"},
+                                                        {"delta", QJsonArray{0, 0, 0}}}});
+        StagingSession shared;
+        const auto unchanged = shared.prepare(large, zeroMove);
+        check(unchanged["status"] == "staged" && unchanged["changeCount"] == 1 &&
+                  unchanged["proposedRevision"] == QString::number(large.revision() + 1) &&
+                  shared.retainedCount() == 1,
+              "A zero-distance proposal must stage over a large shared model");
+        const auto movedId =
+            shared
+                .prepare(large, batch(large, {QJsonObject{{"command", "geometry.translate"},
+                                                          {"body", "7"},
+                                                          {"delta", QJsonArray{.5, 0, 0}}}}))["stageId"]
+                .toString();
+        auto moved = large;
+        moved.applyPrepared(*shared.proposal(large, movedId));
+        check(moved.revision() == large.revision() + 1 &&
+                  length(moved.worldTransform(7).point({0, 0, 0}) -
+                         large.worldTransform(7).point({0, 0, 0}) - Vec3{.5, 0, 0}) < tolerance,
+              "A one-body proposal over a large model must apply exactly");
+        moved.undo();
+        check(length(moved.worldTransform(7).point({0, 0, 0}) -
+                     large.worldTransform(7).point({0, 0, 0})) < tolerance,
+              "Undo restores the large model's geometry");
+        StagingSession four;
+        for (int i = 0; i < 4; ++i)
+            four.prepare(large, zeroMove);
+        rejects("STAGE_LIMIT", [&] { four.prepare(large, zeroMove); });
+        check(four.retainedCount() == 4, "Four proposals of a large model can be open at once");
         std::cout << "Private batches, bounded previews/diffs, expiry, budgets and session guards "
                      "passed\n";
     } catch (const std::exception &e) {

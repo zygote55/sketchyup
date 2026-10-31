@@ -42,7 +42,9 @@ void TransactionDispatcher::clear() {
         retire(drafts_.begin()->first);
 }
 size_t TransactionDispatcher::charge(const Draft &draft) const {
-    size_t total = sizeof(Draft) + 2048 + (draft.stage ? draft.stage->retainedBytes() : 0);
+    size_t total = sizeof(Draft) + 2048;
+    if (draft.stage)
+        total += draft.stage->retainedBytes(actor_.document());
     total +=
         size_t(bytes(
             {{"commands", draft.commands}, {"history", draft.history}, {"sealed", draft.sealed}})) *
@@ -317,7 +319,7 @@ QJsonObject TransactionDispatcher::run(const QJsonObject &request) {
         auto prepared = actor_.prepare(batch, reviewSeconds);
         const auto requestId = prepared["requestId"].toString(),
                    hash = prepared["payloadHash"].toString();
-        const auto oldCharge = draft.stage->retainedBytes();
+        const auto oldCharge = draft.stage->retainedBytes(doc);
         const auto sealedCharge = size_t(bytes(prepared)) * 2;
         if (now_() >= draft.expires) {
             actor_.cancel(requestId, hash);

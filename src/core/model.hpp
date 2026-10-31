@@ -209,7 +209,9 @@ class Document {
       public:
         const Document &snapshot() const { return *snapshot_; }
         std::uint64_t baseRevision() const { return revision_; }
-        size_t retainedBytes() const;
+        // The proposal's charge against the live document it is held beside: its own edit
+        // plus the records it does not share with that document (D-082).
+        size_t retainedBytes(const Document &live) const;
     };
     // The callback runs only on a private history-free copy and must produce one
     // composed edit. The returned immutable proposal cannot publish itself.
@@ -349,6 +351,10 @@ class Document {
     // Conservative admission charge for all retained records, including assets
     // and allocator bookkeeping; shared records are charged at full size.
     size_t readSnapshotBytes() const;
+    // The bytes this copy holds beyond `base`: every record whose pointer differs from base's
+    // record of the same ID, or that base lacks, at full size, plus the bookkeeping every copy
+    // owns. A readSnapshot() of base holds only the bookkeeping until base replaces records.
+    size_t bytesNotSharedWith(const Document &base) const;
     bool owns(const SaveStamp &stamp) const { return stamp.session == session_; }
     bool isCurrentSnapshot(const SaveStamp &stamp) const {
         return owns(stamp) && stamp.state == state_;
@@ -470,5 +476,7 @@ class Document {
     std::string stateMismatch(const Document &other) const;
     ChangeReport applyEdit(Edit edit, std::uint64_t expectedRevision, bool fullValidation);
     void update(Edit edit, bool forward);
+    // readSnapshotBytes() and bytesNotSharedWith(): a null base charges every record.
+    size_t chargedBytes(const Document *base) const;
 };
 } // namespace sketchy

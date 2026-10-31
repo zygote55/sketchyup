@@ -34,7 +34,7 @@ int main() {
               "Preparing must not mutate live state, history or saved marker");
         check(proposal.baseRevision() == revision &&
                   proposal.snapshot().revision() == revision + 1 &&
-                  !proposal.snapshot().canUndo() && proposal.retainedBytes() > sizeof(Document) &&
+                  !proposal.snapshot().canUndo() && proposal.retainedBytes(live) > sizeof(Document) &&
                   proposal.snapshot().worldTransform(body).point({0, 0, 0}) == Vec3{2, 0, 0},
               "Prepared snapshot must contain exact proposed state without history");
         auto foreign = Document();

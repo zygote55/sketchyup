@@ -31,7 +31,9 @@ class StagingSession {
     void release(const QString &stageId);
     void clear();
     size_t retainedCount() const { return stages_.size(); }
-    size_t retainedBytes() const { return bytes_; }
+    // Charged now, against the live document: each proposal holds only the records it does not
+    // share with it, so a record a later live edit replaces stays charged while the proposal does.
+    size_t retainedBytes(const Document &live) const;
 
   private:
     struct ChangeRow {
@@ -43,13 +45,14 @@ class StagingSession {
         QJsonObject result;
         std::vector<ChangeRow> changes;
         Clock::time_point expires;
-        size_t bytes{};
+        // The result envelope, change rows and stage record: charged whatever the live document is.
+        size_t fixedBytes{};
     };
     Limits limits_;
     Now now_;
-    size_t bytes_{};
     std::map<QString, Stage> stages_;
     void prune();
+    size_t charge(const Stage &stage, const Document &live) const;
     Stage &get(const Document &live, const QString &stageId);
     QJsonObject envelope(const Document &live, const QString &stageId, const Stage &stage) const;
 };

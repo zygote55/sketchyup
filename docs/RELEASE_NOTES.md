@@ -5,7 +5,7 @@
 SketchyUp 1.6.0 is a minor release. It places a georeferenced orthophoto as a reference image (R107.b2, part of
 offline geographic work under C06), credits a DEM terrain in a frame or a view only when the terrain is in the
 camera's view (R107.c3 and R107.c3.1), and adds an in-app viewer for the user guide, with the guide text for these
-features (R107.e2). It also carries the CI flake work of the 1.6.0 scope. That work fixed no defect by evidence, and
+features (R107.e2). It also fixes D-082 to D-085, reported against 1.5.0: on a large model, MCP and assistant transactions and read snapshots no longer fail on their memory budgets (D-082), and three command fixes (D-083 to D-085). It carries the CI flake work of the 1.6.0 scope. That work fixed no defect by evidence, and
 its triage is in the [open-defect triage](verification/R089a-defect-triage.md). The release is gated through its
 [M10 acceptance](M10_ACCEPTANCE.md#the-160-release); its record, `docs/verification/G-1.6.0.md`, is written at the
 release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
@@ -95,6 +95,7 @@ The triage holds 22 open defects: none is release-blocking, none is Major, 7 are
 
 From the [open-defect triage](verification/R089a-defect-triage.md). Each row there states its cause and its test.
 
+- **D-082** ([PR #555](https://github.com/zygote55/sketchyup/pull/555), Major, found by a peer session's report on 2026-10-31): on a large model, every MCP and assistant transaction failed with `STAGE_LIMIT`, and every `snapshot.begin` with `SNAPSHOT_LIMIT`, although the model was within the document limits. A proposal or a read snapshot is now charged only for the records it does not share with the live model, and the charge is checked when it is admitted. The 128 MiB staging, 32 MiB snapshot and 64 MiB durable outcome budgets are unchanged, so a durable commit still stores the before and after models within the 64 MiB outcome budget.
 - **D-083** ([PR #554](https://github.com/zygote55/sketchyup/pull/554)): `geometry.delete` on a group also erases
   the group's contents, so no child is left naming a parent that no longer exists.
 - **D-084** ([PR #554](https://github.com/zygote55/sketchyup/pull/554)): a placement inside a component definition
