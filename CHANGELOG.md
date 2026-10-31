@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Frame credit in the camera view (R107.c3, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §17.13](docs/UX_DESIGN.md#1713-amendment-2026-10-31-the-frame-credit-checkbox)): a presentation frame burns a GeoTIFF terrain's source notice only when the terrain is in that frame's view, a perspective sheet view counts only the terrain in its view, and the batch dialog's **Burn source credits into frames** box (checked by default) turns the burn-in off while the batch manifest still lists every notice.
+
 ## 1.5.0 — 2026-10-31
 
 Tag `v1.5.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.5.0).

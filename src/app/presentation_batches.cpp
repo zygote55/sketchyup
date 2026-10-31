@@ -142,7 +142,8 @@ PresentationBatches::PresentationBatches(Document &document, QString directory, 
 PresentationBatches::~PresentationBatches() = default;
 
 PresentationPlan PresentationBatches::planFor(Id path, const std::vector<Id> &presets, bool video,
-                                              PresentationVideoCodec codec) const {
+                                              PresentationVideoCodec codec,
+                                              bool burnCredits) const {
     const auto &doc = impl_->doc;
     if (!doc.cameraPaths().contains(path))
         throw std::runtime_error("Choose a camera path");
@@ -159,6 +160,7 @@ PresentationPlan PresentationBatches::planFor(Id path, const std::vector<Id> &pr
     }
     result.video = video;
     result.videoCodec = codec;
+    result.burnCredits = burnCredits;
     return result;
 }
 

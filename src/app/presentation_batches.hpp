@@ -25,9 +25,10 @@ class PresentationBatches : public QObject {
     // temp folder, so no user data is read or written.
     PresentationBatches(Document &document, QString directory, QObject *parent = nullptr);
     ~PresentationBatches() override;
-    // The plan of one camera path and its presets, as the document holds them now.
+    // The plan of one camera path and its presets, as the document holds them now. `burnCredits` is
+    // the batch dialog's frame credit choice (UX_DESIGN 17.13).
     PresentationPlan planFor(Id path, const std::vector<Id> &presets, bool video,
-                             PresentationVideoCodec codec) const;
+                             PresentationVideoCodec codec, bool burnCredits) const;
     // Starts a batch from the document as it is now. A refusal throws before any folder or job
     // exists.
     QString start(const PresentationPlan &plan, const QString &folder, BlenderJob::Options options);

@@ -1622,6 +1622,158 @@ int main(int argc, char **argv) {
             check(manifest.value("credits") == QJsonArray{QString::fromUtf8(demCreditUsgs)},
                   "The batch manifest lists the notice");
         }
+        // R107.c3 (ADR 0181 §3.3, owner decision 5; UX_DESIGN 17.13): a frame's notices are the
+        // terrain in its own view. The box decides what is burned in; each frame's record lists its
+        // view's notices either way, and the manifest still lists the notice of every keyframe
+        // scene.
+        {
+            const std::string fixtures = std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/";
+            Document terrain;
+            importDemFixture(terrain, fixtures, "plane-f32-strip-none-le.tif", DemProduct::Dep3,
+                             "NAVD88");
+            const auto notice = QString::fromUtf8(demCreditUsgs);
+            // The default capture frames the terrain: its target is the terrain's centre, and its
+            // distance gives the radius (the fit camera at a square aspect,
+            // RenderSnapshot::capture).
+            RenderOptions fit;
+            fit.settings.width = 64;
+            fit.settings.height = 64;
+            const auto fitted = RenderSnapshot::capture(terrain, fit).camera();
+            const Vec3 centre = fitted.target, toEye = fitted.position - fitted.target;
+            const double radius =
+                std::sqrt(dot(toEye, toEye)) * std::sin(fitted.verticalFov / 2) / 1.2;
+            // The facing keyframe looks at the terrain. The away keyframe's eye is ten radii beyond
+            // the centre and looks further away, so the terrain is behind its camera.
+            SceneSnapshot facing;
+            facing.camera = SceneCamera{};
+            facing.camera->target = centre;
+            facing.camera->distance = 2 * radius;
+            SceneSnapshot away;
+            away.camera = SceneCamera{};
+            away.camera->target = centre + Vec3{10 * radius + away.camera->distance, 0, 0};
+            away.camera->yaw = 180;
+            away.camera->pitch = 0;
+            const auto facingScene = createScene(terrain, "Facing", facing);
+            const auto awayScene = createScene(terrain, "Away", away);
+            const auto capture =
+                PresentationCapture::capture(terrain, plan({facingScene, awayScene}));
+            check(capture.credits() == std::vector<std::string>{demCreditUsgs},
+                  "The keyframes' notice is listed once, as the manifest's list");
+            size_t facingFrame{}, awayFrame{};
+            for (size_t i = 0; i < capture.frames().size(); ++i) {
+                const auto &pose = capture.frames()[i];
+                if (pose.keyframe && pose.sceneIndex == 0)
+                    facingFrame = i;
+                if (pose.keyframe && pose.sceneIndex == 1)
+                    awayFrame = i;
+            }
+
+            // Stamps are chosen per render: a view that shows the terrain stamps it only when
+            // asked, and a view that looks away never stamps it. Scene notices keep the 1.5.0 rule
+            // for stills and animation frames.
+            const auto inView =
+                PreparedRender::prepare(capture.frame(0, facingFrame), CreditStamp::ViewNotices);
+            check(inView->manifest().value("viewCredits") == QJsonArray{notice} &&
+                      inView->manifest().value("stampCredits") == QJsonArray{notice},
+                  "A frame in view lists its notice and burns it in");
+            const auto inViewOff =
+                PreparedRender::prepare(capture.frame(0, facingFrame), CreditStamp::None);
+            check(inViewOff->manifest().value("viewCredits") == QJsonArray{notice} &&
+                      inViewOff->manifest().value("stampCredits").toArray().isEmpty(),
+                  "A frame in view with the box off still lists its notice and burns none");
+            const auto looking =
+                PreparedRender::prepare(capture.frame(0, awayFrame), CreditStamp::ViewNotices);
+            check(!looking->manifest().contains("viewCredits") &&
+                      looking->manifest().value("stampCredits").toArray().isEmpty(),
+                  "A frame looking away from the terrain neither lists nor burns a notice");
+            check(looking->manifest().value("credits") == QJsonArray{notice},
+                  "The scene's own list still names the terrain its scene shows");
+            const auto defaulted = PreparedRender::prepare(capture.frame(0, facingFrame));
+            check(defaulted->manifest().value("stampCredits") ==
+                          defaulted->manifest().value("credits") &&
+                      !defaulted->manifest().value("stampCredits").toArray().isEmpty(),
+                  "A still keeps the 1.5.0 stamp: the notices of the terrain its scene shows");
+
+            // The view rule itself, on explicit cameras: a perspective and an orthographic camera,
+            // each looking at the terrain and each looking away from it.
+            const double ahead = 10 * radius;
+            const auto aimed = [&](Vec3 position, Vec3 target, bool orthographic) {
+                RenderCamera camera;
+                camera.position = position;
+                camera.target = target;
+                camera.orthographic = orthographic;
+                camera.yMag = radius * 1.2;
+                camera.nearClip = .01;
+                camera.farClip = 4 * ahead;
+                RenderOptions options;
+                options.settings = fit.settings;
+                options.camera = camera;
+                return RenderSnapshot::capture(terrain, options);
+            };
+            const Vec3 eye{centre.x + ahead, centre.y, centre.z};
+            for (const bool orthographic : {false, true}) {
+                const auto toward = aimed(eye, centre, orthographic);
+                check(viewDemCredits(terrain, toward, 1).notices() ==
+                          std::vector<std::string>{demCreditUsgs},
+                      orthographic ? "An orthographic view that holds the terrain lists its notice"
+                                   : "A perspective view that holds the terrain lists its notice");
+                const auto awayView = aimed(eye, eye + Vec3{14, 0, 0}, orthographic);
+                check(viewDemCredits(terrain, awayView, 1).empty(),
+                      orthographic ? "An orthographic view that looks away lists no notice"
+                                   : "A perspective view that looks away lists no notice");
+            }
+            // A view that looks sideways past the terrain, from ten radii off to its side, never
+            // holds it.
+            const Vec3 side{centre.x - 10 * radius, centre.y, centre.z};
+            const auto sideways = aimed(side, side + Vec3{0, 14, 0}, false);
+            check(viewDemCredits(terrain, sideways, 1).empty(),
+                  "A perspective view that looks past the terrain sideways lists no notice");
+
+            // The batch: every keyframe's record and the manifest, with the box on and off.
+            for (const bool burn : {true, false}) {
+                auto batchPlan = plan({facingScene, awayScene});
+                batchPlan.burnCredits = burn;
+                const auto name = burn ? QString("credits-on") : QString("credits-off");
+                PresentationJobStore creditJobs(files.filePath(name + "-store"), limits);
+                PresentationExport creditBatch(creditJobs);
+                const auto output = files.filePath(name);
+                const auto id = creditBatch.start(PresentationCapture::capture(terrain, batchPlan),
+                                                  output, blender(files.filePath("count-" + name)));
+                wait(creditBatch);
+                check(creditBatch.state() == PresentationJobState::Completed &&
+                          creditJobs.jobs().at(id).plan.burnCredits == burn,
+                      "The batch completes and the store keeps the box's choice");
+                const auto manifest =
+                    QJsonDocument::fromJson(read(output + "/manifest.json")).object();
+                check(manifest.value("credits") == QJsonArray{notice},
+                      "The manifest lists the notice whether or not the box is on");
+                int keyframesSeen = 0;
+                for (const auto &presetValue : manifest.value("presets").toArray()) {
+                    const auto preset = presetValue.toObject();
+                    for (const auto &entryValue : preset.value("frames").toArray()) {
+                        const auto entry = entryValue.toObject();
+                        if (!entry.value("keyframe").toBool())
+                            continue;
+                        ++keyframesSeen;
+                        const auto record =
+                            QJsonDocument::fromJson(
+                                read(output + "/" + preset.value("directory").toString() +
+                                     "/frames/" + entry.value("file").toString().chopped(4) +
+                                     ".json"))
+                                .object();
+                        const bool facingRecord =
+                            record.value("scene") == QString::number(facingScene);
+                        if (facingRecord)
+                            check(record.value("credits") == QJsonArray{notice},
+                                  "A facing frame's record lists its notice");
+                        else
+                            check(!record.contains("credits"),
+                                  "A frame looking away lists no notice");
+                    }
+                }
+                check(keyframesSeen == 4, "Both presets' keyframe frames were checked");
+            }
+        }
         std::cout << "Presentation batch capture, frame sequence, cancellation, resume, damage and "
                      "refusal checks passed\n";
         return 0;

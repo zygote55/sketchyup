@@ -244,6 +244,19 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     folderNote_->setWordWrap(true);
     groupLayout->addWidget(folderNote_);
 
+    // Frame credits (UX_DESIGN 17.13): checked each time the dialog opens, as Write video is off.
+    burnCredits_ = new QCheckBox("Burn source credits into frames");
+    burnCredits_->setObjectName("batchBurnCredits");
+    burnCredits_->setChecked(true);
+    burnCredits_->setAccessibleName("Burn source credits into frames, checked");
+    burnNote_ = new QLabel("Stamps the source notice at the top of each frame whose view shows "
+                           "elevation terrain. The batch manifest lists the notices either way.");
+    burnNote_->setObjectName("batchBurnCreditsNote");
+    burnNote_->setWordWrap(true);
+    burnCredits_->setAccessibleDescription(burnNote_->text());
+    groupLayout->addWidget(burnCredits_);
+    groupLayout->addWidget(burnNote_);
+
     // Video (§17.4, §17.5)
     auto *videoHeading = new QLabel("Video");
     videoHeading->setStyleSheet("font-weight: bold;");
@@ -346,6 +359,10 @@ PresentationBatchDialog::PresentationBatchDialog(PresentationBatches &batches, D
     connect(fallback_, &QCheckBox::toggled, this, [this] { updateAll(); });
     connect(folder_, &QLineEdit::textChanged, this, [this] { updateAll(); });
     connect(chooseFolder_, &QPushButton::clicked, this, [this] { chooseParent(); });
+    connect(burnCredits_, &QCheckBox::toggled, this, [this](bool checked) {
+        burnCredits_->setAccessibleName(checked ? "Burn source credits into frames, checked"
+                                                : "Burn source credits into frames, unchecked");
+    });
     connect(video_, &QCheckBox::toggled, this, [this] { updateAll(); });
     connect(codec_, &QComboBox::currentIndexChanged, this, [this] { updateAll(); });
     connect(recheckVideo_, &QPushButton::clicked, this, [this] { refreshVideo(true); });
@@ -419,6 +436,7 @@ PresentationBatchDialog::Choice PresentationBatchDialog::choice() const {
     }
     result.video = video_->isChecked();
     result.codec = PresentationVideoCodec(codec_->currentData().toInt());
+    result.burnCredits = burnCredits_->isChecked();
     return result;
 }
 
@@ -956,8 +974,8 @@ void PresentationBatchDialog::startBatch() {
         return;
     }
     try {
-        const auto plan =
-            batches_.planFor(selected.path, selected.presets, selected.video, selected.codec);
+        const auto plan = batches_.planFor(selected.path, selected.presets, selected.video,
+                                           selected.codec, selected.burnCredits);
         const auto id = batches_.start(plan, folder_->text().trimmed(), batchOptions);
         emit started(id);
         accept();

@@ -19,6 +19,7 @@
 #include <QTimer>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdlib>
 #include <fstream>
@@ -609,6 +610,81 @@ int main(int argc, char **argv) {
                       "The same DEM frame renders the same PNG bytes");
                 check(brightTopRows(demFrame->image) >= 50 && brightTopRows(plainFrame->image) < 50,
                       "The notice is burned into the top of the DEM frame");
+            }
+            // R107.c3 (ADR 0181 §3.3; UX_DESIGN 17.13): the notice is burned in only where the
+            // terrain is in the frame's view, and not at all when the batch's box is off. A frame
+            // looking away has the same bytes whatever the box says, since neither stamps it.
+            {
+                Document terrain;
+                importDemFixture(terrain, std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/",
+                                 "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+                RenderOptions demOptions;
+                demOptions.settings = {512, 384, 4, 0};
+                const auto fitted = RenderSnapshot::capture(terrain, demOptions).camera();
+                const Vec3 toEye = fitted.position - fitted.target;
+                const double radius =
+                    std::sqrt(dot(toEye, toEye)) * std::sin(fitted.verticalFov / 2) / 1.2;
+                // The fit camera holds the terrain. This one stands ten radii off along +X and
+                // looks further along +X, so the terrain is behind it.
+                RenderOptions awayOptions = demOptions;
+                RenderCamera away;
+                away.position = fitted.target + Vec3{10 * radius, 0, 0};
+                away.target = away.position + Vec3{14, 0, 0};
+                awayOptions.camera = away;
+                const QString notice = QString::fromStdString(demCreditUsgs);
+                const auto inView = PreparedRender::prepare(
+                    RenderSnapshot::capture(terrain, demOptions), CreditStamp::ViewNotices);
+                const auto inViewOff = PreparedRender::prepare(
+                    RenderSnapshot::capture(terrain, demOptions), CreditStamp::None);
+                const auto looking = PreparedRender::prepare(
+                    RenderSnapshot::capture(terrain, awayOptions), CreditStamp::ViewNotices);
+                const auto lookingOff = PreparedRender::prepare(
+                    RenderSnapshot::capture(terrain, awayOptions), CreditStamp::None);
+                check(inView->manifest().value("stampCredits") == QJsonArray{notice} &&
+                          inViewOff->manifest().value("viewCredits") == QJsonArray{notice} &&
+                          inViewOff->manifest().value("stampCredits").toArray().isEmpty(),
+                      "A frame in view is stamped only while the box is on");
+                check(!looking->manifest().contains("viewCredits") &&
+                          looking->manifest().value("stampCredits").toArray().isEmpty() &&
+                          looking->manifest().value("credits") == QJsonArray{notice},
+                      "A frame looking away lists and stamps no notice, though its scene shows the "
+                      "terrain");
+                const auto inViewFrame = renderFrame(inView, real);
+                const auto inViewOffFrame = renderFrame(inViewOff, real);
+                const auto lookingFrame = renderFrame(looking, real);
+                const auto lookingOffFrame = renderFrame(lookingOff, real);
+                check(brightTopRows(inViewFrame->image) >= 50 &&
+                          brightTopRows(inViewOffFrame->image) < 50,
+                      "The notice is burned into the frame in view, and not when the box is off");
+                check(inViewFrame->png != inViewOffFrame->png,
+                      "The box changes the bytes of a frame in view");
+                check(brightTopRows(lookingFrame->image) < 50 &&
+                          lookingFrame->png == lookingOffFrame->png,
+                      "A frame looking away has no notice and the same bytes whether the box is on "
+                      "or off");
+                // A manifest written before R107.c3 names only the scene's credits. The worker
+                // burns them, as 1.5.0 did, so a retained render from 1.5.0 keeps its note when it
+                // is rendered again.
+                const auto legacyDirectory = files.filePath("legacy-render");
+                writeGlbExport(exportGlb(RenderSnapshot::capture(terrain, demOptions)),
+                               legacyDirectory);
+                const auto legacyBytes = read(legacyDirectory + "/manifest.json");
+                const auto legacy = PreparedRender::open(
+                    legacyDirectory,
+                    QString::fromLatin1(
+                        QCryptographicHash::hash(legacyBytes, QCryptographicHash::Sha256).toHex()));
+                check(!legacy->manifest().contains("stampCredits") &&
+                          legacy->manifest().value("credits") == QJsonArray{notice},
+                      "A manifest from before R107.c3 names only the scene's credits");
+                const auto legacyFrame = renderFrame(legacy, real);
+                check(brightTopRows(legacyFrame->image) >= 50,
+                      "A manifest from before R107.c3 burns its scene's notice, as 1.5.0 did");
+                std::cout << "R107.c3 text-bright pixels in the top 24 rows: in view "
+                          << brightTopRows(inViewFrame->image) << ", in view with the box off "
+                          << brightTopRows(inViewOffFrame->image) << ", looking away "
+                          << brightTopRows(lookingFrame->image)
+                          << ", a manifest from before R107.c3 "
+                          << brightTopRows(legacyFrame->image) << '\n';
             }
             if (const auto output = qEnvironmentVariable("SKETCHYUP_RENDER_EVIDENCE");
                 !output.isEmpty()) {
