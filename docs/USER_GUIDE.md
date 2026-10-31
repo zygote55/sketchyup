@@ -899,7 +899,8 @@ U.S. Geological Survey (USGS), the European Union, the European Space Agency (ES
 ### Where to download
 
 Download the GeoTIFF file for the product you want. Choose GeoTIFF as the file type wherever the page
-offers a choice.
+offers a choice. The import dialog's **Open the user guide** button opens this guide in a read-only window
+of its own, at this section. The window opens no browser and makes no network request.
 
 | Product | Post size | Horizontal datum | Where to go |
 |---|---|---|---|
@@ -1048,8 +1049,9 @@ Each source asks for its credit, and SketchyUp writes the credit into the export
 Where the terrain appears in an export, the notice is written into it. The GLB file records the notice in its
 `asset.copyright`. The OBJ file has it in comment lines, and the IFC file in a property set on the site. The
 presentation batch manifest lists it. The STL format has no place for a notice, so the STL export report
-carries it instead. On sheets, measured drawings and frames, a visible credit line is written where the
-terrain appears.
+carries it instead. On a perspective sheet view, a still, an animation frame or a presentation frame, a
+visible credit line is written only when the terrain is in the camera's view. A to-scale sheet view or a
+measured drawing keeps its own rule and writes the line for each terrain that reaches its frame.
 
 A required notice cannot be removed from an export that carries its data. You can add text beside it, but you
 cannot delete the GLO-30 notice. The USGS credit is requested rather than required, and SketchyUp writes it the
@@ -1062,6 +1064,119 @@ Read the licence before you publish or sell work that uses the data. This sectio
 SketchyUp is not affiliated with or endorsed by the U.S. Geological Survey, the European Union, ESA, DLR or
 Airbus. Their names here only say where the data come from. The Copernicus licence asks you not to give the
 impression that your work is officially endorsed by the Copernicus programme or its providers.
+
+## Orthophoto from a downloaded image file
+
+An orthophoto is a map-accurate picture of the ground, such as an aerial photograph corrected to a map
+projection. SketchyUp places one as a georeferenced reference image: a flat picture in the model, set in
+place by the map coordinates of its corners. You bring the file yourself. SketchyUp does not fetch an image,
+and it makes no network request to read one.
+
+In 1.6.0 the image shows in the viewport only. It is not drawn in renders, exports or presentation frames,
+and its credit line reaches none of them. The image lies flat at the elevation you give it. It is not
+draped onto terrain.
+
+### Files it reads
+
+- **A PNG or JPEG with a world file.** The world file has the image's name and one of these extensions:
+  `.pngw` or `.pgw` for a PNG, `.jpgw` or `.jgw` for a JPEG, or `.wld` for either. The image must have 8 bits
+  a channel. The world file holds six numbers, one to a line, and must describe a north-up image: no rotation
+  or shear, and no flip. If more than one world file matches, the first in that order is used, and the report
+  names the others as ignored.
+- **A GeoTIFF.** An 8-bit RGB file, or an 8-bit RGBA file with unassociated alpha. It must be a classic TIFF
+  (not BigTIFF) with one full-resolution image, and its map position must be in WGS84 UTM or NAD83 UTM. Its
+  pixels may be uncompressed, LZW or Deflate. A GeoTIFF compressed with JPEG is refused by name.
+
+### Zone, datum and credit
+
+- **Zone.** A world file takes the zone of the site's geographic record. A site with no record needs a zone:
+  choose one in the dialog (1 to 60, with N or S), or give `--reference-zone` on the command line. When the
+  site has no record, the zone is not checked against it, and the dialog says so. A GeoTIFF names its own zone,
+  so a zone you choose for it is not used.
+- **Zone limits.** An image cannot cross zones, so a GeoTIFF in a zone other than the site's record is
+  refused. Each corner must lie within 3° of the zone's central meridian and between 80° S and 84° N. The
+  Norway and Svalbard zone exceptions are refused by name.
+- **Datum.** For a world file, choose WGS84 or NAD83. A GeoTIFF's datum comes from the file. NAD83 is a
+  labelled approximation: its positions are taken as WGS84, and the image keeps the NAD83 label. Sources
+  disagree on the difference between the two, from about a metre upward, so positions are approximate.
+- **Credit.** Optional, at most 256 bytes. The credit is stored with the image and appears in the import
+  report. In 1.6.0 no export or frame carries it.
+
+### Place the image in the desktop app
+
+1. Choose **View → Reference images**, then **Import reference image…**.
+2. Choose the file. A PNG or JPEG with a world file, or a GeoTIFF, opens **Place georeferenced image**. A PNG
+   or JPEG without a world file opens the plain **Place reference image** dialog, as before.
+3. The dialog reads the file in the background and shows its progress. A read cannot be stopped part way.
+   **Cancel**, or Esc, closes the dialog at once and imports nothing.
+4. Check the settings. **Name** is the first setting, and it starts as the file's name without its extension.
+   **Zone** appears when you must choose one. **Datum** is yours to choose for a world file, and it is read
+   from the file for a GeoTIFF. **Elevation** is in metres and starts at the site origin's elevation.
+   **Corners** gives the north-west and south-east corners in UTM metres and in degrees.
+5. **Origin** says whether the model's origin is kept or set. A model with no site origin gets one at the
+   image's centre, rounded to 100 m, and the import also writes the site's geographic record, with the image's
+   file name and SHA-256 as its provenance. A model that already has an origin keeps it, and an existing
+   record is never overwritten.
+6. Choose **Import**. The image is placed as one undoable edit. **Undo** removes it, with its asset and any
+   origin the import set.
+
+**Show report** opens the report beneath the settings, with **Copy report** and **Save report…**, which saves
+it as text or JSON. The report lists the source, the size, the pixel size, the zone and datum, the corners,
+the elevation, the origin, the credit and every notice.
+
+If the file cannot be placed, the dialog shows a banner that says nothing was imported and the model is
+unchanged. The banner gives the reason and one numbered next step, and Import stays off. A problem with the
+file itself greys out the settings, and **Choose another file…** opens the chooser again. A problem with the
+zone, the elevation or the credit leaves the settings open, so you can correct them.
+
+### Place the image from the command line
+
+```
+sketchyup-cli --import-reference-image orthophoto.tif --input site.sketchyup \
+  --output site-with-image.sketchyup
+```
+
+- `--input` names the model to add the image to. Without it, the image goes into a new model.
+- `--output` writes the result as a new native file. Without it, nothing is written, and the command prints
+  the result as JSON.
+- `--reference-zone 30N` gives the zone of a world-file image when the site has no geographic record. A
+  GeoTIFF's zone comes from the file, so this option is not used for one, and the report says so.
+- `--reference-datum` is `WGS84` or `NAD83`, for a world-file image. A GeoTIFF's datum comes from the file.
+- `--reference-credit` is the credit line, at most 256 bytes.
+- `--reference-elevation` is the image's elevation in site metres. It defaults to the site origin's elevation.
+
+A refused image stops the command with status 1. Its error is JSON on standard error, with the code
+`INPUT_ERROR` and the reason, and `refusalCode` in its details.
+
+### Size limits
+
+- At most 4096 × 4096 pixels.
+- At most 16 MiB as stored. A PNG or JPEG is stored as its own bytes, so the file must be 16 MiB or less. A
+  GeoTIFF is stored as a PNG of its pixels, and that PNG must be 16 MiB or less. A larger image is refused. It
+  is not resampled: crop or reduce it in an image editor, then import it again. A 4096 × 4096 photograph may
+  be larger than 16 MiB as a PNG.
+- A GeoTIFF file over 128 MiB is not read.
+- Each side of the placed image covers at most 1,000 km.
+- Only north-up images are read.
+
+### Refusals
+
+Each refusal says first that nothing was imported and the model is unchanged. Then it gives the reason and one
+next step. The refusals cover:
+
+- a file that is not a PNG, JPEG or TIFF;
+- a world file that rotates or flips the image, or does not hold six numbers;
+- a GeoTIFF with no map position, a coordinate system other than WGS84 or NAD83 UTM, units other than metres,
+  pixels other than 8-bit RGB or RGBA, planar layout or premultiplied alpha, or JPEG compression;
+- a GeoTIFF in a zone other than the site's record, a corner outside its zone's band, or a corner in the
+  Norway or Svalbard exception;
+- a file that is damaged, cut short, or too large in pixels or bytes;
+- an elevation that is not a number of metres in range, or a credit longer than 256 bytes.
+
+### Older versions
+
+A model with a georeferenced image is saved in native format schema 35, and SketchyUp 1.5.0 and older refuse
+to open it. If you may need the model in an older version, keep a copy of it from before the import.
 
 ## Quantities, reports and schedules
 
@@ -1106,6 +1221,8 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 **Camera → Presentations…** keeps camera paths and render presets in the model. A camera path is two to 32 saved scenes that have cameras, played in order, with frames per second (1 to 60) and transition and hold times in seconds. The dialog shows how many frames the path plans, and refuses a path that would plan more than 240 frames. A render preset holds the width, height, samples, engine and seed. Both save with the model and undo.
 
 **Export presentation batch…** (on the Render sheet, or **Export batch…** in the Presentations dialog) renders a path through up to four presets into a new folder you name. Before Start, the dialog checks the Blender executable, the video encoder and the disk. Each frame is a PNG with a record beside it. Turn on **Write video** for one MP4 per preset, written after every frame is verified. If the Blender has no H.264 encoder, the dialog offers MPEG-4 Part 2 in MP4 as an explicit choice; clear **Write video** to keep the frames without a video.
+
+**Burn source credits into frames** is on by default, and the dialog checks it each time it opens. When it is on, a frame whose camera view contains an elevation terrain from a downloaded GeoTIFF carries that terrain's source notice as its top stamp. A frame whose view does not contain the terrain has no stamp. When the box is off, no frame has a stamp, and the video made from the frames has none either. The test does not check whether something blocks the view, so a terrain behind a building still counts. The batch manifest lists the notices of the terrain its scenes show, whether or not the box is checked. Each frame's record lists the notices in its view. Resume keeps the choice the batch started with. Stills, animation frames and perspective sheet views follow the same in-view rule, with no checkbox: each credits a terrain only when the terrain is in the camera's view.
 
 **Jobs** lists each batch as one row, with a row for each preset. **Cancel batch** stops it at the next frame and keeps the finished frames. **Resume** continues at the first unfinished frame. **Show results…** opens the stills and any video, and **Resume: encode video** writes a video that was not written, from the frames already kept. Closing the application while a batch runs asks first: **Stop batch and close** keeps the finished frames and leaves the batch to resume later.
 

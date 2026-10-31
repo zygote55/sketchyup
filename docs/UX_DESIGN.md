@@ -2564,7 +2564,7 @@ Build order for the owner's approval: 20.7 items 1 to 4 and 6 first, then the di
 
 ## 21. Orthophoto as a georeferenced reference image (desktop)
 
-**Status: Approved by the owner on 2026-10-31 (R107.b2.2); built in R107.b2.2 (ADR 0181, Implementation notes R107.b2.2), with the differences listed there.** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
+**Status: Approved by the owner on 2026-10-31 (R107.b2.2); built in R107.b2.2 (ADR 0181, Implementation notes R107.b2.2), with the differences listed there. Amended 2026-10-31 to the built behaviour (R107.b2.2).** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
 
 It extends the reference-images panel. It adds no menu entry, shortcut, rail slot, tool or tray panel. The form follows section 20: the layout, the states, the refusals, the report, and the keyboard.
 
@@ -2583,52 +2583,62 @@ Parts: 21.1 the entry; 21.2 the layout and its states; 21.3 the refusals; 21.4 t
 Place georeferenced image
   Image        orthophoto.png · 4,096 × 3,072 px · 8-bit RGB · 9.8 MiB
   Position     world file orthophoto.pgw · north up · 0.500 m east × 0.500 m north
+  Name         [ orthophoto                               ]
   Zone         [ 11N ▾ ]          from the site's record (read-only)
   Datum        (●) WGS84   ( ) NAD83, labelled approximation     ⚠ Approximation
   Corners      NW  E 361,789.4  N 3,819,654.4   35.0000° N, 119.0000° W
                SE  E 363,325.4  N 3,817,118.4   34.9770° N, 118.9860° W
   Elevation    [ 0.00 ] m         the site origin's elevation by default
   Credit       [                                          ]  optional, 256 bytes
-  Name         [ orthophoto                               ]
   Origin       Site origin E 361,800 N 3,818,100 · the image's centre is 1.1 km away
                ⓘ This site has no geographic location, so the zone is not checked.
                  Set one in Site settings.                    (only when that is so)
 
-  [ Show report ]                                       [ Cancel ]  [ Import ]
+  [ Show report ]     [ Choose another file… ]     [ Cancel ]  [ Import ]
+                      (only after a file-level refusal)
 ```
 
-The figures are an example. The Zone row reads "Choose the zone…" when the site has no record and the file is a world file. A GeoTIFF's zone and datum are read-only, "from the file". The Datum row's NAD83 choice shows §20.3's caption: "NAD83 is taken as WGS84. Sources disagree on the size of the difference, from about a metre upward, so positions are approximate. The image keeps the NAD83 label." The Origin row reads "No site origin yet. The import sets one at the image's centre, rounded to 100 m: E … N …, [Use proposed origin]" when the site has no origin.
+The figures are an example. The Zone row reads "Choose the zone…" when the site has no record and the file is a world file. A GeoTIFF's zone and datum are read-only, "from the file". The Datum row's NAD83 choice shows §20.3's caption: "NAD83 is taken as WGS84. Sources disagree on the size of the difference, from about a metre upward, so positions are approximate. The image keeps the NAD83 label." The Origin row reads "No site origin yet. The import sets one at the image's centre, rounded to 100 m: E … N …." when the site has no origin. Image and Position describe the file and are not settings. Name is the first setting, so the reading order and the Tab order agree (21.5). There is no **Use proposed origin** button: the engine sets the origin at the image's centre and has no other value to offer (ADR 0181, R107.b2.2).
 
 The dialog has these states:
 
-- **Reading.** "Reading orthophoto.png… 40 per cent", one determinate bar, the stages of 20.6. The read runs on a worker and can be cancelled. Cancel gives "Cancelled. Nothing was imported."
+- **Reading.** "● Reading orthophoto.png… 25 per cent", with one determinate bar. The bar moves by stage, not by bytes read: 25 per cent, then 50 for a world file or 75 for a GeoTIFF, then 90 for a world file. The read runs on a worker and cannot be stopped part way. Cancel, or Esc, closes the dialog at once and imports nothing; the read finishes in the background, and its result is discarded.
 - **Ready.** Every field is filled. Import is on, and the status line reads "Ready. Import places the image at the corners above. Undo removes it."
 - **Zone needed.** A world file, no site record, and no zone chosen: Import is off, and its description reads "Choose the zone the image's coordinates are in."
-- **Refused.** The banner of 21.3. Import stays off. For a file-level refusal the settings grey out and focus moves to **Choose another file…**.
+- **Refused.** The banner of 21.3. Import stays off. For a file-level refusal the settings grey out and focus moves to **Choose another file…**, which is shown only then. A refusal about the zone, the elevation or the credit leaves the settings open, so the person can correct them.
 - **Imported.** The dialog closes. The panel's details gain "Georeferenced: zone 11N, north-up, 0.500 m. Origin unchanged." (or "Origin set at …"). The status line reads "Placed orthophoto.png as a georeferenced reference image: 4,096 × 3,072 px, zone 11N. Undo removes it."
 
 ### 21.3 The refusals
 
-Every refusal follows 20.5: it says first that nothing was imported and the model is unchanged, then the reason, then numbered next steps.
+Every refusal follows 20.5: it says first that nothing was imported and the model is unchanged, then the reason, then a numbered next step. The dialog gives one next step for each refusal.
 
 ```text
 ✕ Refused. Nothing was imported. Your model is unchanged.
-  The file's coordinate system is geographic (EPSG:4269). Only WGS84 UTM zones are read.
-  1. Export the image in WGS84 UTM from your GIS, or choose a file that is.
-  2. Or import the image as a plain reference image, without its position.
+  The file's coordinate system is geographic. Only WGS84 and NAD83 UTM zones are read.
+  1. Export in WGS84 UTM.
 ```
 
 | Where it appears | Refusal (code, ADR 0181) | Sentence | Next step |
 | --- | --- | --- | --- |
 | File | `image-type` | "This is not a PNG, JPEG or GeoTIFF file." | Choose another file |
-| File | `image-size`, `stored-size`, `image-extent` | "The image is 5,000 × 4,000 pixels. The limit is 4096 × 4096." | Crop or reduce it in an image editor |
-| File | `geotiff-compression` | "This GeoTIFF is compressed with JPEG, which this version does not read." | Save it uncompressed, or as LZW or Deflate |
+| File | `image-size` | "The image is 5,000 × 4,000 pixels. The limit is 4096 × 4096." | Crop or reduce it in an image editor |
+| File | `stored-size` | "The image is 17.2 MiB as stored. The limit is 16 MiB. Crop it or reduce it in an image editor, then import it again." | Crop or reduce it in an image editor |
+| File | `image-extent` | "The image would cover 1,200 km in one direction. A placed image can cover at most 1,000 km." | Crop or reduce it in an image editor |
+| File | `geotiff-compression` | "This GeoTIFF is compressed with JPEG, which this version does not read. Only uncompressed, LZW and Deflate files are read." | Save it uncompressed, or as LZW or Deflate |
 | File | `geotiff-samples` | "The pixels are 16-bit. Only 8-bit RGB and RGBA are read." | Export 8-bit RGB |
-| File | `geotiff-crs`, `geotiff-units` | "The file's coordinate system is EPSG:4269. Only WGS84 UTM zones are read." | Export in WGS84 UTM |
-| File | `geotiff-untagged`, `geotiff-transform` | "This GeoTIFF has no map position, so its pixels cannot be placed." | Add its georeference in a GIS |
-| World file | `world-file`, `world-rotated`, `world-flipped` | "The world file rotates or shears the image. Only north-up images are read." | Use a north-up world file |
+| File | `geotiff-crs` | "The file's coordinate system is NAME. Only WGS84 and NAD83 UTM zones are read." (NAME is the kind, such as geographic, or the EPSG code of a projection that is not read) | Export in WGS84 UTM |
+| File | `geotiff-units` | "The coordinates are in UNIT. Only metres are read." | Export in WGS84 UTM |
+| File | `geotiff-untagged` | "This GeoTIFF has no map position, so its pixels cannot be placed." | Add its georeference in a GIS |
+| File | `geotiff-transform` | "The file's georeference is not one tie point with a scale, or one north-up transformation." | Add its georeference in a GIS |
+| File | `geotiff-raster` | "The raster type is neither pixel-is-area nor pixel-is-point, so its pixels cannot be placed." | Choose another file |
+| File | `geotiff-layout` | "The file is not one classic TIFF image: it is BigTIFF, or it holds more than one full-resolution image." | Choose another file |
+| World file | `world-file` | "The world file does not hold six numbers, one to a line." | Use a north-up world file |
+| World file | `world-rotated` | "The world file rotates or shears the image. Only north-up images are read." | Use a north-up world file |
+| World file | `world-flipped` | "The world file flips the image. Only north-up images are read." | Use a north-up world file |
 | Zone | `zone-mismatch` | "The image is in zone 12N, and the site is in zone 11N. An image cannot cross zones." | Choose an image in 11N |
-| Zone | `zone-band`, `zone-exception`, `latitude` | "A corner of the image lies outside zone 11N. Choose the zone the image is in." | Choose the zone the image is in |
+| Zone | `zone-band` | "A corner of the image lies outside zone 11N. Choose the zone the image is in." | World file: choose the zone the image is in. GeoTIFF: export the image in one UTM zone, from a GIS |
+| Zone | `zone-exception` | "This image is in the Norway zone exception, which this version does not place." | World file: choose the zone the image is in. GeoTIFF: export the image in one UTM zone, from a GIS |
+| Zone | `latitude` | "A corner lies outside 80° S to 84° N, the range of the UTM grid." | World file: choose the zone the image is in. GeoTIFF: export the image in one UTM zone, from a GIS |
 | Elevation | `elevation` | "The elevation must be a number of metres between −1,000,000 and 1,000,000." | Enter a number |
 | Credit | `credit` | "The credit line is longer than 256 bytes. Shorten it." | Shorten it |
 | File | `file-changed` | "The file changed while it was read. Choose it again." | Choose it again |
@@ -2638,7 +2648,7 @@ The ADR's table holds each code's full condition. The sentences here are the dia
 
 ### 21.4 The report
 
-**Show report** opens a text report in the dialog, with the same **Copy report** and **Save report…** as 20.4. It holds, in this order: the source (the image's file name, its world file if one was used, and the first 12 characters of its SHA-256, with the full value in Copy and Save); the format and the stored size; the pixel size and the size in metres; the zone and datum; the corners in UTM and in degrees; the elevation; the origin (kept, set, or none); the credit, or "none entered"; and the notices, each once: the datum approximation, the zone not checked, the origin set by this import.
+**Show report** opens a report pane between the settings and the footer, and pressing it again hides the pane. The pane has **Copy report** and **Save report…**, which save the report as text or JSON, as 20.4 describes. It holds, in this order: the source (the image's file name, its world file if one was used, and the first 12 characters of its SHA-256, with the full value in Copy and Save); the format and the stored size; the pixel size and the size in metres; the zone and datum; the corners in UTM and in degrees; the elevation; the origin (kept, set, or none); the credit, or "none entered"; and the notices, each once: the datum approximation, the zone not checked, the origin set by this import.
 
 The panel's details keep a short form of the same facts after the import.
 
@@ -2647,10 +2657,10 @@ The panel's details keep a short form of the same facts after the import.
 | Area | Rule |
 | --- | --- |
 | Entry | No new shortcut. The reference-images panel's button, then the chooser, then the dialog. |
-| Tab order | Name; Zone; Datum; Elevation; Credit; Use proposed origin (when shown); Show report; Cancel; Import. |
-| Radio groups | One Tab stop each. Arrow keys move inside, as in 16.9. |
-| Accessible names | "Name of the reference image"; "Zone of the image, 1 to 60 with N or S"; "Datum, WGS84 or NAD83 as a labelled approximation"; "Elevation of the image, metres"; "Credit line, optional, 256 bytes at most"; "Use proposed origin"; "Show report"; "Import georeferenced image"; "Cancel". When Import is off, its description gives the reason. |
-| Enter and Esc | Enter is Import while Import is on, as the default button. Esc cancels a running read, and otherwise closes the dialog. |
+| Tab order | Name; Zone; Datum, WGS84; Datum, NAD83; Elevation; Credit; the report and its Copy and Save buttons (only while the report is shown); Show report; Choose another file… (only after a file-level refusal); Cancel; Import. |
+| Radio groups | Each radio is in the Tab order, WGS84 first, then NAD83. Arrow keys move inside, as in 16.9. |
+| Accessible names | "Name of the reference image"; "Zone of the image, 1 to 60 with N or S"; "Datum, WGS84" and "Datum, NAD83 as a labelled approximation", one name for each radio; "Elevation of the image, metres"; "Credit line, optional, 256 bytes at most"; "Show report"; "Copy report as text" and "Save report" (in the report pane); "Choose another file"; "Import georeferenced image"; "Cancel". The progress bar is named "Reading the image, per cent". When Import is off, its description gives the reason. |
+| Enter and Esc | Enter is Import while Import is on, as the default button. Esc closes the dialog, as Cancel does; a running read is discarded (21.2). |
 | Refusals | The banner is announced as an alert, and begins "Refused. Nothing was imported." |
 | Colour | States are a glyph and a word: ⚠ Approximation, ✕ Refused, ● Reading. |
 | Text size (200 %) | The settings stack above the corners. The footer stays in view. |
