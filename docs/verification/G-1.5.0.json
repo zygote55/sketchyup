@@ -10,8 +10,7 @@
   ],
   "version": "1.5.0",
   "recordComplete": true,
-  "fullTierResultPendingAtWriting": true,
-  "gateStatus": "RC1 record complete except the full-tier result (in progress at writing); tag and release follow this record's merge once every check passes",
+  "gateStatus": "RC1 record complete; the full tier passed at the RC; tag and release follow this record's merge under the owner's 2026-10-30 permission",
   "ownerApproval": {
     "date": "2026-10-30",
     "permission": "I want you to do whatever you need to get this released. You have my permission.",
@@ -117,12 +116,11 @@
     "headSha": "1ca204fdea1bd43a7e9936e35b35757bcec10c45",
     "attempt": 1,
     "startedAt": "2026-10-31T01:49:35Z",
-    "statusAtWriting": "in_progress",
-    "statusCheckedAt": "2026-10-31T03:42Z",
-    "verdict": null,
-    "jobsPassed": 12,
+    "status": "completed",
+    "completedAt": "2026-10-31T04:05:20Z",
+    "verdict": "success",
+    "jobsPassed": 13,
     "jobsTotal": 13,
-    "pendingJobs": ["Sanitized builds"],
     "jobs": [
       {"name": "Development build and checks", "conclusion": "success"},
       {"name": "Native tests: X11 1x", "conclusion": "success"},
@@ -132,13 +130,16 @@
       {"name": "Native tests: audit and accessibility", "conclusion": "success"},
       {"name": "Native tests: fractional scaling, Blender worker and M5", "conclusion": "success"},
       {"name": "Blender interoperability", "conclusion": "success"},
-      {"name": "Sanitized builds", "conclusion": "in_progress"},
+      {"name": "Sanitized builds", "conclusion": "success"},
       {"name": "IFC library and helper", "conclusion": "success"},
       {"name": "SKP parser, helper and import", "conclusion": "success"},
       {"name": "Qt 6.8 reference compile", "conclusion": "success"},
       {"name": "Arch package acceptance", "conclusion": "success"}
     ],
-    "ctest": "not yet readable: job logs are served only when the run completes",
+    "ctest": {"allPassed": true, "Development build and checks": [280, 1, 2], "Sanitized builds": [74, 145, 7, 1],
+              "Arch package acceptance": [279], "IFC library and helper": [8, 1, 10, 6],
+              "SKP parser, helper and import": [11, 5], "Blender interoperability": [2],
+              "Native tests: fractional scaling, Blender worker and M5": [11]},
     "fastTierJobs": "skipped in the full-tier run"
   },
   "frozenProviderInputs": {
@@ -482,8 +483,7 @@
     "R098.i mutation checks"
   ],
   "unresolvedAtWriting": [
-    "full-tier run 41157172520: Sanitized builds in progress; CI verdict and ctest totals not yet read",
-    "main push run 41145912353 (PR #539, 0b0c75d5) failed one native job with no defect ID; its Weston line matches D-031"
+    "main push run 41145912353 (PR #539, 0b0c75d5) failed one native job; its Weston line matches D-031, so it is counted under D-031 with no new ID; the RC full tier passed the job"
   ],
   "followUpsOnMain": [
     "D-076 to D-081 IDs added to RELEASE_NOTES.md (1.5.0) and CHANGELOG.md (1.5.0)",
