@@ -2440,7 +2440,7 @@ Source
 - **Mismatch with the site.** The site's reference is the vertical label of its geographic record ("Vertical reference of the origin's elevation" in Site settings). When both are known and differ, the amber block above opens under the Vertical row. Import stays off until the offset is not zero and the note is filled in. This is stricter than the engine today (20.7 item 5), and it follows ADR 0181 V5, which says "an offset and a note". When the dry run refuses the mismatch, the refusal names both references (20.5).
 - **The site has no location.** With no geographic record there is nothing to compare, so the zone and the vertical reference are not checked. The Site row says so: "This site has no geographic location, so the zone and vertical reference are not checked. Set one in Site settings." (ADR 0181 §2.1 and §2.7.)
 - **The site's reference is unknown.** A site whose elevation is labelled "unknown" accepts the import, with a notice: "The site's elevation names no vertical reference. The terrain is labelled NAVD88, and the label is recorded, not checked."
-- **No origin yet.** The import establishes one, as it does for other sources: the centre of the grid, rounded to 100 m, editable with **Use proposed origin**. The import writes no geographic record, which 20.7 item 6 and 20.8 question 5 deal with.
+- **No origin yet.** The import establishes one, as it does for other sources: the centre of the grid, rounded to 100 m, editable with **Use proposed origin**. Since R107.b3 the import also writes the site's geographic record, from the window's zone and the chosen vertical reference, with the file's name and SHA-256 as its provenance (20.7 item 6 and 20.8 question 5, closed by D-078).
 
 ### 20.4 The report
 
@@ -2471,7 +2471,7 @@ Credit: U.S. Geological Survey
 - **Notices.** Each appears once, in the warning style, with the wording of the example. The set is: the datum approximation, the decimation, the GLO-30 surface, a vertical reference from the file or chosen, a vertical offset (with its note), and a site whose reference is unknown.
 - **Save and not store.** Save report… keeps the report in a `.txt` or `.json` file, as the dialog does now. The report is not stored in the model.
 - **After Import.** The status line reads "Imported a terrain from USGS_1_n35w119.tif (USGS 3DEP): 2,048 triangles · site origin set · Undo removes it". The Source row of the Terrain section shows the file's name, the start of its digest and the units, as it does now. The record holds no path, so the file is not needed after the import.
-- **Credit in the app.** The credit appears only in this report for now. Open question 4 proposes a place in the Terrain section.
+- **Credit in the app.** The credit appears in this report and, since R107.b4, as the Credit line under Source in Entity info for the terrain (open question 4).
 
 ### 20.5 The refusals
 
