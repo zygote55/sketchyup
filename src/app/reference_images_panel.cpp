@@ -1,7 +1,9 @@
 #include "app/reference_images_panel.hpp"
 #include "app/keypad_decimal.hpp"
+#include "app/reference_georef_dialog.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
+#include "io/orthophoto_import.hpp"
 #include "io/texture_image.hpp"
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -11,6 +13,7 @@
 #include <QFormLayout>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
 namespace sketchy {
 namespace {
@@ -58,7 +61,8 @@ ReferenceImagesPanel::ReferenceImagesPanel(Document &doc, Viewport &view, QWidge
     auto *layout = new QVBoxLayout(this);
     auto *note =
         new QLabel("Place a PNG or JPEG as a reference plane. Pixels are stored in the model. "
-                   "Move, rotate and scale the whole image with the normal tools.");
+                   "Move, rotate and scale the whole image with the normal tools. "
+                   "A file with a world file, or a GeoTIFF, is placed by its map position.");
     note->setWordWrap(true);
     layout->addWidget(note);
     details_ = new QLabel;
@@ -77,17 +81,7 @@ ReferenceImagesPanel::ReferenceImagesPanel(Document &doc, Viewport &view, QWidge
     layout->addWidget(calibrate_);
     layout->addStretch();
     setFocusProxy(import);
-    connect(import, &QPushButton::clicked, this, [this] {
-        const auto path = QFileDialog::getOpenFileName(this, "Import reference image", {},
-                                                       "Images (*.png *.jpg *.jpeg)");
-        if (path.isEmpty())
-            return;
-        try {
-            importFile(path);
-        } catch (const std::exception &e) {
-            details_->setText(QString::fromUtf8(e.what()));
-        }
-    });
+    connect(import, &QPushButton::clicked, this, [this] { chooseImage(); });
     connect(edit_, &QPushButton::clicked, this, [this] { edit(false); });
     connect(calibrate_, &QPushButton::clicked, this, [this] { edit(true); });
     connect(&view_, &Viewport::changed, this, [this] { refresh(); });
@@ -120,16 +114,45 @@ void ReferenceImagesPanel::refresh() {
     const auto &body = *doc_.bodies().at(id);
     const auto &image = *body.referenceImage;
     const auto &asset = *doc_.assets().at(image.asset);
-    details_->setText(
-        QString("%1\n%2 × %3 · opacity %4%\n%5\n%6")
-            .arg(QString::fromStdString(body.name))
-            .arg(displayLength(image.width, doc_.displayUnits(), doc_.displayPrecision()))
-            .arg(displayLength(image.height, doc_.displayUnits(), doc_.displayPrecision()))
-            .arg(image.opacity * 100, 0, 'g', 5)
-            .arg(asset.payload ? "Embedded pixels" : "Missing pixels — purple placeholder")
-            .arg(view_.textureSummary()));
+    auto text = QString("%1\n%2 × %3 · opacity %4%\n%5\n%6")
+                    .arg(QString::fromStdString(body.name))
+                    .arg(displayLength(image.width, doc_.displayUnits(), doc_.displayPrecision()))
+                    .arg(displayLength(image.height, doc_.displayUnits(), doc_.displayPrecision()))
+                    .arg(image.opacity * 100, 0, 'g', 5)
+                    .arg(asset.payload ? "Embedded pixels" : "Missing pixels — purple placeholder")
+                    .arg(view_.textureSummary());
+    // UX §21.4: after the import, the note of the import; afterwards, the short form of its facts.
+    if (image.georeference && id == georefNoteBody_ && !georefNote_.isEmpty())
+        text += "\n" + georefNote_;
+    else if (image.georeference) {
+        const auto &geo = *image.georeference;
+        text += QString("\nGeoreferenced: zone %1%2, north-up, %3")
+                    .arg(geo.zone)
+                    .arg(geo.north ? "N" : "S")
+                    .arg(displayLength(geo.pixelWidth, doc_.displayUnits(), doc_.displayPrecision()));
+    }
+    details_->setText(text);
 }
+void ReferenceImagesPanel::chooseImage() {
+    const auto path = QFileDialog::getOpenFileName(this, "Import reference image", {},
+                                                   "Images (*.png *.jpg *.jpeg *.tif *.tiff)");
+    if (path.isEmpty())
+        return;
+    try {
+        importFile(path);
+    } catch (const std::exception &e) {
+        details_->setText(QString::fromUtf8(e.what()));
+    }
+}
+
+// R107.b2.2 (UX §21.1): a GeoTIFF, or a PNG or JPEG with a world file beside it, is placed by its map
+// position in the georeferenced dialog. Any other image opens the plain dialog, as before.
 void ReferenceImagesPanel::importFile(const QString &path) {
+    const auto format = orthophotoFormatOf(path);
+    if (format && (*format == OrthophotoFormat::GeoTiff || !worldFileBeside(path).isEmpty())) {
+        importGeoreferenced(path);
+        return;
+    }
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly) || file.size() > qint64(AssetPayload::limit))
         throw std::runtime_error("Choose a readable image no larger than 16 MiB");
@@ -164,6 +187,22 @@ void ReferenceImagesPanel::importFile(const QString &path) {
     });
     dialog.exec();
 }
+void ReferenceImagesPanel::importGeoreferenced(const QString &path) {
+    ReferenceGeorefDialog dialog(doc_, view_, path, this);
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    if (accepted) {
+        georefNoteBody_ = dialog.body();
+        georefNote_ = dialog.note();
+        view_.setSelection(dialog.body());
+        emit referenceStatus(dialog.status());
+    } else if (dialog.chooseAnotherFile()) {
+        QTimer::singleShot(0, this, [this] { chooseImage(); });
+    } else if (!dialog.status().isEmpty()) {
+        emit referenceStatus(dialog.status());
+    }
+    refresh();
+}
+
 void ReferenceImagesPanel::edit(bool calibrate) {
     const auto id = selectedImage();
     if (!id)
