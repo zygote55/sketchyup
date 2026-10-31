@@ -662,6 +662,19 @@ int main(int argc, char **argv) {
                           lookingFrame->png == lookingOffFrame->png,
                       "A frame looking away has no notice and the same bytes whether the box is on "
                       "or off");
+                // R107.c3.1 (ADR 0181 §3.3): a still takes the same default. A still looking away
+                // has no notice, and the same bytes as a frame looking away with the box off.
+                const auto stillLooking =
+                    PreparedRender::prepare(RenderSnapshot::capture(terrain, awayOptions));
+                const auto stillLookingFrame = renderFrame(stillLooking, real);
+                check(brightTopRows(stillLookingFrame->image) < 50 &&
+                          stillLookingFrame->png == lookingOffFrame->png,
+                      "A still looking away has no notice, and the same bytes as a frame looking "
+                      "away with the box off");
+                const auto stillInFrame = renderFrame(
+                    PreparedRender::prepare(RenderSnapshot::capture(terrain, demOptions)), real);
+                check(brightTopRows(stillInFrame->image) >= 50,
+                      "A still in view burns its notice by default");
                 // A manifest written before R107.c3 names only the scene's credits. The worker
                 // burns them, as 1.5.0 did, so a retained render from 1.5.0 keeps its note when it
                 // is rendered again.
@@ -682,7 +695,9 @@ int main(int argc, char **argv) {
                 std::cout << "R107.c3 text-bright pixels in the top 24 rows: in view "
                           << brightTopRows(inViewFrame->image) << ", in view with the box off "
                           << brightTopRows(inViewOffFrame->image) << ", looking away "
-                          << brightTopRows(lookingFrame->image)
+                          << brightTopRows(lookingFrame->image) << ", a still in view "
+                          << brightTopRows(stillInFrame->image) << ", a still looking away "
+                          << brightTopRows(stillLookingFrame->image)
                           << ", a manifest from before R107.c3 "
                           << brightTopRows(legacyFrame->image) << '\n';
             }

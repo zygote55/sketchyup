@@ -1372,3 +1372,39 @@ The second run's peak rose by about 129 MB, the same order as the 121 MiB R107.b
 - **Cancel during a read, and Save report… as JSON,** are not exercised by a test. The code paths are short, and the report's JSON keys are the report's facts, but they are not checked against a file.
 - **Peak memory of a 4096 by 4096 photograph** as PNG (its stored size may exceed 16 MiB, which is refused by name, as the design says).
 - **The guide text** (R107.e2). It is a later slice.
+
+## Implementation notes (R107.c3.1)
+
+What R107.c3.1 built: a still and an animation frame burn a DEM terrain's notice only when the terrain is in that camera's view, the rule R107.c3 gave presentation frames. The owner's instruction for 1.6.0 was to credit a DEM terrain only when it is on camera. The test is `viewDemCredits`, at the render's own width-to-height ratio, and there is no checkbox for stills or animation frames: the credit follows the camera.
+
+**The slice row.** This branch's design has no R107.c3.1 row. Its slices table names R107.e2, R107.c3, R107.b2.1, R107.b2.2 and the R107.e2 guide text. The files and tests below are the ones this change needed.
+
+**What was built.**
+- `src/integrations/blender_job.hpp` and `blender_job.cpp`: `CreditStamp` loses `SceneNotices`, the 1.5.0 scene rule. `PreparedRender::prepare` defaults to `ViewNotices`, so `stampCredits` holds the notices of the terrain in the view, or is empty when the scene has DEM terrain and the view has none. `None` is as before. No caller passed `SceneNotices` once the stills and animation frames moved, so the value is removed rather than kept unused.
+- The render panel's still (`src/app/render_panel.cpp`, `PreparedRender::prepare(snapshot)`) and the animation export (`src/integrations/animation_export.cpp`, `PreparedRender::prepare(capture->frame(index))`) are unchanged. They take the default, which is now the view rule. The render panel is a desktop path and was not built here.
+- `CMakeLists.txt`: `animation_export_tests` gets `SOURCE_DIR`, for the DEM fixture.
+- Tests: `presentation_export_tests` (a still in view and a still looking away, by default), `animation_export_tests` (a terrain animation: the keyframe that faces the terrain stamps its frame, the one that looks away does not), and `blender_job_tests --real` (a still in view burns the notice in real Blender, and a still looking away has no notice and the same bytes as a frame looking away with the box off).
+
+**Animation: per frame.** Each animation frame is prepared on its own. `AnimationCapture::frame(index)` carries that frame's camera, and each frame is a separate worker job. The video is encoded from the stamped frames (`BlenderJob::encode`), and nothing stamps a clip. So each frame follows its own camera, and no "any frame in the clip" rule is needed.
+
+**Where it differs from the R107.c3 notes.**
+1. "Choices beyond the design", item 1, said stills and animation frames keep the scene rule, and that the view rule was an owner question. The owner has now answered it, and this reverses that item. That item stays as written, as history.
+2. `CreditStamp::SceneNotices` is removed (see above).
+3. **Retained renders keep the stamp they were prepared with.** A retained render is re-rendered from its stored manifest (`RenderJobStore::input`, `PreparedRender::open`). A manifest with `credits` but no `stampCredits` burns its `credits` again through the worker's fallback. That covers 1.5.0 renders, and stills prepared between R107.c3 and this change, which stamped the scene's notices. So a re-rendered still from before this change can carry a notice for a terrain outside its view. The retained manifest records the camera (`describeRenderCamera`), so the view test could be run again from the files. It is not built. This is a known gap.
+
+**Measured.** The pinned image `sketchyup-ci-pinned:r097a-ifc` (Qt 6.11.2, Blender 5.2.2 LTS at `/usr/bin/blender`), Debug, `--cpus=2 --memory=4g`. The DEM frame is 512 × 384 with the 3DEP fixture; the terrain is in view for the fit camera and behind a camera ten radii away for the other. Text-bright pixels (lightness above 180) in the top 24 rows, with the threshold at 50:
+- a still in view: **379**;
+- a still looking away: **0**;
+- the frame in view: 379; the frame in view with the box off: 0; the frame looking away: 0;
+- a manifest from before R107.c3 (legacy fallback): 379, as before.
+
+The cost is unchanged. `prepare` already computed the view's notices for every render (R107.c3), so a still does no more work than before. The change only decides which list the stamp copies.
+
+**Tests.** Test first: on the unchanged code, three of the new checks failed: `presentation_export_tests` ("A still looking away from the terrain burns no notice by default"), `animation_export_tests` ("An animation frame looking away from the terrain burns no notice") and `blender_job_tests --real` ("A still looking away has no notice, and the same bytes as a frame looking away with the box off", exit 1). After the change, the affected ctest entries all pass, 12 of 12, in the pinned image with `QT_QPA_PLATFORM=offscreen`: `blender_job`, `blender_real`, `blender_handoff`, `blender_handoff_real`, `animation_export`, `animation_export_real`, `presentation_export`, `presentation_export_real`, `m7_presentation`, `m7_presentation_real`, `render_store` and `render_queue`. `presentation_export_real` and `blender_real` both use the real Blender.
+
+**Not done.**
+- The desktop suites (the render panel's still and the animation dialog) were not built or run. The parent runs the full tier, as the brief says. No desktop file changed.
+- X11 and Wayland runs: none of the suites is a UI test.
+- `blender_sandbox_tests` was not built. It copies `blender_job_tests` as its stand-in, and its checks do not cover credits.
+- The gap in item 3 above. A retained render's view could be recomputed from its files, but nothing does that yet.
+- The user guide already says the credit appears "where the terrain appears" (Credits), so it is unchanged. UX §17.13 covers the batch's box only, and no UX text describes stills, so UX is unchanged.
