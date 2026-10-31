@@ -7,7 +7,6 @@
 #include "app/window.hpp"
 #include "io/terrain_source.hpp"
 #include <QActionGroup>
-#include <QDesktopServices>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -21,7 +20,6 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
-#include <QUrl>
 #include <QWidgetAction>
 namespace sketchy {
 namespace {
@@ -101,8 +99,6 @@ void Window::importTerrainPath(const QString &path) {
         SiteSettingsDialog settings(doc_, *viewport_, importer);
         settings.exec();
     };
-    // R107.b4 (UX §20.1): the installed user guide opens in the system's viewer, fetching nothing.
-    setup.openUserGuide = [](const QUrl &url) { return QDesktopServices::openUrl(url); };
     TerrainImportDialog dialog(doc_, std::move(setup), this);
     importer = &dialog;
     terrainImport_ = &dialog;

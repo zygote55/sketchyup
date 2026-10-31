@@ -9,6 +9,7 @@
 #include <QByteArray>
 #include <QDialog>
 #include <QJsonObject>
+#include <QPointer>
 #include <QThreadPool>
 #include <QTimer>
 #include <array>
@@ -33,11 +34,11 @@ class QRadioButton;
 class QTableWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
-class QUrl;
 class QVBoxLayout;
 class QWidget;
 namespace sketchy {
 class TerrainRoleTable;
+class UserGuideViewer;
 struct TerrainImportDryRun;
 // R095.d: File > Import terrain… (ADR 0168 "Decisions > Interaction design"). Settings on the
 // left (format, units, layer or code roles, point-file columns, site coordinates and
@@ -70,9 +71,6 @@ class TerrainImportDialog final : public Settled<QDialog> {
         QString path; // R107.b4: a GeoTIFF's file, read from its path in windows
         // R107.b4: Site settings…, opened by the window (it holds the viewport the dialog does not).
         std::function<void()> openSiteSettings;
-        // R107.b4 (UX §20.1): the installed user guide at the GeoTIFF page's anchor, opened by the
-        // window. Returns false when the system could not open it.
-        std::function<bool(const QUrl &)> openUserGuide;
     };
     TerrainImportDialog(Document &doc, Setup setup, QWidget *parent);
     ~TerrainImportDialog() override;
@@ -114,6 +112,8 @@ class TerrainImportDialog final : public Settled<QDialog> {
     void updateFromLatLon(QDoubleSpinBox *easting, QDoubleSpinBox *northing,
                           QDoubleSpinBox *latitude, QDoubleSpinBox *longitude);
     void fitToFile();
+    // R107.e2 (UX §22): the guide opens in its own window beside this dialog, at the GeoTIFF page.
+    void openUserGuide();
     void setWindowMode(int mode);
     std::optional<DemWindow> demWindow() const;
     QString siteVertical() const; // the site's vertical label; empty when it has no location
@@ -203,6 +203,7 @@ class TerrainImportDialog final : public Settled<QDialog> {
     QDoubleSpinBox *swE_{}, *swN_{}, *swLat_{}, *swLon_{};
     QDoubleSpinBox *neE_{}, *neN_{}, *neLat_{}, *neLon_{};
     QPushButton *demFit_{}, *siteSettings_{}, *userGuide_{};
+    QPointer<UserGuideViewer> guide_; // the open guide window, if any (R107.e2)
     QDoubleSpinBox *spacing_{};
     QFrame *mismatchBox_{};
     QLabel *mismatchTitle_{}, *mismatchText_{}, *mismatchCaption_{};
