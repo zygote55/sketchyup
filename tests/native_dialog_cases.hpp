@@ -180,6 +180,21 @@ inline QString pngFile(Context &context) {
     }
     return path;
 }
+// R107.b2.2 (UX §21): a PNG with its world file beside it, placed at a UTM corner in zone 30N.
+inline QString worldFilePng(Context &context) {
+    const QDir dir(context.files);
+    const auto path = dir.filePath("georeferenced.png");
+    if (!QFile::exists(path)) {
+        QImage image(16, 8, QImage::Format_RGB32);
+        image.fill(Qt::darkYellow);
+        require(image.save(path, "PNG"), "Write georeferenced PNG fixture");
+        QFile world(dir.filePath("georeferenced.pgw"));
+        require(world.open(QIODevice::WriteOnly | QIODevice::Text) &&
+                    world.write("2\n0\n0\n-2\n499801\n5709999\n") > 0,
+                "Write georeferenced world file");
+    }
+    return path;
+}
 inline void referenceImage(Context &context) {
     fresh(context);
     QFile file(pngFile(context));
@@ -1146,6 +1161,21 @@ inline std::vector<Case> cases(Context &ctx) {
          {},
          {},
          {chooseFile("Import reference image", pngFile(ctx))}});
+    // R107.b2.2 (UX §21.5): a world file opens the georeferenced dialog. With no site record its zone is
+    // the person's, so Import waits (Enter is inert).
+    add({"reference-georeference",
+         "annotations",
+         "Place georeferenced image (zone not chosen)",
+         "Import reference image… > world file",
+         fresh,
+         viaPanel("Reference images", "referenceImageImport"),
+         named("referenceGeoreferenceDialog"),
+         Enter::Disabled,
+         "Import georeferenced image",
+         Return::OpenerPanel,
+         {},
+         {},
+         {chooseFile("Import reference image", worldFilePng(ctx))}});
     add({"reference-edit", "annotations", "Edit reference image",
          "View > Reference images (palette), then Edit selected image… (Tab, Space)",
          referenceImage, viaPanel("Reference images", "referenceImageEdit"),

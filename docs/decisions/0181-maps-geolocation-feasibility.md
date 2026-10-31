@@ -1322,3 +1322,53 @@ What R107.c3 built: the in-view rule for the frame credit and for perspective sh
 - **A sheet test of the perspective wiring.** The rule has its own tests. The sheet export's use of it has none: a perspective view's notice is not checked in `sheet_export_tests`.
 - **The guide.** R107.e2 writes the checkbox into `USER_GUIDE.md`. That is a later slice.
 - **Occlusion.** A terrain behind a building still counts, as the design says.
+
+## Implementation notes (R107.b2.2)
+
+What R107.b2.2 built: the desktop import of an orthophoto, the "Place georeferenced image" dialog of [UX §21](../UX_DESIGN.md#21-orthophoto-as-a-georeferenced-reference-image-desktop). The reference-images panel routes a GeoTIFF, or a PNG or JPEG with a world file beside it, to the dialog. The dialog reads the file on a worker, places it against the site as the person sets the zone, datum, elevation, credit and name, and imports it as one undoable edit. The design sections above stay as they were. Where the build differs from them, this section says so.
+
+**Built.**
+
+- **Engine split** (`src/io/orthophoto_import.{hpp,cpp}`). The R107.b2.1 import ran the read, the placement and the edit in one call, so the desktop could not read on a worker and then place. It is now three steps: `readOrthophotoFile` (the file, its pixels and its own placement; it touches no document), `placeOrthophoto` (the zone, datum, corners, origin and record, against a site; pure), and `applyOrthophoto` (the asset, the body, and any origin, as one edit). `importOrthophoto`, which the CLI calls, is the three in order, and its output is the same. Also added: `readOrthophotoFile` reports its stage, `orthophotoFormatOf` and `worldFileBeside` (the routing), `orthophotoNeedsZone`, and `OrthophotoOptions::name`.
+- **Dialog** (`src/app/reference_georef_dialog.{hpp,cpp}`). The five states of UX §21.2 (Reading, Ready, Zone needed, Refused, Imported), the refusal banner with its numbered next step (§21.3), the report (§21.4), and the keyboard and names of §21.5. The read runs on a `QThread`. The thread touches no document; its result comes back to the dialog's thread when it finishes, and a dialog closed during the read ignores it. Changing a setting places again; the file is not read again. Import checks that the document has not changed since the last placement, and then applies the edit through `Document::prepareEdit` and `Viewport::applyPreparedEdit`, the path the other desktop imports use, so the import is one undo step.
+- **Panel** (`src/app/reference_images_panel.{hpp,cpp}`). The chooser takes `*.tif *.tiff`, and the note gains the sentence of §21.1. `importFile` routes by the file's first bytes and its world file, and keeps the plain "Place reference image" dialog for a PNG or JPEG without one, as before. The details show a short georeference line, and the note of the import once after it. A file-level refusal's Choose another file… opens the chooser again.
+- **Status line** (`src/app/window.cpp`). The panel emits `referenceStatus`, and the window's status line shows it. The panel has no access to the window's status label.
+- **Records.** Schema 35 and the record are R107.b2.1's and are unchanged.
+
+**Where it differs from the design, and why.**
+
+1. **Use proposed origin is not built.** The engine sets the new origin at the image's centre, rounded to 100 m, and has no other origin to choose. The Origin row shows the proposal. A button that accepts the only value would do nothing.
+2. **Name is the first setting.** UX §21.2 draws Name last, and §21.5 lists it first in the Tab order. The Tab order and the reading order must agree (§21.5), so Name moves to the top of the settings.
+3. **The progress bar moves by stage, not by bytes.** The engine reports four stages (25, 50 and 90 per cent, and done), not the bytes read. The bar and the "N per cent" text show the stage.
+4. **A cancelled read cannot be stopped.** The engine has no cancellation point. Cancel and Esc close the dialog at once, with "Cancelled. Nothing was imported.", and the worker's result is discarded when it finishes. The read runs to its end in the background.
+5. **Refusal sentences follow the engine where the engine changed.** `geotiff-crs` now reads "Only WGS84 and NAD83 UTM zones are read." (decision 3), where §21.3 still has the WGS84-only sentence. The dialog shows the engine's sentence. A GeoTIFF's zone is in its file, so the next step for `zone-band`, `zone-exception` and `latitude` reads "Export the image in one UTM zone, from a GIS." for a GeoTIFF, and "Choose the zone the image is in." for a world file. §21.3 has one step for both.
+6. **The datum has one name per radio.** §21.5 names the group. The two radios are named "Datum, WGS84" and "Datum, NAD83 as a labelled approximation", because a radio group has no accessible name of its own.
+7. **The report is a pane in the dialog** (Show report toggles it), with Copy report and Save report… (text or JSON), as §21.4 says. Its controls are in the Tab order only while it is shown.
+8. **Choose another file… sits between Show report and Cancel**, and is shown only for a file-level refusal. §21.5 does not list it.
+9. **Refusals keep or grey out the settings by their kind.** A file-level refusal greys them out. A refusal about the zone, the elevation, the credit or the model keeps them open, with Import off. `image-extent` is a file-level refusal, as §21.3 lists it.
+10. **The order of the engine's checks changed.** The file is read before the credit, the elevation and the datum are checked, so a file with two faults can report the other one. Before, a too-long credit with a rotated world file reported `credit`; now it reports `world-rotated`. Each check still refuses. The CLI's output for a single fault is unchanged, and `reference_image_command_tests` passes.
+
+**Measured.** The pinned image (`sketchyup-ci-pinned:r097a-ifc`, Qt 6.11.2), a Debug build with `-g0` and the default linker (mold is not in the image), Xvfb with `xcb`, two CPUs and 4 GiB. A 4096 by 4096 RGBA GeoTIFF, uncompressed, 64.0 MiB (67,120,114 bytes), zone 30N, one strip per three rows. The time runs from the import's call to the dialog's Ready state, and includes the dialog's own work:
+
+| Run | Open to Ready | Process peak (VmHWM) before the read | Process peak after |
+|---|---|---|---|
+| 1 | 787 ms | not recorded | 417,960 kB |
+| 2 | 1,052 ms | 287,828 kB | 416,608 kB |
+
+The second run's peak rose by about 129 MB, the same order as the 121 MiB R107.b2.1 measured with the CLI. The two runs differ by a third because the host was shared with other workers. Small fixtures were not timed. The after-read VmRSS was 289,720 kB, once the dialog was cancelled. Stored-PNG size, and a 4096 by 4096 photograph, were not measured.
+
+**Tests.** The pinned image, the same build.
+
+- `reference_image_command_tests`, `reference_image_io_tests` and `geotiff_tests`: pass (the engine split, with the CLI's output unchanged).
+- `reference_image_input_tests`: pass on X11 at 1× and 2× (Xvfb, `xcb`), and on Wayland (headless Weston) at 1× and 2×. The new cases cover the routing; the zone-needed state, and Import waiting for it; the ready state, with the report, the names and the status line; one undo step, and undo removes the image, its asset and the origin it set; a GeoTIFF, with its zone and datum read from the file; the file-level refusals (a geographic CRS, a rotated world file), with the settings greyed out and Choose another file… offered; the placement refusals (a credit over 256 bytes, an elevation that is not a number, a zone that differs from the site record's), with the settings open; and a site record's zone shown read-only.
+- `native_accessibility_audit --dialogs-keyboard=inventory`: pass, X11 at 1×.
+- `native_accessibility_audit --dialogs-keyboard=annotations` (the group of the new `reference-georeference` case and of `reference-place`): pass on X11 at 2× and on Wayland at 1×.
+- `native_accessibility_audit --dialogs-keyboard=styles` (the group of the chooser that now lists `*.tif *.tiff`): pass on X11 at 1×. The case checks the Tab and Shift+Tab order, the names, Esc, and that Enter is inert while Import waits.
+
+**Not done.**
+
+- **The full tier.** The row names it. The X11 and Wayland matrix of the full tier, and the other keyboard groups, were not run here.
+- **200 % text.** The keyboard audit ran at scale 2 (`QT_SCALE_FACTOR=2`). No text-size preference was set, so the layout at 200 % text is not checked.
+- **Cancel during a read, and Save report… as JSON,** are not exercised by a test. The code paths are short, and the report's JSON keys are the report's facts, but they are not checked against a file.
+- **Peak memory of a 4096 by 4096 photograph** as PNG (its stored size may exceed 16 MiB, which is refused by name, as the design says).
+- **The guide text** (R107.e2). It is a later slice.

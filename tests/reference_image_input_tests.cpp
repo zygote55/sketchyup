@@ -6,14 +6,20 @@
 #include "core/reference_images.hpp"
 #include "core/sections.hpp"
 #include "io/document_io.hpp"
+#include "io/orthophoto_import.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QBuffer>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -86,6 +92,37 @@ void modal(Window &window, const char *name, const std::function<void()> &open,
     check(opened, "Native reference dialog opens");
     if (failure)
         std::rethrow_exception(failure);
+}
+template <class T> T *child(QObject *parent, const char *name) {
+    auto *found = parent->findChild<T *>(name);
+    check(found, name);
+    return found;
+}
+// The read is on a worker: the dialog hides its progress bar when the read has finished.
+void readSettled(QDialog *dialog) {
+    QElapsedTimer timer;
+    timer.start();
+    while (!child<QProgressBar>(dialog, "referenceGeoProgress")->isHidden() && timer.elapsed() < 20000)
+        QTest::qWait(10);
+    check(child<QProgressBar>(dialog, "referenceGeoProgress")->isHidden(), "Georeferenced read settles");
+}
+bool enabledNamed(QObject *parent, const char *name) {
+    return child<QWidget>(parent, name)->isEnabled();
+}
+QString labelText(QObject *parent, const char *name) {
+    return child<QLabel>(parent, name)->text();
+}
+void setText(QObject *parent, const char *name, const QString &value) {
+    child<QLineEdit>(parent, name)->setText(value);
+}
+void clickNamed(QObject *parent, const char *name) {
+    child<QPushButton>(parent, name)->click();
+}
+Id georeferencedBody(const Document &doc) {
+    for (const auto &[id, body] : doc.bodies())
+        if (body->referenceImage && body->referenceImage->georeference)
+            return id;
+    return 0;
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -357,6 +394,166 @@ int main(int argc, char **argv) {
               "Component image import Undo restores all placements and asset storage");
         view.leaveContext();
         check(view.renderStats().glError == 0, "Reference drawing leaves no GL errors");
+        // R107.b2.2 (UX §21): a world file or a GeoTIFF opens the georeferenced dialog; its read runs on a
+        // worker, and Import places the image in one undoable edit through the R107.b2.1 engine.
+        const QString fixtures = QString(SOURCE_DIR) + "/tests/fixtures/reference/";
+        const auto georefDialog = "referenceGeoreferenceDialog";
+        const auto bodiesBefore = doc.bodies().size(), assetsBefore = doc.assets().size();
+        const auto historyBefore = doc.history().position;
+        // A GeoTIFF names its zone and datum, so the dialog reads them from the file and needs no record.
+        modal(window, georefDialog, [&] { panel->importFile(fixtures + "utm-rgba-tile-deflate.tif"); },
+              [&](QDialog *dialog) {
+                  readSettled(dialog);
+                  check(labelText(dialog, "referenceGeoZoneFixed").endsWith("from the file"),
+                        "A GeoTIFF's zone is read from the file");
+                  check(child<QComboBox>(dialog, "referenceGeoZone")->isHidden(),
+                        "A GeoTIFF has no zone to choose");
+                  check(!child<QLabel>(dialog, "referenceGeoDatumFixed")->isHidden(),
+                        "A GeoTIFF's datum is read from the file");
+                  check(enabledNamed(dialog, "referenceGeoImport"), "A readable GeoTIFF is ready to import");
+                  clickNamed(dialog, "referenceGeoImport");
+                  if (dialog->isVisible())
+                      throw std::runtime_error("GeoTIFF import stayed open: " +
+                                               labelText(dialog, "referenceGeoBanner").toStdString());
+              });
+        check(doc.bodies().size() == bodiesBefore + 1 && doc.assets().size() == assetsBefore + 1 &&
+                  doc.history().position == historyBefore + 1,
+              "A GeoTIFF is placed as one image and its asset in one history step");
+        const auto geotiffBody = georeferencedBody(doc);
+        check(geotiffBody && doc.bodies().at(geotiffBody)->referenceImage->georeference->source.format == "geotiff",
+              "The placed GeoTIFF records its format");
+        doc.undo();
+        check(doc.bodies().size() == bodiesBefore && doc.assets().size() == assetsBefore && !doc.site(),
+              "Undo removes the GeoTIFF, its asset and the origin it set");
+
+        // A file that the reader refuses: the banner says so first, Import waits, and the settings grey out
+        // with Choose another file… in their place (UX §21.2 and §21.3).
+        modal(window, georefDialog, [&] { panel->importFile(fixtures + "refuse-ortho-geographic.tif"); },
+              [&](QDialog *dialog) {
+                  readSettled(dialog);
+                  check(labelText(dialog, "referenceGeoBanner").startsWith("✕ Refused. Nothing was imported."),
+                        "A refusal begins with its outcome");
+                  check(labelText(dialog, "referenceGeoBanner").contains("Only WGS84 and NAD83 UTM zones are read."),
+                        "A geographic coordinate system is refused by its sentence");
+                  check(!enabledNamed(dialog, "referenceGeoImport"), "A refused file cannot be imported");
+                  check(!enabledNamed(dialog, "referenceGeoName"), "A file-level refusal greys out the settings");
+                  check(enabledNamed(dialog, "referenceGeoChooseAnother") &&
+                            !child<QPushButton>(dialog, "referenceGeoChooseAnother")->isHidden(),
+                        "Choose another file is offered for a file-level refusal");
+                  clickNamed(dialog, "referenceGeoCancel");
+              });
+        check(doc.bodies().size() == bodiesBefore && doc.history().position == historyBefore,
+              "A refused file changes nothing");
+
+        // A world file with a rotation: refused by name, and the same file-level state.
+        modal(window, georefDialog, [&] { panel->importFile(fixtures + "refuse-rotated.png"); },
+              [&](QDialog *dialog) {
+                  readSettled(dialog);
+                  check(labelText(dialog, "referenceGeoBanner").contains("Only north-up images are read."),
+                        "A rotated world file is refused by name");
+                  check(!enabledNamed(dialog, "referenceGeoImport"), "A rotated world file cannot be imported");
+                  clickNamed(dialog, "referenceGeoCancel");
+              });
+        check(doc.bodies().size() == bodiesBefore, "A rotated world file changes nothing");
+
+        // A world file with no site record: the zone is the person's choice, and Import waits for it.
+        const auto northUp = fixtures + "north-up.png";
+        modal(window, georefDialog, [&] { panel->importFile(northUp); }, [&](QDialog *dialog) {
+            readSettled(dialog);
+            check(!enabledNamed(dialog, "referenceGeoImport"), "Zone needed: Import waits for the zone");
+            check(labelText(dialog, "referenceGeoStatus") == QString("Choose the zone the image's coordinates are in."),
+                  "Zone needed states what to do");
+            check(child<QPushButton>(dialog, "referenceGeoImport")->accessibleDescription() ==
+                      QString("Choose the zone the image's coordinates are in."),
+                  "Import names its reason while it waits");
+            check(labelText(dialog, "referenceGeoPosition").contains("north-up.pgw"), "The world file is named");
+            auto *zone = child<QComboBox>(dialog, "referenceGeoZone");
+            check(!zone->isHidden() && zone->isEnabled(), "A world file with no record asks for its zone");
+            zone->setCurrentIndex(zone->findText("30N"));
+            check(enabledNamed(dialog, "referenceGeoImport"), "A zone makes the image ready");
+            check(labelText(dialog, "referenceGeoStatus").startsWith("Ready. Import places the image"),
+                  "Ready states that Import places the image");
+            check(labelText(dialog, "referenceGeoCorners").contains("NW") &&
+                      labelText(dialog, "referenceGeoCorners").contains("SE"),
+                  "The corners are shown");
+            clickNamed(dialog, "referenceGeoImport");
+        });
+        check(doc.bodies().size() == bodiesBefore + 1 && doc.assets().size() == assetsBefore + 1 &&
+                  doc.history().position == historyBefore + 1,
+              "A world file is placed as one image and its asset in one history step");
+        const auto placed = georeferencedBody(doc);
+        check(placed, "The placed world file carries its georeference");
+        const auto &placedImage = *doc.bodies().at(placed)->referenceImage;
+        const auto &geo = *placedImage.georeference;
+        check(geo.zone == 30 && geo.north && geo.datum == "WGS84" && geo.easting == 499800 &&
+                  geo.northing == 5710000 && geo.pixelWidth == 2 && geo.pixelHeight == 2 &&
+                  geo.columns == 8 && geo.rows == 6 && placedImage.width == 16 && placedImage.height == 12,
+              "The world file's corner, pixel sizes and zone are placed as the engine reads them");
+        check(doc.site() && doc.site()->geographic && doc.site()->geographic->utmZone == 30,
+              "The import sets the site origin and its geographic record");
+        check(window.findChild<QLabel *>("statusMessage")->text() ==
+                  QString("Placed north-up.png as a georeferenced reference image: 8 × 6 px, zone 30N. "
+                          "Undo removes it."),
+              "The status line names the import and its undo");
+        check(labelText(&window, "referenceImageDetails").contains("Georeferenced: zone 30N, north-up"),
+              "The panel's details name the georeference");
+        doc.undo();
+        check(doc.bodies().size() == bodiesBefore && doc.assets().size() == assetsBefore && !doc.site(),
+              "Undo removes the image, its asset and the origin it set");
+        doc.redo();
+        check(georeferencedBody(doc) == placed, "Redo restores the georeferenced image");
+
+        // With the site's record, the zone is the record's, read-only; Import is ready, and the report shows.
+        modal(window, georefDialog, [&] { panel->importFile(northUp); }, [&](QDialog *dialog) {
+            readSettled(dialog);
+            check(child<QComboBox>(dialog, "referenceGeoZone")->isHidden(), "The record's zone needs no choice");
+            check(labelText(dialog, "referenceGeoZoneFixed") == QString("30N, from the site's record"),
+                  "The record's zone is read-only");
+            check(enabledNamed(dialog, "referenceGeoImport"), "The image is ready against the record");
+            check(child<QLineEdit>(dialog, "referenceGeoName")->accessibleName() == "Name of the reference image" &&
+                      child<QLineEdit>(dialog, "referenceGeoElevation")->accessibleName() ==
+                          "Elevation of the image, metres" &&
+                      child<QLineEdit>(dialog, "referenceGeoCredit")->accessibleName() ==
+                          "Credit line, optional, 256 bytes at most" &&
+                      child<QRadioButton>(dialog, "referenceGeoDatumWgs84")->accessibleName() == "Datum, WGS84" &&
+                      child<QPushButton>(dialog, "referenceGeoImport")->accessibleName() ==
+                          "Import georeferenced image",
+                  "The fields and buttons have the names of UX §21.5");
+            child<QPushButton>(dialog, "referenceGeoShowReport")->click();
+            const auto report = child<QPlainTextEdit>(dialog, "referenceGeoReport");
+            check(!report->isHidden() && report->toPlainText().contains("Georeferenced image report") &&
+                      report->toPlainText().contains("SHA-256:"),
+                  "Show report opens the report with the source and its digest");
+            // A credit over 256 bytes is refused in the banner, and Import stays off until it is shortened.
+            setText(dialog, "referenceGeoCredit", QString(257, 'c'));
+            check(labelText(dialog, "referenceGeoBanner").contains("longer than 256 bytes. Shorten it."),
+                  "A long credit is refused by its sentence");
+            check(!enabledNamed(dialog, "referenceGeoImport") && enabledNamed(dialog, "referenceGeoCredit"),
+                  "A refused credit keeps the settings open and Import off");
+            setText(dialog, "referenceGeoCredit", QString("Orthophoto: test"));
+            check(enabledNamed(dialog, "referenceGeoImport") && labelText(dialog, "referenceGeoBanner").isEmpty(),
+                  "A shortened credit is accepted");
+            setText(dialog, "referenceGeoElevation", "not a number");
+            check(labelText(dialog, "referenceGeoBanner").contains("must be a number of metres"),
+                  "An elevation that is not a number is refused");
+            setText(dialog, "referenceGeoElevation", "0");
+            check(enabledNamed(dialog, "referenceGeoImport"), "A number makes the elevation good again");
+            clickNamed(dialog, "referenceGeoCancel");
+        });
+        check(doc.bodies().size() == bodiesBefore + 1 && doc.history().position == historyBefore + 1,
+              "Cancel after the checks changes nothing more");
+
+        // A GeoTIFF in another zone: refused, and the next step names the site's zone.
+        modal(window, georefDialog, [&] { panel->importFile(fixtures + "utm-rgb-south.tif"); }, [&](QDialog *dialog) {
+            readSettled(dialog);
+            check(labelText(dialog, "referenceGeoBanner").contains("cannot cross zones"),
+                  "A zone other than the site's is refused");
+            check(labelText(dialog, "referenceGeoBanner").contains("Choose an image in 30N."),
+                  "The next step names the site's zone");
+            check(!enabledNamed(dialog, "referenceGeoImport"), "A zone mismatch cannot be imported");
+            clickNamed(dialog, "referenceGeoCancel");
+        });
+        check(doc.bodies().size() == bodiesBefore + 1, "A zone mismatch changes nothing");
         std::cout << "Reference image native display, picking, import, calibration and persistence "
                      "passed\n";
     } catch (const std::exception &error) {

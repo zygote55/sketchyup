@@ -12,6 +12,7 @@
 #include "app/keyboard_navigation.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/presentations_dialog.hpp"
+#include "app/reference_images_panel.hpp"
 #include "app/render_panel.hpp"
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
@@ -376,6 +377,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     status_->setMinimumWidth(80);
     status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     bottomLayout->addWidget(status_, 1);
+    // R107.b2.2 (UX §21.2): a georeferenced import's status line is set by the Images panel.
+    if (auto *references = organization_->findChild<ReferenceImagesPanel *>())
+        connect(references, &ReferenceImagesPanel::referenceStatus, this,
+                [this](const QString &text) { status_->setText(text); });
     // R097.e1: the IFC report chip (ADR 0171 §16, the design's mockup `after`): on this row,
     // after the status text, hidden until an import has produced it. A hidden widget takes no
     // space, so the row's height is the row's before any import; the chip never grows the bar.
