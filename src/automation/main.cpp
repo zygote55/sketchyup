@@ -343,8 +343,13 @@ int main(int argc, char **argv) {
             throw sketchy::InspectionError("INVALID_REQUEST", parser.errorText().toStdString());
         if (parser.isSet("help"))
             parser.showHelp();
-        if (parser.isSet("version"))
-            parser.showVersion();
+        if (parser.isSet("version")) {
+            // D-088: the application name is SketchyUp, for the data folders every operation reads
+            // (D-085), so Qt's own version text would print it. The CLI keeps its documented form,
+            // "sketchyup-cli VERSION", which scripts and the package check read.
+            std::cout << "sketchyup-cli " << SKETCHYUP_VERSION << '\n';
+            return 0;
+        }
         if (parser.isSet("optional-capabilities")) {
             if (parser.optionNames().size() != 1 || !parser.positionalArguments().isEmpty())
                 throw sketchy::InspectionError("INVALID_REQUEST",
