@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- User guide viewer (R107.e2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §22](docs/UX_DESIGN.md#22-user-guide-viewer)): the GeoTIFF page's **Open the user guide** button opens the installed guide in a read-only SketchyUp window at the download section, instead of handing the file to the desktop.
+
 ## 1.5.0 — 2026-10-31
 
 Tag `v1.5.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.5.0).
