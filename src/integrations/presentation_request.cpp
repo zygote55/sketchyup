@@ -12,6 +12,7 @@ PresentationPlan resolvePresentationRequest(const Document &doc,
     PresentationPlan plan;
     plan.video = request.video;
     plan.videoCodec = presentationVideoCodecFromName(request.videoCodec);
+    plan.burnCredits = request.burnCredits;
     if (request.explicitKeyframes) {
         plan.path = request.name;
         plan.timing = request.timing;

@@ -224,12 +224,18 @@ Preparation prepare(const Document &doc, const SheetExportOptions &options) {
                 for (const auto &input : capture.views)
                     if (input.view == view.record.id)
                         page.rasterInputs.emplace(input.view, input);
-        // R107.c2: the DEM notices of each view's scene (a view with no snapshot is broken).
-        for (const auto &input : capture.views)
-            if (input.capture.snapshot)
-                page.viewCredits.emplace(
-                    input.view,
-                    sceneDemCredits(input.capture.snapshot->document(), *input.capture.snapshot));
+        // R107.c2 and R107.c3 (ADR 0181 §3.3, owner decision 5): the DEM notices of each view, as
+        // the terrain in the view's frame shows (a view with no snapshot is broken). Only a
+        // perspective view takes these.
+        for (const auto &view : page.sheet.views)
+            for (const auto &input : capture.views)
+                if (input.view == view.record.id && input.capture.snapshot) {
+                    const auto &frame = view.record.frame;
+                    page.viewCredits.emplace(input.view,
+                                             viewDemCredits(input.capture.snapshot->document(),
+                                                            *input.capture.snapshot,
+                                                            frame.widthMm / frame.heightMm));
+                }
         result.preflight.pages.push_back(page.page);
         result.pages.push_back(std::move(page));
     }
@@ -243,7 +249,7 @@ Preparation prepare(const Document &doc, const SheetExportOptions &options) {
             plan.raster = !plan.broken && view.raster;
             plan.rasterUnavailable = plan.raster && !options.rasterRenderer;
             // A to-scale view's drawing knows which DEM terrain reaches its frame; a perspective
-            // view (no drawing) takes the notices of its scene.
+            // view (no drawing) takes the notices of the terrain in its view (R107.c3).
             if (!plan.broken && !plan.rasterUnavailable) {
                 if (view.evaluation.drawing)
                     plan.credits = plan.raster ? view.evaluation.drawing->appearanceCredits

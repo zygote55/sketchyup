@@ -259,6 +259,86 @@ SourceCredits sceneDemCredits(const Document &document, const RenderSnapshot &sn
     }
     return credits;
 }
+
+namespace {
+// A plane whose inside is the set of points p with dot(normal, p) + offset >= 0.
+struct ViewPlane {
+    Vec3 normal;
+    double offset;
+};
+
+ViewPlane planeThrough(Vec3 normal, Vec3 point) { return {normal, -dot(normal, point)}; }
+
+// The view volume of a camera at an aspect (width over height): the near and far planes, and the
+// four sides, which pass through the eye. A perspective camera's sides are the frustum's; an
+// orthographic camera's are the box of half-height yMag. The axes follow renderCameraTransform.
+std::vector<ViewPlane> viewVolume(const RenderCamera &camera, double aspect) {
+    const auto z = normalized(camera.position - camera.target);
+    const auto x = normalized(cross(camera.up, z)), y = cross(z, x), forward = z * -1.0;
+    const auto eye = camera.position;
+    std::vector<ViewPlane> planes{planeThrough(forward, eye + forward * camera.nearClip),
+                                  planeThrough(z, eye + forward * camera.farClip)};
+    if (camera.orthographic) {
+        const double halfWidth = camera.yMag * aspect, halfHeight = camera.yMag;
+        planes.push_back(planeThrough(x * -1.0, eye + x * halfWidth));
+        planes.push_back(planeThrough(x, eye - x * halfWidth));
+        planes.push_back(planeThrough(y * -1.0, eye + y * halfHeight));
+        planes.push_back(planeThrough(y, eye - y * halfHeight));
+    } else {
+        const double halfHeight = std::tan(camera.verticalFov / 2), halfWidth = halfHeight * aspect;
+        planes.push_back(planeThrough(forward * halfWidth - x, eye));
+        planes.push_back(planeThrough(forward * halfWidth + x, eye));
+        planes.push_back(planeThrough(forward * halfHeight - y, eye));
+        planes.push_back(planeThrough(forward * halfHeight + y, eye));
+    }
+    return planes;
+}
+
+// A box meets the view when no plane has all of it behind that plane. The test is conservative: a
+// box beside an edge of the volume can pass every plane and still lie outside it, which errs toward
+// crediting.
+bool meetsView(Vec3 low, Vec3 high, const std::vector<ViewPlane> &planes) {
+    for (const auto &plane : planes) {
+        const Vec3 inside{plane.normal.x >= 0 ? high.x : low.x,
+                          plane.normal.y >= 0 ? high.y : low.y,
+                          plane.normal.z >= 0 ? high.z : low.z};
+        if (dot(plane.normal, inside) + plane.offset < 0)
+            return false;
+    }
+    return true;
+}
+} // namespace
+
+SourceCredits viewDemCredits(const Document &document, const RenderSnapshot &snapshot,
+                             double aspect) {
+    SourceCredits credits;
+    const auto planes = viewVolume(snapshot.camera(), aspect);
+    const double inf = std::numeric_limits<double>::infinity();
+    for (const auto &[id, body] : document.bodies()) {
+        const auto *dem = demSourceOf(document, id);
+        if (!dem)
+            continue;
+        const auto transform = document.worldTransform(id);
+        Vec3 low{inf, inf, inf}, high{-inf, -inf, -inf};
+        bool visible = false, bounded = false;
+        for (const auto &[face, value] : body->surface.faces) {
+            if (!snapshot.visible(id, face))
+                continue;
+            visible = true;
+            for (const auto &loop : value.loops)
+                for (auto vertex : loop) {
+                    const auto p = transform.point(body->surface.vertices.at(vertex));
+                    low = {std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z)};
+                    high = {std::max(high.x, p.x), std::max(high.y, p.y), std::max(high.z, p.z)};
+                    bounded = true;
+                }
+        }
+        // A visible terrain with no vertices has no box to test, so it is credited.
+        if (visible && (!bounded || meetsView(low, high, planes)))
+            credits.add(*dem);
+    }
+    return credits;
+}
 RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions options,
                                        SelectionSet hidden) {
     validateRenderSettings(options.settings);

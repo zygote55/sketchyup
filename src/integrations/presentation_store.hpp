@@ -51,6 +51,10 @@ struct PresentationPlan {
     // The codec of that video. Only a plan with video reads it; a stored job without it reads
     // H.264.
     PresentationVideoCodec videoCodec{PresentationVideoCodec::H264};
+    // R107.c3 (UX_DESIGN 17.13): burn the notices of the DEM terrain in each frame's view into the
+    // frame. Off, no frame is stamped; the manifest and each frame's record list the notices either
+    // way. A stored job without the field reads on, as 1.5.0 always burned the notice.
+    bool burnCredits{true};
     bool operator==(const PresentationPlan &) const = default;
 };
 // The plan rules a batch can be created with: a valid path name, two to thirty-two keyframes,

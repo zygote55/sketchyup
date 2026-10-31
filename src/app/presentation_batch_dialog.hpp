@@ -49,6 +49,7 @@ class PresentationBatchDialog : public QDialog {
         Id path{};
         bool video{};
         PresentationVideoCodec codec{PresentationVideoCodec::H264};
+        bool burnCredits{true};
     };
     PresentationBatches &batches_;
     Document &doc_;
@@ -57,11 +58,12 @@ class PresentationBatchDialog : public QDialog {
     QComboBox *path_{}, *backend_{}, *device_{}, *codec_{};
     QListWidget *presets_{};
     QLineEdit *folder_{};
-    QCheckBox *fallback_{}, *video_{};
+    QCheckBox *fallback_{}, *burnCredits_{}, *video_{};
     QPushButton *chooseFolder_{}, *recheckVideo_{}, *chooseBlender_{}, *checkBlender_{};
     QPushButton *cancel_{}, *start_{};
     QFrame *setup_{}, *group_{};
-    QLabel *pathNote_{}, *presetNote_{}, *videoState_{}, *folderNote_{}, *setupText_{};
+    QLabel *pathNote_{}, *presetNote_{}, *videoState_{}, *folderNote_{}, *burnNote_{},
+        *setupText_{};
     QLabel *blenderLine_{}, *refusal_{}, *startLine_{}, *footerNote_{};
     QLabel *frameValue_{}, *frameDetail_{}, *outputValue_{}, *outputDetail_{};
     QLabel *spaceValue_{}, *spaceDetail_{}, *blenderValue_{}, *blenderDetail_{};

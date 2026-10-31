@@ -206,11 +206,33 @@ std::shared_ptr<const BlenderResult> verify(const PreparedRender &input, const Q
     return verified;
 }
 } // namespace
-std::shared_ptr<const PreparedRender> PreparedRender::prepare(const RenderSnapshot &snapshot) {
+std::shared_ptr<const PreparedRender> PreparedRender::prepare(const RenderSnapshot &snapshot,
+                                                              CreditStamp stamp) {
     auto result = std::shared_ptr<PreparedRender>(new PreparedRender);
     result->root_ = std::make_shared<QTemporaryDir>(QDir::tempPath() + "/sketchyup-render-XXXXXX");
     require(result->root_->isValid(), "Cannot create private render directory");
-    const auto scene = exportGlb(snapshot);
+    auto scene = exportGlb(snapshot);
+    // R107.c3 (ADR 0181 §3.3): the notices of the terrain in this view, and the notices the worker
+    // burns. A scene with DEM terrain always states stampCredits, empty when nothing is burned, so
+    // the worker never falls back to the scene's own notices for a view that has none.
+    const auto noticeArray = [](const SourceCredits &credits) {
+        QJsonArray notices;
+        for (const auto &notice : credits.notices())
+            notices.append(QString::fromStdString(notice));
+        return notices;
+    };
+    const auto &settings = snapshot.settings();
+    const auto view =
+        viewDemCredits(snapshot.document(), snapshot, double(settings.width) / settings.height);
+    if (!view.empty())
+        scene.manifest["viewCredits"] = noticeArray(view);
+    if (stamp == CreditStamp::SceneNotices) {
+        if (scene.manifest.contains("credits"))
+            scene.manifest["stampCredits"] = scene.manifest.value("credits");
+    } else if (scene.manifest.contains("credits") || !view.empty()) {
+        scene.manifest["stampCredits"] =
+            stamp == CreditStamp::ViewNotices ? noticeArray(view) : QJsonArray{};
+    }
     writeGlbExport(scene, result->sourceDirectory());
     result->manifest_ = scene.manifest;
     result->manifestHash_ =
