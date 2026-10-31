@@ -192,7 +192,7 @@ class DialogWatch {
 void activate(QDialog &dialog) {
     check(QTest::qWaitForWindowExposed(&dialog), "Dialog exposed");
     dialog.activateWindow();
-    check(QTest::qWaitForWindowActive(&dialog), "Dialog active");
+    check(QTest::qWaitForWindowFocused(&dialog), "Dialog has keyboard focus");
     check(QTest::qWaitFor([&] {
               auto *f = focused();
               return f && (f == &dialog || dialog.isAncestorOf(f));

@@ -72,7 +72,7 @@ QWidget *keyboardControl(QWidget *widget, QWidget &dialog) {
 }
 QJsonObject inspectKeyboard(QDialog &dialog) {
     dialog.activateWindow();
-    check(QTest::qWaitForWindowActive(&dialog), "Owned dialog has native keyboard focus");
+    check(QTest::qWaitForWindowFocused(&dialog), "Owned dialog has native keyboard focus");
     check(QTest::qWaitFor([&] {
               auto *focused = QApplication::focusWidget();
               return focused && (focused == &dialog || dialog.isAncestorOf(focused));
