@@ -437,7 +437,7 @@ void keyboardAudit(Window &window, const QString &name, const QByteArray &bytes,
     if (report)
         QTest::mouseClick(child<QPushButton>(dialog, "terrainImportShowReport"), Qt::LeftButton);
     dialog.activateWindow();
-    check(QTest::qWaitForWindowActive(&dialog), "The dialog activates");
+    check(QTest::qWaitForWindowFocused(&dialog), "The dialog has keyboard focus");
     child<QComboBox>(dialog, "terrainImportFormat")->setFocus(Qt::TabFocusReason);
     QStringList findings;
     const auto json = dialog_audit::auditOpen(dialog, findings);
@@ -927,7 +927,7 @@ void geotiffUserGuide(Window &window) {
               guide->accessibleName() == "Open the user guide" && guide->isEnabled(),
           "The guide button is named and enabled");
     dialog.activateWindow();
-    check(QTest::qWaitForWindowActive(&dialog), "The dialog activates");
+    check(QTest::qWaitForWindowFocused(&dialog), "The dialog has keyboard focus");
     child<QRadioButton>(dialog, "terrainImportGlo30")->setFocus(Qt::TabFocusReason);
     QTest::keyClick(dialog.focusWidget(), Qt::Key_Tab);
     check(dialog.focusWidget() == guide, "Tab from the product reaches the guide button");

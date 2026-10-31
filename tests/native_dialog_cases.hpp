@@ -1498,7 +1498,7 @@ inline std::vector<Case> cases(Context &ctx) {
                ctx.afterChildId = identity(returnFocus(&dialog));
                ctx.afterChildIsOpener = returnFocus(&dialog) == opener;
                dialog.activateWindow();
-               (void)QTest::qWaitForWindowActive(&dialog);
+               (void)QTest::qWaitForWindowFocused(&dialog);
                QTest::keyClick(focused(), Qt::Key_Escape);
                (void)QTest::qWaitFor([&] { return !dialog.isVisible(); }, 3000);
            }}},

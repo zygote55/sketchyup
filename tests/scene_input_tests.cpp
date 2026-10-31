@@ -6,20 +6,24 @@
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
 #include "io/scenes_io.hpp"
+#include <QAbstractAnimation>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonDocument>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSignalSpy>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QVariantAnimation>
 #include <QWindow>
 #include <iostream>
 using namespace sketchy;
@@ -244,12 +248,20 @@ int main(int argc, char **argv) {
         duration->setValue(160);
         view->setReducedMotion(false);
         view->standardView(3);
+        // The wait stands for the 160 ms transition ending: its last tick applies the saved
+        // pose and then emits finished. The bound below only limits a hang; it is not a budget.
+        // A software-rendered runner can delay that tick behind the viewport's paints, so the
+        // duration is printed for diagnosis.
+        auto *transition = view->findChild<QVariantAnimation *>();
+        check(transition, "Viewport exposes its scene transition");
+        QSignalSpy ended(transition, &QAbstractAnimation::finished);
+        QElapsedTimer timing;
+        timing.start();
         view->recallSavedScene(second);
-        // This checks eventual exact-pose behavior, not a wall-clock performance
-        // budget. Software-rendered CI can delay the animation's event loop.
-        const bool reached = QTest::qWaitFor(
-            [&] { return *view->captureSceneSnapshot(true, false, false, false).camera == top; },
-            5000);
+        const bool finished = ended.wait(5000);
+        std::cerr << "Scene transition ended after " << timing.elapsed() << " ms\n";
+        const bool reached =
+            finished && *view->captureSceneSnapshot(true, false, false, false).camera == top;
         if (!reached) {
             const auto actual = *view->captureSceneSnapshot(true, false, false, false).camera;
             std::cerr << "Scene transition pose: yaw=" << actual.yaw << "/" << top.yaw
