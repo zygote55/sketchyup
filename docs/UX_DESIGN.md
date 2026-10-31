@@ -1989,7 +1989,7 @@ with a batch running. R099.d builds these.
 
 ### 17.13 Amendment (2026-10-31): the frame credit checkbox
 
-Proposed in ADR 0181 (R107.c3). Its label, default and placement follow the owner's 1.6.0 scope of 2026-10-31. Not built.
+Designed in ADR 0181 (R107.c3) and approved by the owner on 2026-10-31. Its label, default and placement follow the owner's 1.6.0 decisions of that day. Not built yet.
 
 - **Label.** "Burn source credits into frames".
 - **Position.** In the Output group, below the folder note and above the Video heading (17.4).
@@ -2564,7 +2564,7 @@ Build order for the owner's approval: 20.7 items 1 to 4 and 6 first, then the di
 
 ## 21. Orthophoto as a georeferenced reference image (desktop)
 
-**Status: Proposed (R107.b2.2), not approved and not built.** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
+**Status: Approved by the owner on 2026-10-31 (R107.b2.2); not built yet.** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
 
 It extends the reference-images panel. It adds no menu entry, shortcut, rail slot, tool or tray panel. The form follows section 20: the layout, the states, the refusals, the report, and the keyboard.
 
@@ -2658,7 +2658,7 @@ The panel's details keep a short form of the same facts after the import.
 
 ## 22. User guide viewer
 
-**Status: Proposed (R107.e2), not approved and not built.** The GeoTIFF page's **Open the user guide** button (20.1) opens this window. It replaces the system-browser opener. ADR 0181, R107.b2 section, gives the mechanism.
+**Status: Approved by the owner on 2026-10-31 (R107.e2); not built yet.** The GeoTIFF page's **Open the user guide** button (20.1) opens this window. It replaces the system-browser opener. ADR 0181, R107.b2 section, gives the mechanism.
 
 - **The window.** Title "SketchyUp user guide". It is a separate, non-modal window opened from the import dialog. Closing it returns focus to **Open the user guide**.
 - **Content.** The installed `USER_GUIDE.md`, rendered read-only. It opens scrolled to its section: for the GeoTIFF page, the heading "Terrain from a downloaded elevation file", at the top of the view.

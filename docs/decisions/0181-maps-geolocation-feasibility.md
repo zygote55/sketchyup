@@ -1181,7 +1181,10 @@ Order: R107.e2's viewer first, because it fixes the shipped link (UX §20.1 cont
 | **R107.b2.2 (desktop)** | The import dialog ([UX §21](../UX_DESIGN.md#21-orthophoto-as-a-georeferenced-reference-image-desktop)); routing from the reference-images panel; the worker read; one undoable edit | `src/app/reference_images_panel.cpp` (`:69`, `:81`, `importFile`); new `src/app/reference_georef_dialog.{hpp,cpp}`; `src/app/viewport_reference_images.cpp`; `src/app/viewport.hpp`; CMake | `reference_image_input_tests` (the four states, Tab order, names, Enter and Esc, the refusal wording, one undo); keyboard case in `native_dialog_cases.hpp`; `native_accessibility_audit`; X11 and Wayland at 1× and 2×, and at 200% text | R107.b2.1 | Full (UI) |
 | **R107.e2 (guide text)** | The orthophoto and checkbox in `USER_GUIDE.md`; the support-matrix row | `docs/USER_GUIDE.md`; `docs/SUPPORT_MATRIX.md` | The anchor test from R107.e2 (viewer) | R107.b2.2 and R107.c3 | Fast tier (documents). The viewer step is full tier |
 
-### Owner decisions still needed
+### Owner decisions (decided 2026-10-31)
+
+**Decided on 2026-10-31.** The owner approved this design and UX sections 17.13, 20.1, 20.2, 21 and 22, and took all five decisions below as recommended: the orthophoto stays viewport-only in 1.6.0; the credit line is optional, at most 256 bytes; NAD83 UTM is read as a labelled approximation; larger images are refused with the crop advice and nothing is resampled; perspective sheet views move to the in-view rule in R107.c3.
+
 
 1. **Orthophoto in exports and frames, for 1.6.0.** Today no export and no render carries a reference image (see Credits). *Recommended: keep the orthophoto viewport-only in 1.6.0. Its credit is stored and shown in the panel and the report. The export and frame credits carry it when a later slice draws the image in them, and that slice decides the GLB texture and the frame stamp.*
 2. **Credit line: optional or required.** *Recommended: optional, at most 256 bytes, entered in the dialog and kept with the placement. The import does not refuse an empty credit, and the owner names no required source credit while the NAIP status is held.*
@@ -1194,8 +1197,8 @@ Order: R107.e2's viewer first, because it fixes the shipped link (UX §20.1 cont
 - **UX §20.2, default window.** It said an empty centre with Import waiting. The built default is a 1,000 m square on the file's centre. This PR fixes §20.2.
 - **UX §20.2, site origin.** It said "Around the site origin" needs the geographic record. The built rule also accepts the UTM CRS label. This PR amends §20.2.
 - **UX §20.1, guide button.** It said the system browser. This PR replaces that with §22.
-- **UX §20.3 and §20.4 (not edited here).** They still say the DEM import writes no geographic record and that the credit appears only in the report. R107.b3 (item 6) and R107.b4 (item 10) closed both.
+- **UX §20.3 and §20.4.** They said the DEM import writes no geographic record and that the credit appears only in the report. R107.b3 (item 6) and R107.b4 (item 10) closed both; this PR now says so.
 - **Newer-schema refusal text.** See The record, above.
 - **Frame credit comment.** See Follow-ups, above.
-- **Roadmap R107 status (not edited here).** It says R107 is merged and shipped in 1.5.0, and then that R107.c2 "is in review" and that PR #538 is open. Those cannot all be current.
+- **Roadmap R107 status.** It said R107 is shipped in 1.5.0, and then that R107.c2 "is in review" and that PR #538 is open. This PR corrects it: both are merged and shipped in 1.5.0.
 - **Counsel references (not edited here).** Owner decision 11 was replaced on 2026-10-27 (no counsel), but §10 risk 11 and the R107.e line in §11 still ask for counsel review.
