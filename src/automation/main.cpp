@@ -108,6 +108,9 @@ int main(int argc, char **argv) {
         application = std::make_unique<QCoreApplication>(argc, argv);
     auto &app = *application;
     QCoreApplication::setApplicationVersion(SKETCHYUP_VERSION);
+    // Every operation reads the data folders the desktop application uses (the catalog library,
+    // the style library, report schedules and presentation jobs), so the names are set once here.
+    useApplicationDataNames();
     // The describe queries report the Blender's video encoders through this probe. The CLI has no
     // event loop to freeze, so it checks synchronously.
     sketchy::PresentationVideoChecks videoChecks;
@@ -381,10 +384,8 @@ int main(int argc, char **argv) {
             return 0;
         }
         // R100.e (ADR 0174 section 7): the style and catalog operations. Each is standalone and
-        // refuses what it does not take. The catalog library is in the application's data folder,
-        // so the application names are set first.
+        // refuses what it does not take. The catalog library is in the application's data folder.
         if (const auto operation = sketchy::styleCatalogOperationOf(parser); !operation.isEmpty()) {
-            useApplicationDataNames();
             std::cout << QJsonDocument(sketchy::runStyleCatalogCli(parser, operation))
                              .toJson(QJsonDocument::Compact)
                              .toStdString()
@@ -1288,7 +1289,6 @@ int main(int argc, char **argv) {
                 throw sketchy::InspectionError("INVALID_REQUEST",
                                                "A schedule operation requires --input");
             const auto document = sketchy::loadDocument(parser.value("input"));
-            useApplicationDataNames();
             const auto store = sketchy::reportScheduleStorePath();
             QJsonObject result;
             if (parser.isSet("list-schedules"))
@@ -1328,7 +1328,6 @@ int main(int argc, char **argv) {
                         throw sketchy::InspectionError(
                             "INVALID_REQUEST",
                             "--schedule runs a saved schedule instead of the report flags");
-                useApplicationDataNames();
             }
             const auto document = sketchy::loadDocument(parser.value("input"));
             auto options = reportFlags(parser);
@@ -1357,8 +1356,6 @@ int main(int argc, char **argv) {
                 file.read(sketchy::presentationRequestBytes + 1));
             const auto document = sketchy::loadDocument(parser.value("input"));
             // The application's own job directory, so the CLI and the app see the same batches.
-            QCoreApplication::setOrganizationName("SketchyUp");
-            QCoreApplication::setApplicationName("SketchyUp");
             sketchy::PresentationJobStore store(
                 QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
                 "/presentation-jobs");
@@ -1428,7 +1425,6 @@ int main(int argc, char **argv) {
             std::optional<sketchy::AutomationRecipe> recipe;
             if (parser.isSet("recipe"))
                 recipe = sketchy::AutomationRecipe::load(parser.value("recipe"));
-            useApplicationDataNames();
             sketchy::AutomationSession session({parser.value("input"), parser.value("output"),
                                                 parser.value("outcomes"), parser.isSet("new"),
                                                 parser.isSet("recover-latest")});

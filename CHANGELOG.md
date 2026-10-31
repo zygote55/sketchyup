@@ -8,6 +8,7 @@
 - User guide viewer (R107.e2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §22](docs/UX_DESIGN.md#22-user-guide-viewer)): the GeoTIFF page's **Open the user guide** button opens the installed guide in a read-only SketchyUp window at the download section, instead of handing the file to the desktop.
 - Frame credit in the camera view for stills and animation frames (R107.c3.1, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): a still or an animation frame burns a GeoTIFF terrain's source notice only when the terrain is in that camera's view, as a presentation frame does; there is no checkbox for them.
 - User guide and support matrix for the orthophoto import, the batch credit checkbox and the in-view credit rule (R107.e2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §21](docs/UX_DESIGN.md#21-orthophoto-as-a-georeferenced-reference-image-desktop)): the orthophoto is viewport only in 1.6.0.
+- Defect fixes D-083 to D-085 (Minor, [triage](docs/verification/R089a-defect-triage.md), PR #PRNUM): `geometry.delete` on a group also removes its contents; a placement in a component edit refuses a parent the edit does not show, by name; `--script` batches read the catalog library that `--to-library` writes.
 
 ## 1.5.0 — 2026-10-31
 
