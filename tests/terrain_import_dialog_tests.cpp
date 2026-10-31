@@ -14,6 +14,7 @@
 #include "app/terrain_dem_window.hpp"
 #include "app/terrain_import_dialog.hpp"
 #include "app/terrain_section.hpp"
+#include "app/user_guide_viewer.hpp"
 #include "app/window.hpp"
 #include "core/terrain.hpp"
 #include "geo/geographic.hpp"
@@ -157,15 +158,12 @@ QString geotiffFile(const char *name) {
 struct Fixture {
     Window &window;
     std::unique_ptr<TerrainImportDialog> dialog;
-    // `path` is a GeoTIFF's file (R107.b4); the text formats pass their bytes. `openGuide` takes
-    // the user guide's request in place of the system's viewer, so a test never launches one.
-    Fixture(Window &w, const QString &name, const QByteArray &bytes, const QString &path = {},
-            std::function<bool(const QUrl &)> openGuide = [](const QUrl &) { return true; })
+    // `path` is a GeoTIFF's file (R107.b4); the text formats pass their bytes.
+    Fixture(Window &w, const QString &name, const QByteArray &bytes, const QString &path = {})
         : window(w) {
         dialog = std::make_unique<TerrainImportDialog>(
             window.document(),
-            TerrainImportDialog::Setup{name, bytes, themeColors(false), path, {},
-                                       std::move(openGuide)},
+            TerrainImportDialog::Setup{name, bytes, themeColors(false), path, {}},
             &window);
         dialog->show();
         check(QTest::qWaitForWindowExposed(dialog.get(), 5000), "The dialog shows");
@@ -913,13 +911,7 @@ void geotiffMismatch(Window &window) {
 // open says so in the footer.
 void geotiffUserGuide(Window &window) {
     window.demo();
-    std::vector<QUrl> requested;
-    bool refuse = false;
-    Fixture f(window, "plane-f32-strip-none-le.tif", {}, geotiffFile("plane-f32-strip-none-le.tif"),
-              [&](const QUrl &url) {
-                  requested.push_back(url);
-                  return !refuse;
-              });
+    Fixture f(window, "plane-f32-strip-none-le.tif", {}, geotiffFile("plane-f32-strip-none-le.tif"));
     auto &dialog = *f.dialog;
     auto *guide = child<QPushButton>(dialog, "terrainImportUserGuide");
     auto *status = child<QLabel>(dialog, "terrainImportStatus");
@@ -937,19 +929,31 @@ void geotiffUserGuide(Window &window) {
     check(dialog.focusWidget() == child<QRadioButton>(dialog, "terrainImportWindowCentre"),
           "Tab from the guide button reaches the window's checked radio: " +
               (dialog.focusWidget() ? dialog.focusWidget()->objectName() : QString()).toStdString());
+    // R107.e2 (UX §22): the guide opens in its own non-modal window beside the dialog, at the
+    // GeoTIFF page's section. The test's build has no installed guide, so the footer says so.
     guide->setFocus(Qt::TabFocusReason);
     QTest::keyClick(guide, Qt::Key_Space);
+    auto *viewer = dialog.findChild<UserGuideViewer *>();
+    check(viewer != nullptr && viewer->isVisible() && !viewer->isModal() &&
+              viewer->parent() == &dialog,
+          "Space opens the guide window beside the dialog");
+    check(viewer->path().endsWith("/share/doc/sketchyup/USER_GUIDE.md") &&
+              viewer->section() == kTerrainDownloadSection,
+          "The guide's file and section: " + viewer->path().toStdString());
+    check(!viewer->loaded() && status->text() == "The user guide is not installed.",
+          "A missing guide is said in the footer: " + status->text().toStdString());
     QTest::mouseClick(guide, Qt::LeftButton);
-    check(requested.size() == 2, "Each activation asks once");
-    for (const auto &url : requested)
-        check(url.scheme() == "file" &&
-                  url.toLocalFile().endsWith("/share/doc/sketchyup/USER_GUIDE.md") &&
-                  url.fragment() == "terrain-from-a-downloaded-elevation-file",
-              "The guide's file and section: " + url.toString().toStdString());
-    refuse = true;
-    QTest::mouseClick(guide, Qt::LeftButton);
-    check(requested.size() == 3 && status->text().startsWith("Could not open the user guide"),
-          "A refused open is said in the footer: " + status->text().toStdString());
+    check(dialog.findChildren<UserGuideViewer *>().size() == 1,
+          "Another activation raises the window that is open, not a second one");
+    // Esc closes the window and returns focus to the button that opened it.
+    QTest::keyClick(viewer, Qt::Key_Escape);
+    check(QTest::qWaitFor([&] { return dialog.findChildren<UserGuideViewer *>().isEmpty(); }, 2000),
+          "Esc closes the guide window");
+    check(QTest::qWaitFor([&] { return dialog.focusWidget() == guide; }, 2000),
+          "Closing the guide returns focus to its button");
+    QTest::keyClick(guide, Qt::Key_Space);
+    check(dialog.findChildren<UserGuideViewer *>().size() == 1,
+          "The guide opens again after it was closed");
 }
 
 } // namespace

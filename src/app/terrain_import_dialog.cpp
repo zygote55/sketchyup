@@ -6,6 +6,7 @@
 #include "app/terrain_report_view.hpp"
 #include "app/terrain_role_table.hpp"
 #include "app/unit_display.hpp"
+#include "app/user_guide_viewer.hpp"
 #include "automation/terrain_commands.hpp"
 #include "geo/geographic.hpp"
 #include <QApplication>
@@ -356,6 +357,9 @@ void TerrainImportDialog::done(int result) {
     closed_ = true;
     rerun_.stop();
     cancelRun();
+    // The guide window belongs to this dialog and does not outlive it (R107.e2).
+    if (guide_)
+        guide_->reject();
     Settled<QDialog>::done(result);
 }
 void TerrainImportDialog::cancelRun() {

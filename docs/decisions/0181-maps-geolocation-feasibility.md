@@ -809,7 +809,7 @@ These match the R107.b1.1 measurements of the same window on the copy with the o
 
 ## Implementation notes (R107.b, UX design)
 
-What this record adds: the desktop import dialog's design, [UX_DESIGN §20](UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop), and a read of the code that dialog extends. No code was changed, and nothing was measured. The figures are the ones in the R107.b1.1 and R107.b1.2 notes above. The owner's approval of §20 is the UX gate for R107.b. The owner decisions of this ADR stand unchanged.
+What this record adds: the desktop import dialog's design, [UX_DESIGN §20](../UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop), and a read of the code that dialog extends. No code was changed, and nothing was measured. The figures are the ones in the R107.b1.1 and R107.b1.2 notes above. The owner's approval of §20 is the UX gate for R107.b. The owner decisions of this ADR stand unchanged.
 
 Where the built code differs from this ADR (each is a gap §20.7 asks to close before the dialog imports a GeoTIFF):
 
@@ -822,7 +822,7 @@ Where the built code differs from this ADR (each is a gap §20.7 asks to close b
 7. **GeoTIFF is not a command.** `terrain.import` accepts `dxf` and `points` only (`src/automation/terrain_commands.cpp`). The command line is the only caller of `importGeoTiffTerrain`. ADR 0181 does not say whether the agent surface should get it.
 8. **Reader texts cite this ADR and command-line options.** For example "Give --dem-vertical NAVD88" and "(ADR 0181 §2.8)". The dialog replaces them, and the command line keeps them.
 
-Owner questions raised by this record are in [UX_DESIGN §20.8](UX_DESIGN.md#208-open-questions-for-the-owner). Question 5 would make the DEM import write the site record that item 4 says is missing.
+Owner questions raised by this record are in [UX_DESIGN §20.8](../UX_DESIGN.md#208-open-questions-for-the-owner). Question 5 would make the DEM import write the site record that item 4 says is missing.
 
 ## Implementation notes (R107.c1)
 
@@ -878,7 +878,7 @@ What R107.c1 built, what each export carries, and what it does not. The sections
 
 ## Implementation notes (R107.b3)
 
-What this record adds: the engine side of the desktop DEM import. It closes [UX_DESIGN §20.7](UX_DESIGN.md#207-engine-and-command-gaps-the-design-found) items 1 to 7, 9 and 11, so that R107.b4 can build the dialog. Not in this record: the dialog, the report text, the Credit line, the preview overlays, the latitude and longitude entry, the default window and the "Nothing was imported." banners (all R107.b4). Measured on the committed fixtures in `tests/geotiff_tests.cpp`, and run under ASan and UBSan (`geotiff_tests`, `terrain_io_tests`).
+What this record adds: the engine side of the desktop DEM import. It closes [UX_DESIGN §20.7](../UX_DESIGN.md#207-engine-and-command-gaps-the-design-found) items 1 to 7, 9 and 11, so that R107.b4 can build the dialog. Not in this record: the dialog, the report text, the Credit line, the preview overlays, the latitude and longitude entry, the default window and the "Nothing was imported." banners (all R107.b4). Measured on the committed fixtures in `tests/geotiff_tests.cpp`, and run under ASan and UBSan (`geotiff_tests`, `terrain_io_tests`).
 
 Item by item, numbered as in §20.7:
 
@@ -954,7 +954,7 @@ What R107.c2 built: the visible credits of §3.3, the second half of R107.c (own
 
 ## Implementation notes (R107.b4)
 
-What this record adds: the desktop GeoTIFF page of the terrain import dialog, [UX_DESIGN §20](UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop) 20.1 to 20.6, built on the R107.b3 engine, which is unchanged. It closes UX §20.7 items 8, 10 and 12. The page is `src/app/terrain_import_dialog_dem.cpp`; its pure rules and texts (the footprint, the fit window, the refusal next steps, the notice wording) are `src/app/terrain_dem_window.cpp`; the dry run's struct, which both files use, is `src/app/terrain_import_dry_run.hpp`; the overlays and the summary are in `src/app/terrain_preview.cpp`. `src/app/window_terrain.cpp` reads a `.tif` from its path, not whole, and `src/app/terrain_section.cpp` adds the Credit row.
+What this record adds: the desktop GeoTIFF page of the terrain import dialog, [UX_DESIGN §20](../UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop) 20.1 to 20.6, built on the R107.b3 engine, which is unchanged. It closes UX §20.7 items 8, 10 and 12. The page is `src/app/terrain_import_dialog_dem.cpp`; its pure rules and texts (the footprint, the fit window, the refusal next steps, the notice wording) are `src/app/terrain_dem_window.cpp`; the dry run's struct, which both files use, is `src/app/terrain_import_dry_run.hpp`; the overlays and the summary are in `src/app/terrain_preview.cpp`. `src/app/window_terrain.cpp` reads a `.tif` from its path, not whole, and `src/app/terrain_section.cpp` adds the Credit row.
 
 Measured on the committed fixtures in `tests/fixtures/geotiff`: the 700 by 700 plane tile (1 arc-second, near 51.5 N, 0.1 W), with a default window of 1,000 m on the file's centre, gives a 33 by 33 grid (1,089 posts) at 31 m, not decimated, and 2,048 triangles, the figures of §20.4's example. Fitted to the whole tile, the grid is decimated, and the amber line of §20.2 names both spacings. The 48 by 40 plane tile fits both products, so neither is chosen until the person chooses; a window wider than it is refused by name.
 
@@ -1030,3 +1030,194 @@ PR #538. The GeoTIFF page of the terrain import dialog has the "Open the user gu
 - **Test.** `geotiffUserGuide` in `tests/terrain_import_dialog_tests.cpp`. The button is named and enabled. Tab from the product radios reaches it, and the next Tab reaches the checked window radio, which is Centre and size because the demo site has no origin. Space and a click each request the file and the anchor once. A refused open leaves its message in the footer.
 - **Measured.** `terrain_import_dialog_tests` passes on X11 at 1× and on Wayland at 2×. `native_accessibility_audit --dialogs-keyboard=import` passes on X11 at 2× and on Wayland at 1× with no findings, and `terrain-import-geotiff` passes on both.
 - **Contradiction with UX §20.1.** The section says the button "opens the guide page in the system browser". The installed guide is Markdown, and no HTML copy is installed. A desktop's default viewer for `.md` may not be a browser and may not scroll to the anchor. This PR does not fix that. Owner decision needed: (a) install a rendered HTML copy and open that, or (b) open the guide's page on GitHub, which the browser requests, not the product. Until then the link opens the file, and the section may not be shown.
+
+## Implementation notes (R107.e2 (viewer))
+
+PR #546. The GeoTIFF page's "Open the user guide" button opens the installed guide in a read-only window, scrolled to the download section ([UX §22](../UX_DESIGN.md#22-user-guide-viewer)). It replaces the system opener that R107.b4 link (PR #538) used. Nothing is fetched. This is the viewer slice of the R107.b2 section's Slices table; the guide text for the orthophoto and the checkbox is a later slice.
+
+- **What was built.** `src/app/user_guide_viewer.{hpp,cpp}`: `UserGuideViewer`, a non-modal dialog that the import dialog owns as a child window. It reads `share/doc/sketchyup/USER_GUIDE.md` beside the program and shows it in a read-only `QTextBrowser`, rendered with `setMarkdown`. The section is the first heading block whose GitHub-style slug (lower case, punctuation removed, each space a hyphen) equals the requested slug. Only heading blocks count. The cursor moves to that heading and the view scrolls so the heading is at the top. The scroll waits until the window first shows, because the text is laid out at the window's width only then. If the file cannot be read, the window shows one line that names its folder, and Close. If the section is missing, it opens at the top with a line that says so. Close, Enter on Close, Esc and the close box all close it, and the next open is a new window. Closing it returns focus to **Open the user guide**. Links are shown as text and are not followed. The dialog's footer says "The user guide is not installed." when the guide cannot be read.
+- **Where it differs from the design, and why.**
+  1. `TerrainImportDialog::Setup` loses the `openUserGuide` callback, and `window_terrain.cpp` loses the system opener. The dialog opens the viewer itself, as a child window. The design named the callback as the seam (ADR 0181 R107.b2 section, Follow-ups; UX §22). A child window needs no outside opener, and a callback that takes only a URL could not make the window a child of the dialog, which keeps it on top of the dialog and closes it with the dialog.
+  2. The missing-guide line gives the real folder, `…/share/doc/sketchyup`, where UX §22 has the placeholder SHARE_PATH.
+  3. **Tab leaves the text by an explicit key handler.** The design says Tab moves from the text to Close, and it does not say how. In the pinned image (Qt 6.11.2), a read-only `QTextBrowser` with `setTabChangesFocus(true)` keeps the focus on Tab. The focus chain runs text, then the text's viewport, which gives the focus back to the text. Backtab already reached Close. The test build printed the chain to confirm this. The window therefore moves the focus to Close itself, from an event filter on the text. Plain Tab only. Every other key reaches the text.
+  4. The footer's refusal line "Could not open the user guide…" is gone with the system opener. The footer reads the sentence UX §22 gives for a missing guide.
+- **Measured.** The pinned image `sketchyup-ci-pinned:r097a-ifc`, Qt 6.11.2, `QT_QPA_PLATFORM=offscreen`, 2 CPUs, software rendering. The guide is the repository's `docs/USER_GUIDE.md` (1,147 lines, 89,113 bytes, 344 text blocks, the section heading at line 889).
+  - Load (read, Markdown, heading search): 17 ms. Show and scroll: 51 ms.
+  - Document height 17,062 px. The view is 602 by 508 px, with a 14 px line. The section's scroll position is 12,290 px, and the largest is 19,582 px, so the heading can sit at the top.
+  - The caret on the heading is at y = 0, the top of the view.
+- **Tests.** `tests/user_guide_viewer_tests.cpp` (new, `user_guide_viewer`): the guide opens at the section with the cursor on the heading and the caret at the top; each section the application opens resolves (one, `kTerrainDownloadSection`); GitHub's slug rule, with markup, punctuation, an underscore and a letter outside ASCII, and a paragraph with the same words is not a section; a missing guide shows the line and Close, and Enter and Esc close the window; a section the guide does not have opens at the top with its line; links are not followed, Tab reaches Close, and Page Down, End and Home scroll. `tests/terrain_import_dialog_tests.cpp`, `geotiffUserGuide`, changed: Space opens a non-modal child window at the right path and section; a second activation raises it; Esc closes it and returns focus to the button; it opens again. `tests/native_dialog_cases.hpp`: the keyboard case `terrain-import-guide` (the import group).
+- **What the tests caught while being written.** A compile error (`QObject::findChild` needs `Q_OBJECT`); the Tab check above; and the audit hop looked the button up by its accessible name where `tabTo` takes the object name. All three are fixed.
+- **What was not done.** The X11 and Wayland lines are not added to `native.yml`. `user_guide_viewer` runs in the build tier, through CTest, as the other offscreen tests do. Its native runs were done locally (below) and the parent may add the lines if the owner wants them in CI. Qt 6.8, the minimum, was not run: the pinned image has 6.11.2 and the host 6.12. The window was not checked by eye, only by the tests.
+- **Local runs (final sources, pinned image).** `ctest -R '^(user_guide_viewer|terrain_import_dialog)$'`: 2 of 2 passed. `user_guide_viewer_tests` and `terrain_import_dialog_tests` under Xvfb (`xcb`) at 1x and 2x, and under Weston (`test-wayland.sh`) at 1x and 2x: all passed. `native_accessibility_audit --dialogs-keyboard=import`: 12 dialogs, none failed, at X11 1x, X11 2x and Wayland 1x. The `terrain-import-guide` case passed in each: Esc closes, focus returns to **Open the user guide**, Enter on **Close the user guide** closes.
+
+## R107.b2 and the 1.6.0 follow-ups: design (2026-10-31)
+
+This section designs R107.b2 (a georeferenced orthophoto as a reference image) and the follow-ups in the owner's 1.6.0 scope. It is design only: no code, test or fixture changes. The CI flake fixes are another worker's and are not designed here. The owner's decisions of 2026-10-31 are taken as given:
+
+1. The GeoTIFF page's "Open the user guide" button opens the installed guide in an in-app viewer, scrolled to its section ([UX §22](../UX_DESIGN.md#22-user-guide-viewer)). This replaces the system-browser opener noted above (R107.b4 link).
+2. The batch dialog gets a **Burn source credits into frames** checkbox, checked by default ([UX §17.13](../UX_DESIGN.md#1713-amendment-2026-10-31-the-frame-credit-checkbox)). The manifest's `credits` are always written (decision 8). A DEM terrain's credit is burned into a frame only when the terrain is inside that frame's camera view.
+3. A GeoTIFF with no site origin keeps the file's centre as its default window, as 1.5.0 ships ([UX §20.2](../UX_DESIGN.md#20-terrain-from-a-downloaded-elevation-file-desktop)).
+4. R107.b2 reads a PNG or JPEG with a world file (`.pgw`, `.pngw`, `.jgw`, `.jpgw` or `.wld`), and an 8-bit RGB or RGBA GeoTIFF through the in-app reader. A JPEG-compressed GeoTIFF is refused by name.
+
+Points the owner has not decided are marked **R107.b2 decision** and listed at the end, each with a recommendation. Those numbers are separate from the thirteen owner decisions above.
+
+**Starting facts.** `ReferenceImage` holds an asset, a width, a height and an opacity, and nothing geographic (`src/core/reference_image.hpp`). Its body record must have exactly those four keys (`decodeReferenceImage`, `src/io/reference_image_io.cpp:11`), so a placement needs a new record and schema 35. The GeoTIFF reader refuses more than one sample per pixel, sample types other than int16 and float32, projected CRSs and `ModelTransformation` (`src/io/geotiff.cpp`). Reading an orthophoto therefore extends the reader beside the elevation path. The elevation refusals stay as they are.
+
+### The record (schema 35)
+
+A georeferenced placement is an optional record on a reference-image body, written only in schema 35 with required feature `reference-geo-v1` (the name follows `geographic-site-v1` and `terrain-dem-v1`). A reference image without it is written as before.
+
+- `zone` (1 to 60) and `hemisphere` of the UTM grid the coordinates use.
+- `datum`: `WGS84`, or `NAD83` as a labelled approximation (R107.b2 decision 3 covers NAD83 UTM).
+- `easting` and `northing`: the top-left corner of the image, in site coordinates (projected metres in that zone). One corner and two pixel sizes keep the placement exact; the other corners follow from them.
+- `pixelWidth` and `pixelHeight`: metres per pixel, east and north, both positive.
+- `columns` and `rows`: the image's size in pixels, as read.
+- `source`: `format` (`png`, `jpeg` or `geotiff`), `file` (the image's file name, not its path, at most 256 bytes), `sha256` (of the image file's bytes), and for a world file `worldFile` (its name) and `worldSha256`.
+- `credit`: an optional user-entered line, at most 256 bytes (R107.b2 decision 2).
+
+Each text field is at most 256 bytes, as in §3.2. Undo removes the placement with its image.
+
+**What 1.5.0 does.** It refuses a schema-35 file at the container, as 1.4.0 refuses schema 34 (ADR 0162). The two records disagree on the exact text: ADR 0162 records "Invalid required features" for the 1.4.0 reader, and this ADR's R107.b1 notes record "Unsupported container field" for the same file type. R107.b2.1 records the text 1.5.0 prints.
+
+**Re-anchor and zone changes.** `reanchorSite` moves every local point by the change in the origin (`src/core/terrain.cpp:1122`). A georeferenced image's record stores site coordinates, so the image stays where it is on the ground. A re-anchor that would leave the zone of a georeferenced image is refused by name, as a re-anchor already is for the site record. `site.set_geographic` refuses a change of zone while a georeferenced image uses the old zone. `site.clear_geographic` is not refused: the image keeps its own zone.
+
+### The inputs
+
+**World file.** Six lines, in the standard order A, D, B, E, C, F:
+
+- A is the pixel size east (metres per pixel). It must be greater than zero.
+- E is the pixel size north. It must be less than zero, which makes the image north-up.
+- B and D are the rotation terms. They must be zero.
+- C and F are the centre of the upper-left pixel, in grid metres. The corner is half a pixel up and left of it: the top-left corner is `(C − A/2, F − E/2)`.
+
+Rules:
+
+- The file is read as text, at most 1 KiB. It must hold exactly six non-empty lines, each a finite decimal number with a point as its separator (`world-file`).
+- A non-zero B or D is refused by name (`world-rotated`). A rotated grid cannot be held by the corner record. Orthophotos are normally north-up, so this is not a loss in practice.
+- A ≤ 0 or E ≥ 0 is refused by name (`world-flipped`).
+- The file is found beside the image, by name, case-insensitively. For `photo.png` the order is `photo.pngw`, `photo.pgw`, `photo.wld`. For `photo.jpg` or `photo.jpeg` it is `photo.jpgw`, `photo.jgw`, `photo.wld`. The first match is used and the report names it. Any other match is named as ignored.
+
+**GeoTIFF tags.** Read through the existing directory walker, which checks every offset against the file.
+
+- `ModelPixelScale` (33550): `sx` and `sy` must be greater than zero. `sz` is ignored.
+- `ModelTiepoint` (33922): exactly one tie point. For a pixel-is-area raster (`GTRasterTypeGeoKey` 1) the tie is the image's top-left corner. For pixel-is-point (2) the tie is the centre of pixel (0,0), half a pixel in from the corner, as the DEM reader already reads it.
+- `ModelTransformation` (34264): accepted only when it has no rotation or shear and the other two tags are absent. The GeoTIFF specification makes it an alternative to the other two tags; R107.b2.1 checks the text. A file with both is refused (`geotiff-transform`).
+- `GTModelTypeGeoKey` (1024) must be 1 (projected). A geographic-CRS file is refused (`geotiff-crs`).
+- `ProjectedCSTypeGeoKey` (3072) must be a WGS84 UTM code: 32601 to 32660 (north) or 32701 to 32760 (south). User-defined (32767) and any other code is refused by name (`geotiff-crs`). R107.b2 decision 3 asks whether NAD83 UTM (26901 to 26923) is accepted.
+- `ProjLinearUnitsGeoKey` (3076), when present, must be 9001 (metres). Any other unit is refused (`geotiff-units`).
+
+**Zone, CRS and datum.** A world file carries no CRS, and the zone is not in it. A GeoTIFF names its zone in its key, and the person does not choose it.
+
+- A world file takes the zone of the site's geographic record when the site has one. The dialog shows that zone read-only. Otherwise the person chooses the zone (1 to 60, north or south). The site's CRS label (EPSG:326nn or 327nn) is the default when it has one. The label is a default only; it is not used to transform.
+- A zone that differs from the site record's is refused (`zone-mismatch`), as a DEM window in another zone is (R107.b3).
+- A site with no record: the zone is not checked, and the dialog says so ([UX §21.2](../UX_DESIGN.md#212-the-layout-and-its-states)).
+- Each corner is converted with R107.a's series. A corner whose longitude is more than 3° from the zone's central meridian is refused (`zone-band`). Points outside 80° S to 84° N, and the Norway and Svalbard exceptions, are refused as R107.a refuses them.
+- A world file's datum is WGS84 unless the person chooses NAD83. The choice is taken as WGS84 with the decision-5 warning and the label kept. A GeoTIFF's datum comes from its key.
+
+### Limits
+
+- **Pixels.** At most 4096 by 4096 pixels, the texture limit (`TextureImage::dimensionLimit`, `src/io/texture_image.hpp:12`). The decoded RGBA image is at most 64 MiB (`byteLimit`), which a 4096-by-4096 image meets exactly.
+- **Stored bytes.** A PNG or JPEG is stored as its own bytes, as the reference import does now. A GeoTIFF is stored as a normalized PNG, since `decodeTextureImage` reads only PNG and JPEG. The stored bytes are at most 16 MiB (`AssetPayload::limit`, `src/core/asset_records.hpp:9`). A larger file is refused (`stored-size`). A 4096-by-4096 photograph may exceed 16 MiB as a PNG (not measured here). The design does not resample to fit (R107.b2 decision 4).
+- **Extent.** Each side of the placed image is at most 1,000 km, the `ReferenceImage` limit of 1e6 m (`image-extent`).
+- **GeoTIFF samples.** 8-bit unsigned. Three samples (RGB) or four (RGBA, with `ExtraSamples` 2 for unassociated alpha). Photometric interpretation 2 (RGB). Planar configuration 1 (chunky) only. Predictor 1 or 2 (horizontal differencing, per 8-bit sample). Predictor 3 is refused. Compression none, LZW or Deflate. JPEG (7) is refused by name, and so is any other compression. Grey, palette, 16-bit, float, planar, and associated (premultiplied) alpha are refused by name (`geotiff-samples`, `geotiff-compression`).
+- **Blocks.** The elevation reader's bounds hold: at most 4,194,304 samples per block and 1,000,000 blocks.
+- **Memory.** Decoding holds one block, the RGBA image (at most 64 MiB) and the normalized PNG (at most 16 MiB). R107.b2.1 measures the peak for a 4096-by-4096 image. Proposed budget: 256 MiB.
+- **Credit.** At most 256 bytes. Control characters become spaces, as the DEM notice does (`src/core/source_credits.cpp`).
+
+**Refusals.** Each code gets one plain sentence. The dialog shows the sentence, not the code (UX §21.3).
+
+| Code | Refused when | Sentence |
+| --- | --- | --- |
+| `image-type` | Not PNG, JPEG or TIFF | "This is not a PNG, JPEG or GeoTIFF file." |
+| `image-size` | A side is over 4096 pixels | "The image is W × H pixels. The limit is 4096 × 4096." |
+| `stored-size` | Source or stored PNG over 16 MiB | "The image is N MiB as stored. The limit is 16 MiB. Crop it or reduce it in an image editor, then import it again." |
+| `image-extent` | A side is over 1,000 km | "The image would cover N km in one direction. A placed image can cover at most 1,000 km." |
+| `world-file` | Not six finite numbers, or over 1 KiB | "The world file does not hold six numbers, one to a line." |
+| `world-rotated` | B or D is not zero | "The world file rotates or shears the image. Only north-up images are read." |
+| `world-flipped` | A ≤ 0 or E ≥ 0 | "The world file flips the image. Only north-up images are read." |
+| `geotiff-untagged` | No tie point, scale or transformation | "This GeoTIFF has no map position, so its pixels cannot be placed." |
+| `geotiff-transform` | Both kinds of tag, or a rotated transformation | "The file's georeference is not one tie point with a scale, or one north-up transformation." |
+| `geotiff-crs` | Geographic, user-defined, or a projection other than the accepted UTM codes | "The file's coordinate system is NAME. Only WGS84 UTM zones are read." |
+| `geotiff-units` | Horizontal units other than metres | "The coordinates are in UNIT. Only metres are read." |
+| `geotiff-samples` | Not 8-bit RGB or RGBA; planar; associated alpha; predictor 3 | "The pixels are DESCRIPTION. Only 8-bit RGB and RGBA are read." |
+| `geotiff-compression` | JPEG, or another compression | "This GeoTIFF is compressed with JPEG, which this version does not read. Only uncompressed, LZW and Deflate files are read." |
+| `zone-mismatch` | The zone differs from the site record's | "The image is in zone A, and the site is in zone B. An image cannot cross zones." |
+| `zone-band` | A corner is more than 3° from the zone's central meridian | "A corner of the image lies outside zone Z. Choose the zone the image is in." |
+| `zone-exception` | Norway or Svalbard | "This image is in the NAME zone exception, which this version does not place." |
+| `latitude` | A corner is outside 80° S to 84° N | "A corner lies outside 80° S to 84° N, the range of the UTM grid." |
+| `elevation` | Not a number, or outside ±1,000,000 m | "The elevation must be a number of metres between −1,000,000 and 1,000,000." |
+| `credit` | Over 256 bytes | "The credit line is longer than 256 bytes. Shorten it." |
+| `file-changed` | The file's size or time changed during the read | "The file changed while it was read. Choose it again." |
+| `damaged` | The reader finds a malformed or truncated file | "The file is damaged: DETAIL." |
+
+### Placement
+
+- The image is a flat `ReferenceImage` in the model's XY plane. Its lower-left corner is at the south-west corner, computed from the record. `referenceImageCorners` puts local +X along the image's right edge and local +Y up its height, so a north-up image needs no rotation (`src/core/reference_image.cpp`). The model's +Y is grid north (ADR 0181 §2.6).
+- Model coordinates are `local = site − origin`, as for every source. The image's model Z is `elevation − origin.elevation`. By default the elevation is the origin's, so the image sits at model Z = 0. The person may enter a value in site metres. The image is not draped onto terrain.
+- **No site origin.** The import sets one at the image's centre, rounded to 100 m, as the DEM import does ([UX §20.3](../UX_DESIGN.md#203-the-labels)). The origin's elevation is the chosen value, 0 m by default. The import also writes the geographic record: provenance `imported`, the image's file name and SHA-256, the zone, hemisphere and datum, vertical reference `unknown` (an image has no heights, and `unknown` is in `siteVerticalReferences`), and the convergence at the origin. This follows the DEM rule (R107.b3, item 6).
+- **Site origin with a record.** Nothing is written, and an existing record is never overwritten. The zone check runs.
+- **Site origin without a record.** No zone check. The dialog says so.
+- The import is one undoable edit: the body, its georeference, and any origin and record it sets.
+
+### Credits
+
+- **Credit line.** The record may carry a user-entered credit (R107.b2 decision 2). The status of NAIP imagery is still held (§1.2), so the design supplies no credit text for it.
+- **Where credits go today: nowhere, for an orthophoto.** Reference images are not exported. GLB, OBJ, DXF, STL, STEP and IFC all skip them, and their reports count them as `referenceImagesOmitted` (`src/integrations/glb_export.cpp:557`, `src/io/obj_export.cpp:268`, `src/io/dxf_export.cpp:276`, `src/io/stl_export.cpp:66`, `src/io/step_export.cpp:217`, `src/io/ifc_export.cpp:286`). Measured drawings omit them (`src/io/measured_drawing.cpp:69`). The render sheet reports "reference images omitted" (`src/app/render_panel.cpp:1200`). The batch frames go through the same GLB writer, so they omit them too. **So in 1.6.0 an orthophoto's credit reaches no export and no frame.** It is stored, and shown in the panel and in the import report. R107.b2 decision 1 asks whether that is right for 1.6.0.
+- **When a later slice draws the image** in an export or a frame, its credit joins the credit set (`SourceCredits`, `src/core/source_credits.hpp`) and uses the same carriers as a DEM notice (§3.3). Two limits then apply. The frame stamp takes 1 to 8 notices of at most 700 bytes together (`src/integrations/blender_worker.py:81–90`). A batch over that limit is refused at Start by name, and its notices are not cut. If R107.b2 decision 2 makes the credit required, §3.4 applies once the image is in an export: the user cannot remove it while the image is there.
+
+### Follow-ups
+
+**The frame credit is in the camera view (R107.c3).**
+
+- **Today.** `keyframeCredits` (`src/integrations/presentation_batch.cpp:268`) takes the DEM notices of every keyframe scene. A frame's record lists the notices its scene manifest holds, and the GLB writer lists a DEM tile when it emits faces. The test is "visible in the scene", not "in the frame".
+- **New rule.** A DEM terrain's credit appears on a frame when the terrain's bounding box, in model coordinates, meets that frame's view volume. The view volume is the camera the frame renders with: `renderSceneCamera(pose.camera)` (`src/integrations/render_snapshot.cpp:137`), with the preset's width-to-height ratio. For a perspective camera it is the frustum from `verticalFov`, bounded by `nearClip` and `farClip`. For an orthographic camera it is the box of half-height `yMag`, with the same ratio. There is no occlusion test. A terrain behind a building still counts, which errs toward crediting. Visibility in the keyframe still applies: a terrain hidden in the keyframe's scene counts for no frame.
+- **Per frame.** The test uses each frame's own `CameraFrame` (`src/core/camera_motion.hpp`), not one per keyframe.
+- **What each list holds.** The manifest's top-level `credits` stays as it is: the notices of every keyframe scene. It lists the sources the batch uses, not what a frame shows, and dropping a source there would hide one. Each frame's record `credits` lists its in-view notices, always, whether or not the box is on. The stamp uses the in-view notices, and only when the box is on.
+- **The worker.** `blender_worker.py` stamps from the snapshot's `credits` key (`:694–705`). R107.c3 adds a `stampCredits` key for the stamp, and the worker stamps only from that key. The 1-to-8 and 700-byte checks apply to `stampCredits`. With the box off, no `stampCredits` is sent, so every stamp flag stays off, as for a frame with no DEM. A frame in a batch with the box off is therefore the same as a frame in a batch with no DEM content. That is a change from 1.5.0, which always stamped a DEM frame.
+- **Sheets.** The 1.5.0 perspective sheet view counts a DEM terrain when the view's scene shows it (ADR §3.3 notes for R107.c2). R107.b2 decision 5 asks whether it moves to the in-view rule.
+- **A stale comment.** The comment above `keyframeCredits` says a frame shows its keyframe's visible geometry. R107.c3 changes that rule, so the comment changes with the code.
+
+**The checkbox.** `PresentationPlan` (`src/integrations/presentation_store.hpp:44`) gets `burnCredits`, a boolean that defaults to true. It is stored with the batch in the job store, not in the document, so it needs no native schema change. A stored job without the field reads as on, because 1.5.0 always burned the note. Resume keeps the stored value, as it keeps the presets (UX §17.3).
+
+**The guide viewer (R107.e2).** The GeoTIFF page's button (`terrain_import_dialog_dem.cpp:180`) opens the viewer. The viewer replaces `QDesktopServices::openUrl` in `src/app/window_terrain.cpp:105`.
+
+- **File.** `share/doc/sketchyup/USER_GUIDE.md`, beside the program, which is the path the dialog builds today (`terrain_import_dialog_dem.cpp:104`). CMake installs it with `SUPPORT_MATRIX.md` (`CMakeLists.txt:2055`).
+- **Renderer.** Qt's Markdown reader (`QTextDocument::setMarkdown`) in a read-only `QTextBrowser`. The minimum Qt is 6.8 (`CMakeLists.txt`).
+- **Finding the section.** Named anchors are not assumed, because Markdown headings may not create them. The viewer takes the fragment `terrain-from-a-downloaded-elevation-file` and finds the first heading whose GitHub-style slug equals it: lower case, punctuation removed, spaces to hyphens. Headings are found with `QTextBlockFormat::headingLevel()`. The viewer moves the cursor to that block and scrolls it to the top. Whether `setMarkdown` gives anchors is not verified; R107.e2 checks the mechanism with a test.
+- **Every anchor the app uses resolves.** A test checks that each `USER_GUIDE.md#` fragment the app passes resolves to a heading.
+- **Links in the guide** are shown as text in 1.6.0. They are not followed. The installed copy holds only `USER_GUIDE.md` and `SUPPORT_MATRIX.md`, so most links would not resolve.
+- **Missing or unreadable file.** The viewer shows one line: the guide is not installed (or could not be read), its file should be at the path given, and reinstalling restores it. The dialog's footer says the same. There is no network request and no browser.
+
+### Slices
+
+Order: R107.e2's viewer first, because it fixes the shipped link (UX §20.1 contradiction). Then R107.c3, which is independent. Then R107.b2.1 and R107.b2.2, which carry the schema change. Last, R107.e2's guide text for the orthophoto and the checkbox, which needs the features in place. R107.e2 is one row built in two steps.
+
+| Slice | Builds | Main files | Tests | Depends on | CI tier |
+| --- | --- | --- | --- | --- | --- |
+| **R107.e2 (viewer)** | The guide viewer ([UX §22](../UX_DESIGN.md#22-user-guide-viewer)); the GeoTIFF button opens it | new `src/app/user_guide_viewer.{hpp,cpp}`; `src/app/terrain_import_dialog_dem.cpp` (`:100–104`, `:176–184`, `:482–484`); `src/app/terrain_import_dialog.hpp` (`openUserGuide`, `:73–75`); `src/app/window_terrain.cpp` (`:104–105`); CMake | `terrain_import_dialog_tests` (`geotiffUserGuide`, changed); new `user_guide_viewer_tests` (opens, scrolls to the heading, missing file, every app anchor resolves); keyboard case in `native_dialog_cases.hpp` | R107.b4 link (on main) | Full (UI) |
+| **R107.c3** | The in-view rule; `stampCredits`; `burnCredits`; the checkbox ([UX §17.13](../UX_DESIGN.md#1713-amendment-2026-10-31-the-frame-credit-checkbox)); the request key | `src/integrations/presentation_batch.cpp`; `src/integrations/render_snapshot.{hpp,cpp}` (view test); `src/integrations/presentation_store.hpp`; `src/integrations/blender_worker.py`; `src/app/presentation_batch_dialog.cpp` (`:251`); the batch request parser | `presentation_batch_input_tests`, `presentation_input_tests` (default, Tab order, names); `presentation_store_tests` (a stored job without the field reads on); `presentation_export_tests` and `blender_job_tests --real` (in view stamped; looking away not; box off gives frames identical to no-DEM frames); `presentation_cli_tests` | R107.c2 and R099.d (on main) | Full for the dialog suites; the real-Blender test runs in the CI image |
+| **R107.b2.1 (engine and CLI)** | The world-file reader; the 8-bit RGB and RGBA UTM read beside the elevation read; the record and schema 35; the CLI import; the re-anchor and zone checks | new `src/io/world_file.{hpp,cpp}`; `src/io/geotiff.{hpp,cpp}` (orthophoto read; elevation refusals unchanged); `src/core/reference_image.{hpp,cpp}`; `src/io/reference_image_io.cpp`; `src/io/document_io.cpp`; `src/io/container.cpp` (`:158–217`); `src/io/native_format.hpp`; `docs/api/native-format-v1.json` (regenerated); `src/automation/main.cpp`; `src/automation/reference_image_commands.cpp`; `src/core/terrain.cpp` (`reanchorSite`); `src/automation/terrain_commands.cpp` (`site.set_geographic`) | new `world_file_tests`; `geotiff_tests` (RGB, RGBA, UTM and refusals); `reference_image_io_tests` (round trip; four-key bodies unchanged); `native_format_tests` (schema 35; the 1.5.0 refusal on the prior-release check); `reference_image_command_tests`; fixtures under `tests/fixtures/geotiff/` and a new `tests/fixtures/reference/` (PNG with a world file, RGB and RGBA GeoTIFF, JPEG GeoTIFF, flipped and rotated files); a new `parser_fuzz_world_file` target (ADR 0181 V7) and RGB seeds for `parser_fuzz_geotiff`. Corner conversion checked against R107.a to 1 µm. | R107.a and R107.b1 to R107.b3 (on main). Not R107.b4 | Fast tier. The fuzz and sanitizer runs belong to the R083 campaign |
+| **R107.b2.2 (desktop)** | The import dialog ([UX §21](../UX_DESIGN.md#21-orthophoto-as-a-georeferenced-reference-image-desktop)); routing from the reference-images panel; the worker read; one undoable edit | `src/app/reference_images_panel.cpp` (`:69`, `:81`, `importFile`); new `src/app/reference_georef_dialog.{hpp,cpp}`; `src/app/viewport_reference_images.cpp`; `src/app/viewport.hpp`; CMake | `reference_image_input_tests` (the four states, Tab order, names, Enter and Esc, the refusal wording, one undo); keyboard case in `native_dialog_cases.hpp`; `native_accessibility_audit`; X11 and Wayland at 1× and 2×, and at 200% text | R107.b2.1 | Full (UI) |
+| **R107.e2 (guide text)** | The orthophoto and checkbox in `USER_GUIDE.md`; the support-matrix row | `docs/USER_GUIDE.md`; `docs/SUPPORT_MATRIX.md` | The anchor test from R107.e2 (viewer) | R107.b2.2 and R107.c3 | Fast tier (documents). The viewer step is full tier |
+
+### Owner decisions (decided 2026-10-31)
+
+**Decided on 2026-10-31.** The owner approved this design and UX sections 17.13, 20.1, 20.2, 21 and 22, and took all five decisions below as recommended: the orthophoto stays viewport-only in 1.6.0; the credit line is optional, at most 256 bytes; NAD83 UTM is read as a labelled approximation; larger images are refused with the crop advice and nothing is resampled; perspective sheet views move to the in-view rule in R107.c3.
+
+
+1. **Orthophoto in exports and frames, for 1.6.0.** Today no export and no render carries a reference image (see Credits). *Recommended: keep the orthophoto viewport-only in 1.6.0. Its credit is stored and shown in the panel and the report. The export and frame credits carry it when a later slice draws the image in them, and that slice decides the GLB texture and the frame stamp.*
+2. **Credit line: optional or required.** *Recommended: optional, at most 256 bytes, entered in the dialog and kept with the placement. The import does not refuse an empty credit, and the owner names no required source credit while the NAIP status is held.*
+3. **NAD83 UTM orthophotos (EPSG:26901 to 26923).** The brief limits the projected key to WGS84 UTM. US orthophotos are often published in NAD83 UTM; I did not verify that here. *Recommended: accept NAD83 UTM as a labelled approximation with the decision-5 warning, as NAD83 geographic already is. Refuse it if you want WGS84 only.*
+4. **Size limits.** The design keeps 4096 by 4096 pixels and 16 MiB as stored. Larger images are refused with the sentence above, and nothing is resampled. *Recommended: keep both. Raising the 16 MiB asset limit changes a native-format budget, so it needs its own decision.*
+5. **Perspective sheet views.** The 1.5.0 rule counts a DEM terrain in a perspective view when the view's scene shows it. *Recommended: move perspective views to the in-view rule in R107.c3, so the frames and the perspective sheets use one rule and one test. This can remove a notice from a 1.5.0 perspective sheet where the terrain is outside its view.*
+
+### Contradictions this design found
+
+- **UX §20.2, default window.** It said an empty centre with Import waiting. The built default is a 1,000 m square on the file's centre. This PR fixes §20.2.
+- **UX §20.2, site origin.** It said "Around the site origin" needs the geographic record. The built rule also accepts the UTM CRS label. This PR amends §20.2.
+- **UX §20.1, guide button.** It said the system browser. This PR replaces that with §22.
+- **UX §20.3 and §20.4.** They said the DEM import writes no geographic record and that the credit appears only in the report. R107.b3 (item 6) and R107.b4 (item 10) closed both; this PR now says so.
+- **Newer-schema refusal text.** See The record, above.
+- **Frame credit comment.** See Follow-ups, above.
+- **Roadmap R107 status.** It said R107 is shipped in 1.5.0, and then that R107.c2 "is in review" and that PR #538 is open. This PR corrects it: both are merged and shipped in 1.5.0.
+- **Counsel references (not edited here).** Owner decision 11 was replaced on 2026-10-27 (no counsel), but §10 risk 11 and the R107.e line in §11 still ask for counsel review.

@@ -7,6 +7,7 @@
 #include "app/sheet_workspace.hpp"
 #include "app/terrain_actions.hpp"
 #include "app/terrain_import_dialog.hpp"
+#include "app/user_guide_viewer.hpp"
 #include "automation/commands.hpp"
 #include "automation/extension_store.hpp"
 #include "automation/report_schedules.hpp"
@@ -836,6 +837,38 @@ inline std::vector<Case> cases(Context &ctx) {
          terrainSettles,
          {chooseFile("Import terrain", source("tests/fixtures/geotiff/plane-f32-strip-none-le.tif"))},
          "Import waits for the source product and the vertical reference."});
+    // R107.e2 (UX §22): the GeoTIFF page's "Open the user guide" opens the guide in a non-modal
+    // window of the import dialog. The hop presses the button, and when the window closes the
+    // dialog closes with it, so each phase starts clean. Its focus return is recorded for Return::Opener.
+    add({"terrain-import-guide",
+         "import",
+         "User guide viewer (from the GeoTIFF page)",
+         "Import terrain… > file name > Open the user guide",
+         writeImportSources,
+         viaPalette("Import terrain…"),
+         named("userGuideViewer"),
+         Enter::Closes,
+         "Close the user guide",
+         Return::Opener,
+         {},
+         {},
+         {chooseFile("Import terrain", source("tests/fixtures/geotiff/plane-f32-strip-none-le.tif")),
+          {named("terrainImportDialog"), [&ctx, terrainSettles](QWidget &dialog) {
+               waitDialogFocus(dialog);
+               terrainSettles(dialog);
+               auto *button = tabTo(dialog, "terrainImportUserGuide");
+               ctx.opener = button;
+               ctx.openerId = identity(button);
+               press(button);
+               auto *viewer = dialog.findChild<UserGuideViewer *>();
+               require(viewer, "Open the user guide opens the guide window");
+               QObject::connect(viewer, &QDialog::finished, &dialog, [&ctx, &dialog, button] {
+                   ctx.afterChildId = identity(returnFocus(&dialog));
+                   ctx.afterChildIsOpener = returnFocus(&dialog) == button;
+                   QTimer::singleShot(0, &dialog, [&dialog] { dialog.close(); });
+               });
+           }}},
+         "The guide is a window of the import dialog, so it opens from the Tab order and Escape returns focus to its button."});
     // R095.e1: the terrain actions on the selected terrain (command search; the Entity info
     // Terrain section's buttons trigger the same actions).
     const auto settingsSettle = [](QWidget &dialog) {
