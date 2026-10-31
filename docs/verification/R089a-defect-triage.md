@@ -1056,8 +1056,8 @@ they are not counted above:
 
 1. Render limits for 250,000-triangle terrains: the GLB export's 100,000-face limit and the render
    snapshot's 20,000-body limit (the batch of such a terrain cannot start a frame; [R099e](R099e-presentation.md)).
-   **Carried in 1.5.0 (R099.f, PR #526):** a 249,218-triangle terrain and a 20,000-body capture now export and
-   render, and a 10,000-placement capture is refused by name. The 20,000-body capture prepares in 1.70 s, over the
+   **Carried in 1.5.0 (R099.f, PR #526):** a 249,218-triangle terrain and a 19,998-body capture now export and
+   render, and a 10,000-placement capture is refused by name. The 19,998-body capture prepares in 1.70 s, over the
    1 s budget, which the M10 record lists as an accepted miss.
 2. Catalog import progress and Cancel (R100.g OD-5). **Built in 1.5.0 (R100.i, PR #521):** the insert runs on a
    worker, a progress sheet opens after a second, and a Cancel before the edit is composed leaves the model and the
