@@ -10,11 +10,11 @@
 #include <vector>
 namespace sketchy {
 
-// The credit a render burns into its image (R107.c3, ADR 0181 §3.3). SceneNotices is 1.5.0's rule:
-// the notices of the DEM terrain the scene shows, for a still or an animation frame. A presentation
-// batch names its own: ViewNotices burns the notices of the terrain in the frame's view, and None
-// burns nothing.
-enum class CreditStamp { SceneNotices, ViewNotices, None };
+// The credit a render burns into its image (R107.c3, ADR 0181 §3.3). ViewNotices burns the notices
+// of the DEM terrain in the render's own view: the default for a still, an animation frame and a
+// presentation frame (R107.c3.1). None burns nothing, which a presentation batch chooses when its
+// box is off.
+enum class CreditStamp { ViewNotices, None };
 
 class PreparedRender {
   public:
@@ -23,7 +23,7 @@ class PreparedRender {
     // notices the worker burns as `stampCredits`. A scene with DEM terrain always states
     // `stampCredits`, empty when nothing is burned.
     static std::shared_ptr<const PreparedRender>
-    prepare(const RenderSnapshot &snapshot, CreditStamp stamp = CreditStamp::SceneNotices);
+    prepare(const RenderSnapshot &snapshot, CreditStamp stamp = CreditStamp::ViewNotices);
     static std::shared_ptr<const PreparedRender> open(const QString &directory,
                                                       const QString &manifestHash);
     void copyTo(const QString &directory) const;

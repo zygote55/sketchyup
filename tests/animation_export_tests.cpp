@@ -1,5 +1,6 @@
 #include "blender_stand_in.hpp"
 #include "core/scenes.hpp"
+#include "dem_export_fixture.hpp"
 #include "integrations/animation_export.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
@@ -11,6 +12,7 @@
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <QThread>
+#include <cmath>
 #include <iostream>
 using namespace sketchy;
 void check(bool ok, const char *message) {
@@ -84,6 +86,50 @@ int main(int argc, char **argv) {
                     .object();
             check(detail["result"].isObject() && detail["camera"].isObject(),
                   "Per-frame transfer verification and camera retained");
+        }
+        // R107.c3.1 (ADR 0181 §3.3): each frame of an animation over DEM terrain burns the notice
+        // of the terrain in its own view. The keyframe that faces the terrain stamps it; the one
+        // that looks away does not, though its scene shows the terrain.
+        {
+            Document terrain;
+            importDemFixture(terrain, std::string(SOURCE_DIR) + "/tests/fixtures/geotiff/",
+                             "plane-f32-strip-none-le.tif", DemProduct::Dep3, "NAVD88");
+            RenderOptions fit;
+            fit.settings = {64, 64, 1, 0};
+            const auto fitted = RenderSnapshot::capture(terrain, fit).camera();
+            const Vec3 toEye = fitted.position - fitted.target;
+            const double radius =
+                std::sqrt(dot(toEye, toEye)) * std::sin(fitted.verticalFov / 2) / 1.2;
+            SceneSnapshot facing;
+            facing.camera = SceneCamera{};
+            facing.camera->target = fitted.target;
+            facing.camera->distance = 2 * radius;
+            SceneSnapshot away;
+            away.camera = SceneCamera{};
+            away.camera->target = fitted.target + Vec3{10 * radius + away.camera->distance, 0, 0};
+            away.camera->yaw = 180;
+            away.camera->pitch = 0;
+            const auto facingScene = createScene(terrain, "Facing", facing);
+            const auto awayScene = createScene(terrain, "Away", away);
+            const auto terrainCapture =
+                AnimationCapture::capture(terrain, {facingScene, awayScene}, {24, 2, 0}, fit);
+            size_t facingFrame{}, awayFrame{};
+            for (size_t i = 0; i < terrainCapture.frames().size(); ++i) {
+                const auto &pose = terrainCapture.frames()[i];
+                if (pose.keyframe && pose.sceneIndex == 0)
+                    facingFrame = i;
+                if (pose.keyframe && pose.sceneIndex == 1)
+                    awayFrame = i;
+            }
+            const QString notice = QString::fromUtf8(demCreditUsgs);
+            const auto facingStamp = PreparedRender::prepare(terrainCapture.frame(facingFrame));
+            check(facingStamp->manifest().value("stampCredits") == QJsonArray{notice},
+                  "An animation frame in view burns its notice");
+            const auto awayStamp = PreparedRender::prepare(terrainCapture.frame(awayFrame));
+            check(awayStamp->manifest().value("credits") == QJsonArray{notice} &&
+                      !awayStamp->manifest().contains("viewCredits") &&
+                      awayStamp->manifest().value("stampCredits").toArray().isEmpty(),
+                  "An animation frame looking away from the terrain burns no notice");
         }
         if (real) {
             check(encodeDocument(doc) == before && doc.history().total == history,
