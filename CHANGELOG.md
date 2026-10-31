@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- D-089 and D-086: durable MCP and assistant commits budget the stored containers, not the in-memory model size, and the outcome budget holds a before and an after copy of the largest valid file (`outcomeBytes` 268812472; [ADR 0023](docs/decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086), [PR #560](https://github.com/zygote55/sketchyup/pull/560)).
+
 ## 1.6.0 — 2026-10-31
 
 Tag `v1.6.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.6.0).
