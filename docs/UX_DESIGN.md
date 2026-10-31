@@ -1688,6 +1688,7 @@ whether Start is possible. Start is disabled, and its reason is shown beside it.
 - **Output.** *New folder*, a new folder inside an existing parent. It is pre-filled as "parent/Tour" after
   **Choose parent folder…**. The rule is the R072 sheet's and the GLB export's: an existing folder, or a
   link, is refused.
+- **Burn source credits into frames.** Checked by default. Under the output folder, as 17.13 sets out.
 - **Video.** *Write H.264 video for each preset*, off by default (ADR decision 7). Its state is 17.5.
 
 **Right column: the live budget.** Each figure updates as a choice changes.
@@ -1882,7 +1883,7 @@ package, then check again." The path and preset controls stay visible, greyed.
   keyframe list (Up and Down move the current row, Alt+Up and Alt+Down move the scene, Delete removes it);
   Add scene…; the three timing fields; Export batch…; Close. Esc closes.
 - **Batch dialog.** Tab order: the path choice; the presets (Space toggles, arrows move); Device backend;
-  Device; Retry on CPU; the folder field; Choose parent folder…; Write video; Cancel; Start batch (the
+  Device; Retry on CPU; the folder field; Choose parent folder…; Burn source credits into frames; Write video; Cancel; Start batch (the
   default when enabled). Esc cancels. Enter starts only when Start is enabled.
 - **Picker.** Type-ahead on names; Enter adds; Esc is Done.
 - **Jobs list.** One Tab stop for the tree. Up and Down move between rows; Right and Left expand and collapse
@@ -1985,6 +1986,20 @@ with a batch running. R099.d builds these.
 | ![resume](mockups/presentation/resume.png) | Failed, interrupted and canceled batches: the Resume wording | 17.6, 17.8 |
 | ![results](mockups/presentation/results.png) | Results: the presets, a video not written, and the stills grid | 17.7 |
 | ![broken](mockups/presentation/broken.png) | Refused: a path with a missing scene and a scene without a camera | 17.8 |
+
+### 17.13 Amendment (2026-10-31): the frame credit checkbox
+
+Proposed in ADR 0181 (R107.c3). Its label, default and placement follow the owner's 1.6.0 scope of 2026-10-31. Not built.
+
+- **Label.** "Burn source credits into frames".
+- **Position.** In the Output group, below the folder note and above the Video heading (17.4).
+- **Default.** Checked each time the dialog opens, as Write video is off each time.
+- **Caption.** Under the box: "Stamps the source notice at the top of each frame whose view shows elevation terrain. The batch manifest lists the notices either way."
+- **What it changes.** When checked, a frame whose camera view contains a DEM terrain carries that terrain's notice as its top stamp, as 1.5.0 already does for DEM frames. The view test is per frame (ADR 0181, R107.c3). A frame whose view does not contain the terrain has no stamp. When unchecked, no frame has a stamp, so the video made from the frames has none. Frames with no DEM are the same either way.
+- **What it does not change.** The frame count, the presets, the render settings, the live budget (17.4), and the start rules (17.4). The manifest's `credits` are always written (ADR 0181, decision 8). Each frame's record lists the notices in its view, checked or not.
+- **Resume.** A batch keeps the choice it started with, as it keeps its presets (17.3).
+- **Tab order.** After Choose parent folder…, before Write video (17.10).
+- **Accessible name.** "Burn source credits into frames, checked" (or unchecked). The caption is its description.
 
 ## 18. Styles, edge strokes and asset catalogs
 
@@ -2366,7 +2381,7 @@ Parts: 20.1 the entry; 20.2 the window; 20.3 the labels; 20.4 the report; 20.5 t
 - **File → Import terrain…** (section 15.1), in the same place. The chooser's terrain filter gains **GeoTIFF elevation (\*.tif, \*.tiff)** beside the DXF and point-file choices.
 - **Format from the extension.** A `.tif` or `.tiff` file opens the dialog with **GeoTIFF elevation** selected, as the command line picks it by extension. Other files open as they do now.
 - **Which source.** Two radio buttons, **USGS 3DEP** and **Copernicus GLO-30**. The file does not say which it is, so the dialog reads its post size. A file whose posts fit one product selects that product, and the caption says why ("1/3 arc-second posts are 3DEP only"). A file at 1 arc-second in both directions fits both products, so neither is selected until the person chooses. A file that fits neither is refused (20.5).
-- **Where to get a file.** The GeoTIFF settings show one line, "Get the file: the user guide explains how to download a 3DEP or GLO-30 tile. SketchyUp does not download it.", with **Open the user guide**. The button opens the guide page in the system browser when the person presses it. The product sends no request of its own. R107.e writes that page, so the link ships with it, not before.
+- **Where to get a file.** The GeoTIFF settings show one line, "Get the file: the user guide explains how to download a 3DEP or GLO-30 tile. SketchyUp does not download it.", with **Open the user guide**. The button opens the installed user guide in the in-app viewer ([§22](#22-user-guide-viewer)), scrolled to this section. It does not use the system browser. The product sends no request of its own. *Amended 2026-10-31 (ADR 0181, R107.b2 section): the viewer replaces the system-browser opener that this paragraph first described.*
 - **Non-affiliation.** The source caption reads "Provider names identify the sources only. SketchyUp is not affiliated with USGS or Copernicus." (ADR 0181 V8.)
 - **Subline.** "Adds a terrain to this model. The file is read and never changed."
 - **No size refusal.** The reader works in windows, so the file's size is not a reason to refuse it. The 1/3 arc-second 3DEP tile, 434 MiB, is accepted once 20.7 item 1 is done.
@@ -2386,8 +2401,8 @@ Grid    33 × 33 = 1,089 posts · spacing 31 m (nominal 31 m) · not decimated
         Voids: none (a window with a void is refused)
 ```
 
-- **Default.** When the site has a geographic record, the window is **Around the site origin**, 1,000 m square, centred on the origin, in the record's zone. Without a record, the default is **Centre and size** with an empty centre, and Import waits for it. Open question 2 sets the default size.
-- **Three ways to set it.** *Around the site origin* takes the origin's position from the record. The record sits within 1 m of the origin's UTM position (ADR 0181 §2.1), so the window is exact. *Centre and size* takes a UTM centre and a width and height in metres. *Corners* takes the south-west and north-east corners in UTM. Beside each corner, its latitude and longitude show read-only, converted with R107.a's series. Open question 1 asks whether they can be typed as well.
+- **Default.** The window starts as a 1,000 m square (open question 2 sets the size). When the site has an origin, the square is **Around the site origin**, centred on it, in the zone of the site's geographic record or, without a record, of its UTM CRS label. When the site has no origin, the square is **Centre and size**, centred on the file's centre, not empty, and Import is on. The import then sets the origin (20.3). The owner decided this on 2026-10-31 (ADR 0181, R107.b2 section).
+- **Three ways to set it.** *Around the site origin* takes the origin's position in UTM, in the zone of the site's record or of its CRS label. With a record, the origin sits within 1 m of its UTM position (ADR 0181 §2.1), so the window is exact. *Centre and size* takes a UTM centre and a width and height in metres. *Corners* takes the south-west and north-east corners in UTM. Beside each corner, its latitude and longitude show read-only, converted with R107.a's series. Open question 1 asks whether they can be typed as well.
 - **One zone.** The window and the grid share one zone, 1 to 60 with N or S. A file that crosses a zone edge can be imported in one zone only. The preview then draws the file's extent clipped to that zone's 6° band, and says so.
 - **Fit to the file.** Sets the window to the file's extent within the zone. A whole 1° tile at 1 arc-second decimates to posts of about 285 m (computed from the limits at 35° N), and the grid line shows that.
 - **Over the file.** The preview draws the file's extent as a dashed outline, the window as a solid outline labelled with its size, the site origin as a cross, and the grid's posts as a light fill. Each has a label, so dash, fill and text carry the meaning, not colour alone. A window that leaves the file is drawn in the failure colour, with ✕ and "1,204 of 1,681 posts lie outside the file. Move the window inside the dashed outline." This is a refusal at the pointer, as in 15.3.
@@ -2397,7 +2412,7 @@ Grid    33 × 33 = 1,089 posts · spacing 31 m (nominal 31 m) · not decimated
 - **Origin outside the window.** If the site origin lies outside the window, a caption says how far away it is. The terrain is still placed relative to the origin, as for other sources.
 
 
-**As built (R107.b4, PR #536; parent notes 2026-10-30).** With no site origin, the window starts as a 1,000 m square centred on the file, not empty, and the import sets the origin; this is a parent change to the paragraph above, recorded for the owner. Centre and Corners also take latitude and longitude as input, converted into the window's zone, as the owner approved in 20.8 question 1 (the read-only latitude and longitude above are superseded). "Fit to the file" uses the post-centre extent, inset so that the window stays inside the file in that zone.
+**As built (R107.b4, PR #536; parent notes 2026-10-30).** The Default bullet above now describes this: with no site origin, the window starts as a 1,000 m square centred on the file, not empty, and the import sets the origin. The owner kept it on 2026-10-31. Centre and Corners also take latitude and longitude as input, converted into the window's zone, as the owner approved in 20.8 question 1 (the read-only latitude and longitude above are superseded). "Fit to the file" uses the post-centre extent, inset so that the window stays inside the file in that zone.
 
 ### 20.3 The labels
 
@@ -2546,3 +2561,110 @@ Items 1 to 4 and item 6 are needed before a GeoTIFF can be imported from the dia
 6. **Wording of refusals in the same dialog.** The DXF and point-file banners say "Nothing was changed.", and 20.5 says "Nothing was imported." *Recommended: "Nothing was imported." for every refusal in this dialog, the DXF ones included, in the same change as this section. Reason: one dialog should not describe one outcome in two ways, and sections 16.6 and 18.6 already use this form.*
 
 Build order for the owner's approval: 20.7 items 1 to 4 and 6 first, then the dialog. Items 5 and 7 can ship with them.
+
+## 21. Orthophoto as a georeferenced reference image (desktop)
+
+**Status: Proposed (R107.b2.2), not approved and not built.** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
+
+It extends the reference-images panel. It adds no menu entry, shortcut, rail slot, tool or tray panel. The form follows section 20: the layout, the states, the refusals, the report, and the keyboard.
+
+Parts: 21.1 the entry; 21.2 the layout and its states; 21.3 the refusals; 21.4 the report; 21.5 keyboard, accessibility and text size.
+
+### 21.1 Entry
+
+- **Reference images panel, Import reference image….** The chooser's filter gains `*.tif *.tiff`, and the panel's note gains one sentence: "A file with a world file, or a GeoTIFF, is placed by its map position."
+- **Which dialog opens.** A PNG or JPEG with a world file beside it (`.pgw`, `.pngw`, `.jgw`, `.jpgw` or `.wld`) opens the georeferenced dialog below. A GeoTIFF does too. A PNG or JPEG without a world file opens the existing "Place reference image" dialog, unchanged.
+- **A GeoTIFF with no map position** is refused in the georeferenced dialog ("This GeoTIFF has no map position, so its pixels cannot be placed."). It is not placed as a plain picture.
+- **One image at a time.** Import places one image. Undo removes it.
+
+### 21.2 The layout and its states
+
+```text
+Place georeferenced image
+  Image        orthophoto.png · 4,096 × 3,072 px · 8-bit RGB · 9.8 MiB
+  Position     world file orthophoto.pgw · north up · 0.500 m east × 0.500 m north
+  Zone         [ 11N ▾ ]          from the site's record (read-only)
+  Datum        (●) WGS84   ( ) NAD83, labelled approximation     ⚠ Approximation
+  Corners      NW  E 361,789.4  N 3,819,654.4   35.0000° N, 119.0000° W
+               SE  E 363,325.4  N 3,817,118.4   34.9770° N, 118.9860° W
+  Elevation    [ 0.00 ] m         the site origin's elevation by default
+  Credit       [                                          ]  optional, 256 bytes
+  Name         [ orthophoto                               ]
+  Origin       Site origin E 361,800 N 3,818,100 · the image's centre is 1.1 km away
+               ⓘ This site has no geographic location, so the zone is not checked.
+                 Set one in Site settings.                    (only when that is so)
+
+  [ Show report ]                                       [ Cancel ]  [ Import ]
+```
+
+The figures are an example. The Zone row reads "Choose the zone…" when the site has no record and the file is a world file. A GeoTIFF's zone and datum are read-only, "from the file". The Datum row's NAD83 choice shows §20.3's caption: "NAD83 is taken as WGS84. Sources disagree on the size of the difference, from about a metre upward, so positions are approximate. The image keeps the NAD83 label." The Origin row reads "No site origin yet. The import sets one at the image's centre, rounded to 100 m: E … N …, [Use proposed origin]" when the site has no origin.
+
+The dialog has these states:
+
+- **Reading.** "Reading orthophoto.png… 40 per cent", one determinate bar, the stages of 20.6. The read runs on a worker and can be cancelled. Cancel gives "Cancelled. Nothing was imported."
+- **Ready.** Every field is filled. Import is on, and the status line reads "Ready. Import places the image at the corners above. Undo removes it."
+- **Zone needed.** A world file, no site record, and no zone chosen: Import is off, and its description reads "Choose the zone the image's coordinates are in."
+- **Refused.** The banner of 21.3. Import stays off. For a file-level refusal the settings grey out and focus moves to **Choose another file…**.
+- **Imported.** The dialog closes. The panel's details gain "Georeferenced: zone 11N, north-up, 0.500 m. Origin unchanged." (or "Origin set at …"). The status line reads "Placed orthophoto.png as a georeferenced reference image: 4,096 × 3,072 px, zone 11N. Undo removes it."
+
+### 21.3 The refusals
+
+Every refusal follows 20.5: it says first that nothing was imported and the model is unchanged, then the reason, then numbered next steps.
+
+```text
+✕ Refused. Nothing was imported. Your model is unchanged.
+  The file's coordinate system is geographic (EPSG:4269). Only WGS84 UTM zones are read.
+  1. Export the image in WGS84 UTM from your GIS, or choose a file that is.
+  2. Or import the image as a plain reference image, without its position.
+```
+
+| Where it appears | Refusal (code, ADR 0181) | Sentence | Next step |
+| --- | --- | --- | --- |
+| File | `image-type` | "This is not a PNG, JPEG or GeoTIFF file." | Choose another file |
+| File | `image-size`, `stored-size`, `image-extent` | "The image is 5,000 × 4,000 pixels. The limit is 4096 × 4096." | Crop or reduce it in an image editor |
+| File | `geotiff-compression` | "This GeoTIFF is compressed with JPEG, which this version does not read." | Save it uncompressed, or as LZW or Deflate |
+| File | `geotiff-samples` | "The pixels are 16-bit. Only 8-bit RGB and RGBA are read." | Export 8-bit RGB |
+| File | `geotiff-crs`, `geotiff-units` | "The file's coordinate system is EPSG:4269. Only WGS84 UTM zones are read." | Export in WGS84 UTM |
+| File | `geotiff-untagged`, `geotiff-transform` | "This GeoTIFF has no map position, so its pixels cannot be placed." | Add its georeference in a GIS |
+| World file | `world-file`, `world-rotated`, `world-flipped` | "The world file rotates or shears the image. Only north-up images are read." | Use a north-up world file |
+| Zone | `zone-mismatch` | "The image is in zone 12N, and the site is in zone 11N. An image cannot cross zones." | Choose an image in 11N |
+| Zone | `zone-band`, `zone-exception`, `latitude` | "A corner of the image lies outside zone 11N. Choose the zone the image is in." | Choose the zone the image is in |
+| Elevation | `elevation` | "The elevation must be a number of metres between −1,000,000 and 1,000,000." | Enter a number |
+| Credit | `credit` | "The credit line is longer than 256 bytes. Shorten it." | Shorten it |
+| File | `file-changed` | "The file changed while it was read. Choose it again." | Choose it again |
+| File | `damaged` | "The file is damaged: DETAIL." | Download or copy the file again |
+
+The ADR's table holds each code's full condition. The sentences here are the dialog's own. The reader's texts that cite ADR sections or command-line options are not shown.
+
+### 21.4 The report
+
+**Show report** opens a text report in the dialog, with the same **Copy report** and **Save report…** as 20.4. It holds, in this order: the source (the image's file name, its world file if one was used, and the first 12 characters of its SHA-256, with the full value in Copy and Save); the format and the stored size; the pixel size and the size in metres; the zone and datum; the corners in UTM and in degrees; the elevation; the origin (kept, set, or none); the credit, or "none entered"; and the notices, each once: the datum approximation, the zone not checked, the origin set by this import.
+
+The panel's details keep a short form of the same facts after the import.
+
+### 21.5 Keyboard, accessibility and text size
+
+| Area | Rule |
+| --- | --- |
+| Entry | No new shortcut. The reference-images panel's button, then the chooser, then the dialog. |
+| Tab order | Name; Zone; Datum; Elevation; Credit; Use proposed origin (when shown); Show report; Cancel; Import. |
+| Radio groups | One Tab stop each. Arrow keys move inside, as in 16.9. |
+| Accessible names | "Name of the reference image"; "Zone of the image, 1 to 60 with N or S"; "Datum, WGS84 or NAD83 as a labelled approximation"; "Elevation of the image, metres"; "Credit line, optional, 256 bytes at most"; "Use proposed origin"; "Show report"; "Import georeferenced image"; "Cancel". When Import is off, its description gives the reason. |
+| Enter and Esc | Enter is Import while Import is on, as the default button. Esc cancels a running read, and otherwise closes the dialog. |
+| Refusals | The banner is announced as an alert, and begins "Refused. Nothing was imported." |
+| Colour | States are a glyph and a word: ⚠ Approximation, ✕ Refused, ● Reading. |
+| Text size (200 %) | The settings stack above the corners. The footer stays in view. |
+| Checks | Proposed: `reference_image_input_tests`, and `native_accessibility_audit` with a new case, on X11 and Wayland at 1× and 2×, and at 200% text. |
+
+## 22. User guide viewer
+
+**Status: Proposed (R107.e2), not approved and not built.** The GeoTIFF page's **Open the user guide** button (20.1) opens this window. It replaces the system-browser opener. ADR 0181, R107.b2 section, gives the mechanism.
+
+- **The window.** Title "SketchyUp user guide". It is a separate, non-modal window opened from the import dialog. Closing it returns focus to **Open the user guide**.
+- **Content.** The installed `USER_GUIDE.md`, rendered read-only. It opens scrolled to its section: for the GeoTIFF page, the heading "Terrain from a downloaded elevation file", at the top of the view.
+- **Read-only.** No editing, no find in this version. Links in the guide are shown as text and are not followed. Links to other documents would not resolve in the installed copy.
+- **Keyboard.** Up and Down, Page Up and Page Down, and Home and End scroll. Tab moves from the text to **Close**. Enter on **Close**, or Esc, closes the window.
+- **Accessible names.** Window: "SketchyUp user guide". Text: "User guide, read only". Button: "Close the user guide".
+- **Guide missing or unreadable.** The window shows one message and **Close**: "The user guide could not be shown. Its file, USER_GUIDE.md, should be in SHARE_PATH. Reinstall SketchyUp to restore it." The import dialog's footer reads "The user guide is not installed." No browser opens, and no network request is made.
+- **Section not found.** The window opens at the top, with the line "This section is not in the installed guide. It opens at the top." The app's anchors are tested to resolve, so this should not happen in a release.
+- **Checks.** Proposed: `user_guide_viewer_tests`, and the existing `terrain_import_dialog_tests` (`geotiffUserGuide`), on X11 and Wayland at 1× and 2×.
