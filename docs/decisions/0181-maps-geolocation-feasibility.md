@@ -1271,3 +1271,54 @@ Order: R107.e2's viewer first, because it fixes the shipped link (UX §20.1 cont
 - **Frame credit comment.** See Follow-ups, above.
 - **Roadmap R107 status.** It said R107 is shipped in 1.5.0, and then that R107.c2 "is in review" and that PR #538 is open. This PR corrects it: both are merged and shipped in 1.5.0.
 - **Counsel references (not edited here).** Owner decision 11 was replaced on 2026-10-27 (no counsel), but §10 risk 11 and the R107.e line in §11 still ask for counsel review.
+
+## Implementation notes (R107.c3)
+
+What R107.c3 built: the in-view rule for the frame credit and for perspective sheet views, the `stampCredits` key that the frame worker stamps from, and the batch's frame credit choice (the plan, the `--export-presentation` request key and the batch dialog's checkbox). The design sections above stay as they were. Where the build differs from them, this section says so.
+
+**The rule.** `viewDemCredits` (`src/integrations/render_snapshot.cpp`) lists the DEM notices of each DEM body that has a visible face in the snapshot and whose bounding box, in model coordinates, meets the snapshot's view volume. The volume is the near and far planes plus the four sides of the frustum (a perspective camera, from `verticalFov` and the view's width-to-height ratio) or of the box of half-height `yMag` (an orthographic camera). The box test takes, for each plane, the corner of the box furthest inside it. The test is conservative: a box beside an edge of the volume can pass all six planes and still lie outside it, which errs toward crediting. There is no occlusion test, as the design says.
+
+**Where the rule is used.**
+- **Frames.** `PreparedRender::prepare` takes a `CreditStamp`. A batch frame prepares with `ViewNotices` when the box is on, and `None` when it is off. The manifest records the notices of the view as `viewCredits` (when the view shows DEM terrain), and the notices the worker burns as `stampCredits`. A scene with DEM terrain always states `stampCredits`, empty when nothing is burned. The frame's record `credits` lists `viewCredits`, box on or off.
+- **Perspective sheet views** (`src/io/sheet_export.cpp`). A perspective view's notices are the terrain in its view, at the view frame's width-to-height ratio. To-scale and measured views keep their line rule.
+- **The batch manifest** keeps its top-level `credits`: the notices of the DEM terrain each keyframe scene shows, by the scene's own visibility. The manifest lists the sources the batch uses, so it does not change with the box.
+
+**The worker.** `blender_worker.py` stamps from `stampCredits` (`credit_note`), and the 1-to-8 and 700-byte checks apply to that key. An empty list burns nothing. A manifest with no `stampCredits` key, which a render written before R107.c3 has, falls back to its `credits`, so a retained 1.5.0 render keeps its note when it is rendered again.
+
+**Choices beyond the design.**
+- **Stills and animation frames keep the 1.5.0 stamp.** `prepare` defaults to `CreditStamp::SceneNotices`: the notices of the terrain the scene shows, as 1.5.0 burned them. The render panel's still and the animation export call it that way, so their output is unchanged. The design's in-view rule was for presentation frames and perspective sheet views, and this keeps stills unchanged too. Whether a still should follow the view rule is an owner question, and it is the only frame path that still uses scene visibility.
+- **The sheet view's ratio** is the view frame's width over height. The design did not name one. The render settings' ratio would be wrong for a sheet.
+
+**The box and the request.**
+- `PresentationPlan::burnCredits` (default true) is stored with the batch in the job store, not in the document. A stored job without the field reads on, since 1.5.0 always burned the notice. Resume keeps the stored value.
+- `--export-presentation` takes `burnCredits` (a boolean, default true). A value that is not a boolean is refused, and no folder is made. `--describe-command` lists the key.
+- The batch dialog has **Burn source credits into frames** (object name `batchBurnCredits`), checked each time the dialog opens, with the caption from UX §17.13 as its description. Its accessible name says "checked" or "unchecked" as the state changes. It sits after **Choose parent folder…** and before **Write video**.
+
+**Differences from the design.**
+1. **`viewCredits` is a manifest key.** The design named only `stampCredits`. The frame record needs the view's notices whether or not the box burns them, and the record is built from the prepared manifest. The key carries them there.
+2. **Box off writes an empty `stampCredits`, not no key.** The design said no key. A manifest that has `credits` but no `stampCredits` falls back to `credits` in the worker (for the 1.5.0 renders above), so the box-off frame states an empty list to stop that fallback. The worker then burns nothing, as the design requires.
+3. **Stills and animation frames** keep the scene rule (see above).
+4. **The view test is conservative.** The design says "meets"; the build tests a box against the six planes, so a box beside an edge can be credited.
+5. **The dialog tests** are in `presentation_batch_input_tests`, which drives the batch dialog. The slice row named `presentation_input_tests`, which drives the presentations dialog and has no batch dialog checks.
+6. **The stale comment** above `keyframeCredits` said a frame shows its keyframe's visible geometry. It now says the top-level list is scene visibility, and the frames use their own view.
+7. **The R107.c2 gap is closed for frames.** R107.c2 said the frame credit did not test whether the camera sees the terrain. It does now.
+
+**Measured.** All on the host, Arch Linux, Debug with `-g0`, Qt 6.12.0, Blender 5.2.2 LTS (`/usr/bin/blender`).
+- **Real worker, 512 × 384 DEM frame** (the 3DEP fixture, the fit camera for the view and a camera ten radii away looking further away for the other). Text-bright pixels (lightness above 180) in the top 24 rows: **379** with the note in view and the box on, **0** in view with the box off, and **0** looking away with the box on (the threshold is 50). A frame looking away has the same PNG bytes with the box on and off. The in-view frame's bytes differ from its box-off frame's.
+- **Legacy manifest.** A render written before R107.c3, opened from its files (`PreparedRender::open`), has no `stampCredits`. It burns its notice: 379 text-bright pixels, the same as the in-view frame.
+- **Mutation check.** With the view test forced to credit every terrain, `presentation_export_tests` fails at "A frame looking away from the terrain neither lists nor burns a notice". The rule was restored and the suite passes.
+- **Cost of the rule.** Not measured. A prepared render now walks the vertices of the visible DEM bodies once more. The GLB export already walks them, and the per-frame budget (R099.f) was not re-measured.
+
+**Tests.**
+- `presentation_export_tests` (no Blender needed): the view rule on explicit perspective and orthographic cameras (in view, looking away, and looking past the terrain sideways); the frame prepares (in view with the box on, in view with it off, looking away, and a still's default stamp); and two batches through the stand-in worker, box on and box off, each checking the manifest's `credits` and the records of the facing and away keyframes. Pass.
+- `blender_job_tests --real`: the pixel checks above, and the legacy manifest. Pass.
+- `presentation_store_tests`: the stored choice round-trips, and a job without the field reads on. Pass.
+- `presentation_cli_tests`: a non-boolean `burnCredits` is refused with no folder, and the describe output lists the key. Pass.
+- `presentation_batch_input_tests` (offscreen): the box is checked when the dialog opens, its name and caption, the Tab order, Space clears it and renames it, and a batch started with it cleared stores `burnCredits` false. Pass.
+- `sheet_export_tests`, `presentation_command_tests`, `render_queue_tests`, `animation_export_tests` and `glb_export_tests` pass, unchanged except for the shared code they link.
+
+**Not done.**
+- **The pinned CI image.** The local runs were on the host, which has Qt 6.12.0, not the pinned image's Qt 6.11.2. The native suites were run offscreen, not under Xvfb or Wayland. The X11 and Wayland runs at 1× and 2× are for the full tier.
+- **A sheet test of the perspective wiring.** The rule has its own tests. The sheet export's use of it has none: a perspective view's notice is not checked in `sheet_export_tests`.
+- **The guide.** R107.e2 writes the checkbox into `USER_GUIDE.md`. That is a later slice.
+- **Occlusion.** A terrain behind a building still counts, as the design says.

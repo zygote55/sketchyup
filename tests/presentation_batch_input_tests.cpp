@@ -363,6 +363,31 @@ int main(int argc, char **argv) {
                       "Largest possible; real frames are usually smaller.",
                       "The output is the largest possible");
 
+            // UX_DESIGN 17.13: the frame credit box is checked when the dialog opens, sits in the
+            // Output group between Choose parent folder… and Write video, and its name and caption
+            // say what it does.
+            auto *burn = dialog->findChild<QCheckBox *>("batchBurnCredits");
+            check(burn && burn->isChecked() &&
+                      burn->accessibleName() == "Burn source credits into frames, checked",
+                  "The frame credit box is checked when the dialog opens, and its name says so");
+            checkText(label(*dialog, "batchBurnCreditsNote")->text(),
+                      "Stamps the source notice at the top of each frame whose view shows "
+                      "elevation terrain. "
+                      "The batch manifest lists the notices either way.",
+                      "The caption under the frame credit box");
+            check(burn->accessibleDescription() == label(*dialog, "batchBurnCreditsNote")->text(),
+                  "The caption is the frame credit box's description");
+            focusIn(dialog, dialog->findChild<QPushButton *>("batchChooseFolder"));
+            QTest::keyClick(focused(), Qt::Key_Tab);
+            check(focused() == burn,
+                  "Tab after Choose parent folder… reaches the frame credit box");
+            QTest::keyClick(focused(), Qt::Key_Space);
+            check(!burn->isChecked() &&
+                      burn->accessibleName() == "Burn source credits into frames, unchecked",
+                  "Space clears the box, and its name says so");
+            QTest::keyClick(focused(), Qt::Key_Tab);
+            check(focused() == video, "Tab after the frame credit box reaches Write video");
+
             // Keyboard only (§17.10): Tab reaches Start, and Enter starts the batch.
             focusIn(dialog, dialog->findChild<QComboBox *>("batchPath"));
             check(tabTo(start), "Keyboard reaches Start batch");
@@ -374,6 +399,8 @@ int main(int argc, char **argv) {
             const auto started = onlyJob(window.renderPanel()->batches());
             check(started.plan.presets.size() == 2 && started.plan.keyframes.size() == 3,
                   "The batch has the chosen path and presets");
+            check(!started.plan.burnCredits,
+                  "The batch keeps the box's choice: unchecked, no burn-in");
             waitFor(
                 [&] {
                     return onlyJob(window.renderPanel()->batches()).state ==
@@ -503,7 +530,7 @@ int main(int argc, char **argv) {
                         presetDraft = id;
                 }
                 plan = batches.planFor(path, {presetFinal, presetDraft}, false,
-                                       PresentationVideoCodec::H264);
+                                       PresentationVideoCodec::H264, true);
             }
             const auto output = files.filePath("cancel-resume");
             const auto id = batches.start(plan, output, batchOptions(hanging));
@@ -573,7 +600,8 @@ int main(int argc, char **argv) {
                 for (const auto &[id, record] : document.renderPresets())
                     if (record->name == "Final")
                         presetFinal = id;
-                plan = batches.planFor(path, {presetFinal}, false, PresentationVideoCodec::H264);
+                plan =
+                    batches.planFor(path, {presetFinal}, false, PresentationVideoCodec::H264, true);
             }
             batches.start(plan, files.filePath("quit-keep"), batchOptions(hanging));
             waitFor([&] { return batches.running(); }, 20000, "The batch is running");
@@ -863,7 +891,8 @@ int main(int argc, char **argv) {
                 for (const auto &[id, record] : document.renderPresets())
                     if (record->name == "Final")
                         presetFinal = id;
-                plan = batches.planFor(path, {presetFinal}, true, PresentationVideoCodec::H264);
+                plan =
+                    batches.planFor(path, {presetFinal}, true, PresentationVideoCodec::H264, true);
             }
             const auto output = files.filePath("chip-resume");
             // The fake encoder refuses H.264 at run time, after the frames have rendered.

@@ -28,7 +28,8 @@ PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 # The text chunks Blender writes into a PNG: the date, the times and the Cycles statistics.
 PNG_TEXT_CHUNKS = (b'tEXt', b'zTXt', b'iTXt')
 # Every stamp flag of the render settings is off, so a frame carries no stamped text (ADR 0173 §6),
-# except the credit note of a frame that shows DEM terrain (R107.c2, ADR 0181 §3.3).
+# except the credit note of a frame whose snapshot names one in stampCredits (R107.c2 and R107.c3,
+# ADR 0181 §3.3).
 STAMP_FLAGS = ('use_stamp_camera', 'use_stamp_date', 'use_stamp_filename', 'use_stamp_frame',
                'use_stamp_frame_range', 'use_stamp_hostname', 'use_stamp_labels', 'use_stamp_lens',
                'use_stamp_marker', 'use_stamp_memory', 'use_stamp_note', 'use_stamp_render_time',
@@ -75,16 +76,18 @@ CREDIT_NOTE_BYTE_LIMIT = 700
 
 
 def credit_note(manifest):
-    # The notices of the DEM terrain this frame shows, from the scene manifest (R107.c2). The GLB writer
-    # lists them only when the scene holds DEM geometry, so a frame without it has no note. Joined as
-    # the GLB's asset.copyright joins them. Refused, never cut short: a required credit stays whole.
-    credits = manifest.get('credits')
+    # The notices this frame burns in (R107.c3). The renderer states them in stampCredits, empty when it burns
+    # none. A manifest written before R107.c3 has only the scene's credits, and burns them as 1.5.0 did. Joined
+    # as the GLB's asset.copyright joins them. Refused, never cut short: a required credit stays whole.
+    credits = manifest['stampCredits'] if 'stampCredits' in manifest else manifest.get('credits')
     if credits is None:
         return ''
-    if (not isinstance(credits, list) or not 1 <= len(credits) <= 8 or
+    if (not isinstance(credits, list) or not len(credits) <= 8 or
             any(type(notice) is not str or not notice or
                 any(ord(c) < 0x20 or ord(c) == 0x7f for c in notice) for notice in credits)):
         raise WorkerError('invalid_snapshot', 'Snapshot credits are invalid')
+    if not credits:
+        return ''
     note = '; '.join(credits)
     if len(note.encode('utf-8')) > CREDIT_NOTE_BYTE_LIMIT:
         raise WorkerError('invalid_snapshot', 'Snapshot credits exceed the frame note limit')

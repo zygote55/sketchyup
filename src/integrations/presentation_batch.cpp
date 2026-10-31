@@ -262,9 +262,10 @@ void PresentationVideoChecks::setClock(
     impl_->clock = std::move(clock);
 }
 namespace {
-// R107.c1 (ADR 0181 §3.3): the DEM notices of the terrain each keyframe scene shows. A frame shows its
-// keyframe's visible geometry, so a terrain hidden in every keyframe adds no notice. A document without
-// a GeoTIFF terrain takes no snapshot here.
+// R107.c1 (ADR 0181 §3.3): the DEM notices of the terrain each keyframe scene shows, by the scene's
+// own visibility. The manifest lists the sources the batch uses, so a terrain hidden in every
+// keyframe adds no notice. A frame's own notices are its view's (R107.c3), recorded per frame. A
+// document without a GeoTIFF terrain takes no snapshot here.
 std::vector<std::string> keyframeCredits(const Document &document, const PresentationPlan &plan) {
     bool anyTerrain = false;
     for (const auto &[id, body] : document.bodies())
@@ -586,8 +587,12 @@ struct PresentationExport::Impl {
                       .arg(presetDirectories[p])
                       .arg(i + 1)
                       .arg(capture->frames().size());
-        preparing = std::async(std::launch::async, [this, p, i] {
-            return PreparedRender::prepare(capture->frame(p, i));
+        // R107.c3 (UX_DESIGN 17.13): a frame burns the notices of the terrain in its view, or none
+        // when the batch's box is off. Each frame's record lists its view's notices either way.
+        const auto stamp =
+            capture->plan().burnCredits ? CreditStamp::ViewNotices : CreditStamp::None;
+        preparing = std::async(std::launch::async, [this, p, i, stamp] {
+            return PreparedRender::prepare(capture->frame(p, i), stamp);
         });
         timer.start();
         emit owner.changed();
@@ -765,10 +770,11 @@ struct PresentationExport::Impl {
                 {"result", workerManifest},
                 {"diagnostics", QJsonObject{{"executable", finished->report().value("executable")},
                                             {"attempts", attempts}}}};
-            // R107.c2 (ADR 0181 §3.3): the notice the worker burned into this frame, when the frame
-            // shows DEM terrain. The frame's own scene manifest holds it, so it is this frame's.
-            if (input->manifest().contains("credits"))
-                record["credits"] = input->manifest().value("credits");
+            // R107.c3 (ADR 0181 §3.3): the notices of the DEM terrain in this frame's view, whether
+            // or not the frame burned them in. The frame's own manifest holds them, so they are
+            // this frame's.
+            if (input->manifest().contains("viewCredits"))
+                record["credits"] = input->manifest().value("viewCredits");
             const auto metadata = QJsonDocument(record).toJson();
             const auto cost = qint64(result->png.size()) + metadata.size();
             if (metadata.size() > metadataLimit || cost > limit - bytes)

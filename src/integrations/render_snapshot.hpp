@@ -70,6 +70,13 @@ class RenderSnapshot {
 // none.
 SourceCredits sceneDemCredits(const Document &document, const RenderSnapshot &snapshot);
 
+// R107.c3 (ADR 0181 §3.3, owner decision 5): the DEM notices of the terrain in the snapshot's view:
+// each DEM body with a visible face whose bounding box, in model coordinates, meets the view volume
+// of the snapshot's camera. `aspect` is the view's width over its height. A terrain behind another
+// body still counts (there is no occlusion test), which errs toward crediting.
+SourceCredits viewDemCredits(const Document &document, const RenderSnapshot &snapshot,
+                             double aspect);
+
 struct DrawingViewCapture {
     std::optional<RenderSnapshot> snapshot; // Absent when broken.
     // Stable broken-reason codes, in this order when present: sceneMissing,

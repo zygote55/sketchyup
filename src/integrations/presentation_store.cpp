@@ -75,7 +75,8 @@ QJsonObject encodePlan(const PresentationPlan &plan) {
                                    {"holdSteps", plan.timing.holdSteps}}},
             {"presets", presets},
             {"video", plan.video},
-            {"videoCodec", presentationVideoCodecName(plan.videoCodec)}};
+            {"videoCodec", presentationVideoCodecName(plan.videoCodec)},
+            {"burnCredits", plan.burnCredits}};
 }
 PresentationPlan decodePlan(const QJsonObject &value) {
     PresentationPlan plan;
@@ -110,6 +111,8 @@ PresentationPlan decodePlan(const QJsonObject &value) {
     plan.videoCodec = value.contains("videoCodec")
                           ? presentationVideoCodecFromName(value.value("videoCodec").toString())
                           : PresentationVideoCodec::H264;
+    // A job stored before the frame credit choice existed burns its notices, as 1.5.0 did.
+    plan.burnCredits = value.value("burnCredits").toBool(true);
     validatePresentationPlan(plan);
     return plan;
 }

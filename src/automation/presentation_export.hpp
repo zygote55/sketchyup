@@ -7,7 +7,8 @@
 namespace sketchy {
 // The request file of --export-presentation (ADR 0173 §4, §7): at most 16 KiB of JSON. It names
 // one camera path by name, or an explicit list of saved scenes with timing, then one to four
-// render presets by name, the new output folder and the optional video flag.
+// render presets by name, the new output folder, the optional video flag and the optional frame
+// credit flag.
 inline constexpr int presentationRequestBytes = 16 * 1024;
 struct PresentationRequest {
     QString path;                   // A camera path by name; empty with an explicit list.
@@ -21,6 +22,9 @@ struct PresentationRequest {
     // The video's codec, "h264" (the default) or "mpeg4" (MPEG-4 Part 2, the explicit fallback of
     // UX_DESIGN 17.12). It is named only with video true, and it is never switched for another.
     QString videoCodec{"h264"};
+    // Burn the notices of the DEM terrain in each frame's view into the frame (UX_DESIGN 17.13). On
+    // by default; the manifest lists the notices either way.
+    bool burnCredits{true};
 };
 // Refuses unknown fields, both or neither path forms, a wrong apiVersion, a non-object, a
 // preset list outside one to four, a duplicate preset and a non-boolean video flag. Other limits

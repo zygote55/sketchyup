@@ -3,6 +3,7 @@
 ## Unreleased
 
 - R107.b2.1: the orthophoto engine and `--import-reference-image`. A PNG or JPEG with its world file, or an 8-bit RGB or RGBA GeoTIFF in WGS84 or NAD83 UTM, is placed as a georeferenced reference image, saved at schema 35 (`reference-geo-v1`), which 1.5.0 refuses.
+- Frame credit in the camera view (R107.c3, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §17.13](docs/UX_DESIGN.md#1713-amendment-2026-10-31-the-frame-credit-checkbox)): a presentation frame burns a GeoTIFF terrain's source notice only when the terrain is in that frame's view, a perspective sheet view counts only the terrain in its view, and the batch dialog's **Burn source credits into frames** box (checked by default) turns the burn-in off while the batch manifest still lists every notice.
 - User guide viewer (R107.e2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §22](docs/UX_DESIGN.md#22-user-guide-viewer)): the GeoTIFF page's **Open the user guide** button opens the installed guide in a read-only SketchyUp window at the download section, instead of handing the file to the desktop.
 
 ## 1.5.0 — 2026-10-31

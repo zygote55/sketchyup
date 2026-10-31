@@ -238,6 +238,15 @@ int main(int argc, char **argv) {
         check(!QFileInfo::exists(files.filePath("export/refused-5")) &&
                   !QFileInfo::exists(files.filePath("export/refused-6")),
               "A refused video codec makes no folder");
+        // R107.c3 (UX_DESIGN 17.13): the frame credit flag is true or false, and a request without
+        // it burns.
+        refused(
+            "burn-credits.json",
+            R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"burnCredits":"no","output":")" +
+                files.filePath("export/refused-7").toUtf8() + R"("})",
+            env, "A burn credits flag that is not true or false is refused");
+        check(!QFileInfo::exists(files.filePath("export/refused-7")),
+              "A refused burn credits flag makes no folder");
         refused("extra.json",
                 R"({"apiVersion":1,"path":"Orbit","presets":["Draft"],"preview":true,"output":")" +
                     files.filePath("export/refused-3").toUtf8() + R"("})",
@@ -293,8 +302,10 @@ int main(int argc, char **argv) {
             const auto description = QJsonDocument::fromJson(result.out).object();
             check(result.code == 0 && description.value("name") == "export-presentation" &&
                       description.value("request").toObject().contains("presets") &&
-                      description.value("request").toObject().contains("videoCodec"),
-                  "The request schema, with the codec choice, is printed for --describe-command");
+                      description.value("request").toObject().contains("videoCodec") &&
+                      description.value("request").toObject().contains("burnCredits"),
+                  "The request schema, with the codec and frame credit choices, is printed for "
+                  "--describe-command");
             const auto capabilities = runCli({"--capabilities"}, env, files.path());
             const auto presentation =
                 QJsonDocument::fromJson(capabilities.out).object().value("presentation").toObject();

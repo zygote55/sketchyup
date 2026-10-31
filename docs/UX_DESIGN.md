@@ -1989,7 +1989,7 @@ with a batch running. R099.d builds these.
 
 ### 17.13 Amendment (2026-10-31): the frame credit checkbox
 
-Designed in ADR 0181 (R107.c3) and approved by the owner on 2026-10-31. Its label, default and placement follow the owner's 1.6.0 decisions of that day. Not built yet.
+Designed in ADR 0181 (R107.c3) and approved by the owner on 2026-10-31. Its label, default and placement follow the owner's 1.6.0 decisions of that day. Built in R107.c3 (ADR 0181, Implementation notes (R107.c3)).
 
 - **Label.** "Burn source credits into frames".
 - **Position.** In the Output group, below the folder note and above the Video heading (17.4).

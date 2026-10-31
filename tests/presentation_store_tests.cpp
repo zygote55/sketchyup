@@ -250,6 +250,33 @@ int main(int argc, char **argv) {
                     "An unknown codec name is refused");
         }
         {
+            // R107.c3 (UX_DESIGN 17.13): the frame credit choice is stored with the plan. A job
+            // stored before the choice existed has no field, and reads on: 1.5.0 always burned the
+            // notice.
+            const auto credits = files.filePath("credits");
+            QString id;
+            {
+                PresentationJobStore store(credits, limits);
+                auto unburned = plan("Unburned");
+                unburned.burnCredits = false;
+                id = store.enqueue(capture("credits"), "doc-5", "1", unburned, output + "/credits");
+            }
+            {
+                PresentationJobStore store(credits, limits);
+                check(!store.jobs().at(id).plan.burnCredits,
+                      "The store keeps a batch that does not burn its credits");
+            }
+            const auto record = credits + "/" + id + "/job.json";
+            auto stored = QJsonDocument::fromJson(read(record)).object();
+            auto legacy = stored.value("plan").toObject();
+            legacy.remove("burnCredits");
+            stored["plan"] = legacy;
+            write(record, QJsonDocument(stored).toJson());
+            PresentationJobStore reopened(credits, limits);
+            check(reopened.jobs().at(id).plan.burnCredits,
+                  "A job stored without the credit field burns its credits, as 1.5.0 did");
+        }
+        {
             // A symbolic link in place of the store directory is refused.
             const auto target = files.filePath("target");
             check(QDir().mkpath(target) && QFile::link(target, files.filePath("link")),

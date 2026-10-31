@@ -35,7 +35,7 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
     const auto value = json.object();
     requireFields(value,
                   {"apiVersion", "path", "name", "keyframes", "timing", "presets", "output",
-                   "video", "videoCodec"},
+                   "video", "videoCodec", "burnCredits"},
                   "presentation request");
     if (value.value("apiVersion") != 1)
         throw InspectionError("INVALID_REQUEST", "Presentation requests require apiVersion 1");
@@ -110,6 +110,12 @@ PresentationRequest parsePresentationRequest(const QByteArray &bytes) {
                                   "not used");
         request.videoCodec = codec;
     }
+    if (value.contains("burnCredits")) {
+        if (!value.value("burnCredits").isBool())
+            throw InspectionError("INVALID_REQUEST",
+                                  "Presentation burnCredits must be true or false");
+        request.burnCredits = value.value("burnCredits").toBool();
+    }
     return request;
 }
 QJsonObject presentationExportCapabilities() {
@@ -132,25 +138,29 @@ QJsonObject presentationExportCapabilities() {
             {"videoCodecDefault", "h264"}};
 }
 QJsonObject presentationExportDescription() {
-    return {{"name", "export-presentation"},
-            {"usage", "sketchyup-cli --input MODEL --export-presentation REQUEST.json"},
-            {"summary", "Render a camera path through one or more render presets to a new folder "
-                        "with a batch manifest. Finished frames survive cancellation."},
-            {"request",
-             QJsonObject{
-                 {"apiVersion", 1},
-                 {"path", "camera path name (or use keyframes with timing)"},
-                 {"keyframes", "saved scene names, two to thirty-two, in playback order"},
-                 {"name", "name for an explicit keyframe list, default Keyframes"},
-                 {"timing", timingSchema()},
-                 {"presets", "one to four render preset names"},
-                 {"output", "new folder; its parent must exist"},
-                 {"video", "optional, default false: an MP4 per preset after every frame is "
-                           "verified; a Blender without the chosen encoder refuses the video "
-                           "before any frame renders"},
-                 {"videoCodec", "optional, default h264 (H.264). mpeg4 is MPEG-4 Part 2 in MP4, "
-                                "chosen only by name, for a Blender without H.264. Only with "
-                                "video true. The codec is never switched"}}},
-            {"limits", presentationExportCapabilities()}};
+    return {
+        {"name", "export-presentation"},
+        {"usage", "sketchyup-cli --input MODEL --export-presentation REQUEST.json"},
+        {"summary", "Render a camera path through one or more render presets to a new folder "
+                    "with a batch manifest. Finished frames survive cancellation."},
+        {"request",
+         QJsonObject{
+             {"apiVersion", 1},
+             {"path", "camera path name (or use keyframes with timing)"},
+             {"keyframes", "saved scene names, two to thirty-two, in playback order"},
+             {"name", "name for an explicit keyframe list, default Keyframes"},
+             {"timing", timingSchema()},
+             {"presets", "one to four render preset names"},
+             {"output", "new folder; its parent must exist"},
+             {"video", "optional, default false: an MP4 per preset after every frame is "
+                       "verified; a Blender without the chosen encoder refuses the video "
+                       "before any frame renders"},
+             {"videoCodec", "optional, default h264 (H.264). mpeg4 is MPEG-4 Part 2 in MP4, "
+                            "chosen only by name, for a Blender without H.264. Only with "
+                            "video true. The codec is never switched"},
+             {"burnCredits", "optional, default true: burn the source notice of the DEM terrain "
+                             "in each frame's view into that frame. The manifest lists the "
+                             "notices either way"}}},
+        {"limits", presentationExportCapabilities()}};
 }
 } // namespace sketchy
