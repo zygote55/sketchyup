@@ -442,8 +442,8 @@ int main(int argc, char **argv) {
             version.start(CLI_PATH, {"--version"});
             check(version.waitForFinished(15000) && version.exitStatus() == QProcess::NormalExit &&
                       version.exitCode() == 0 &&
-                      version.readAllStandardOutput().trimmed().endsWith(" " SKETCHYUP_VERSION),
-                  "CLI --version reports the release version");
+                      version.readAllStandardOutput() == "sketchyup-cli " SKETCHYUP_VERSION "\n",
+                  "CLI --version prints exactly \"sketchyup-cli VERSION\" (D-088)");
         }
         check(cli({"--format-capabilities"}) == nativeFormatCapabilities(),
               "CLI describes exact format contract");

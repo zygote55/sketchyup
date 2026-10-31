@@ -102,6 +102,8 @@ From the [open-defect triage](verification/R089a-defect-triage.md). Each row the
   edit refuses a parent that the edit does not show, with a message that names it, and publishes nothing.
 - **D-085** ([PR #554](https://github.com/zygote55/sketchyup/pull/554)): `sketchyup-cli --script` batches read the
   catalog library that `--export-catalog NAME --to-library` writes, so a `catalog.import` by library name finds its catalog.
+- **D-088**: `sketchyup-cli --version` prints "sketchyup-cli 1.6.0" again. A 1.6.0 change had made it print "SketchyUp
+  1.6.0"; the release candidate's package check found it, and no release carried it.
 
 ### Versions
 
