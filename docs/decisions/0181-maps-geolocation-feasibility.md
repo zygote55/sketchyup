@@ -1076,6 +1076,11 @@ What R107.b2.1 built, where it differs from the design, and what it measured. Th
 
 **Derived, not run: what the 1.5.0 reader prints.** The design asks for the refusal text 1.5.0 prints for a newer schema. The `v1.5.0` tag's `src/io/container.cpp` gives two candidates, and the released 1.4.0 CLI is not the same reader. A schema-35 file with `geographic-site-v1` (every file the importer writes into a new site, and the fixture) reaches the check at its line 248 and is refused with `Invalid required features`, the same branch that refused schema 34. A schema-35 file with no site record reaches the topology check at its line 416 and is refused with `Unsupported required document features`. Neither is `Unsupported container field`. The 1.5.0 binary was not built or run here, so the prior-release check in `native_format_tests` (which needs `SKETCHYUP_PRIOR_CLI`) was not exercised.
 
+**Run, 2026-10-31 (1.6.0 preparation).** The published `sketchyup-1.5.0-1` package (SHA-256 `92c36696…`) was unpacked and its `sketchyup-cli` run on copies of two files, without installing it. Neither derived candidate was right for the second case.
+- A schema-35 file with the site's geographic record (`tests/fixtures/reference-geo-v35.sketchyup`, the file the package check uses): `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}`, exit status 1, file unchanged. This is the first candidate.
+- A schema-35 file with a site origin and no geographic record, made by `site.set` (`{"command":"site.set",...}`) and then `--import-reference-image --reference-zone 30N`, so the file names `reference-geo-v1` and no `geographic-site-v1`: `{"code":"INVALID_OPERATION","error":"Unsupported container field","status":"failed"}`, exit status 1, file unchanged. The derived candidate was "Unsupported required document features". That is not the text the 1.5.0 reader prints.
+- Both are refusals, and both leave the file unchanged. `verify-package.sh` checks only that the refusal's `status` is `failed`, so either text passes it.
+
 **Measured** (the pinned image, `sketchyup-cli --import-reference-image`, each run alone with the machine loaded by other workers; process peak is the child's `ru_maxrss` and includes about 44 MiB for the process itself):
 
 | Input | Source size | Time | Process peak | Stored PNG |

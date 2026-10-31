@@ -17,7 +17,9 @@ sandbox, R109 ([ADR 0183](decisions/0183-helper-process-sandbox.md)). It is one 
 with one record, `docs/verification/G-1.4.0.md`, written at its release candidate. It was released as
 SketchyUp 1.4.0 on 2026-10-29. The fifth is SketchyUp 1.5.0, which follows the same gate and is set out in
 [The 1.5.0 release](#the-150-release) below. Its record is `docs/verification/G-1.5.0.md`, written at its
-release candidate. It was released as SketchyUp 1.5.0 on 2026-10-31.
+release candidate. It was released as SketchyUp 1.5.0 on 2026-10-31. The sixth is SketchyUp 1.6.0, which follows
+the same gate and is set out in [The 1.6.0 release](#the-160-release) below. Its record is
+`docs/verification/G-1.6.0.md`, written at its release candidate.
 
 The gate builds on the accepted 1.0 gate ([M9 acceptance](M9_ACCEPTANCE.md),
 [record](verification/M9.md)). It does not re-audit M0–M9. It shows that the
@@ -54,7 +56,7 @@ build image or packaged files invalidates every check that depends on it. Re-run
 those checks, or name a new RC. A provider product or prompt change also requires a
 new corpus version and a complete new evaluation, as R086.a states.
 
-The release tag (`v1.1.0` for F01, `v1.2.0` for F02, `v1.3.0` for F03, `v1.4.0` for the 1.4.0 group, `v1.5.0` for 1.5.0) points at the RC commit itself. Records written
+The release tag (`v1.1.0` for F01, `v1.2.0` for F02, `v1.3.0` for F03, `v1.4.0` for the 1.4.0 group, `v1.5.0` for 1.5.0, `v1.6.0` for 1.6.0) points at the RC commit itself. Records written
 after the RC, such as verification records and the release record, are evidence
 about the RC, not part of its artifacts, so adding them does not invalidate it. The
 installed documentation (user guide, support matrix), the release notes and the
@@ -164,4 +166,43 @@ must have a green CI verdict (the fast tier) before the record is accepted.
 | Clean machines | The RC package installs and opens migrated documents on a clean machine, as for 1.4.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
 | Accepted misses | The STEP speed budgets missed at 1.4.0 (import with a native file 10.17 s against 10 s; export 9.96 s against 5 s, from R098.j) stay accepted limits, and the record says so. The render limits of R099.f stay as measured (a 10,000-placement capture is refused by name; a 19,998-body capture prepares over the 1 s budget) |
 | Triage | Every open defect at the RC is not release-blocking. D-068 to D-075 are fixed (and D-076 to D-081, numbered at the RC1 triage), and the triage count is recorded at the RC |
+| Documentation | The release notes, the support matrix, the user guide, the changelog (its date set at the tag), SCOPE, the roadmap entry and ADR 0162's notes match the record. The changelog's date is set when the tag is made |
+
+## The 1.6.0 release
+
+SketchyUp 1.6.0 is one release with one record, `docs/verification/G-1.6.0.md`, written at its release candidate.
+It follows the gate above, with the differences below. It is not a new Extended row. It carries:
+
+- the georeferenced orthophoto as a reference image, R107.b2 (R107.b2.1 for the engine and CLI, and R107.b2.2 for the
+  desktop dialog), at document schema 35 (`reference-geo-v1`). It is viewport only in 1.6.0;
+- the frame credit in the camera view, R107.c3 and R107.c3.1, with the batch's **Burn source credits into frames** box;
+- the user guide viewer and the guide text of R107.e2;
+- the CI flake work of the 1.6.0 scope (PRs #547 and #548). No flake was fixed by evidence: D-019 became a Limitation,
+  D-007's focus race was removed from ten dialog waits, D-040 is further mitigated, and D-006, D-008, D-031 and D-034 are
+  diagnosable ([open-defect triage](verification/R089a-defect-triage.md)).
+
+SCOPE C06 stays Investigate until R107.d is accepted ([ADR 0181](decisions/0181-maps-geolocation-feasibility.md) §11).
+R107.d (geocoding) is held and is not in 1.6.0. The buildingSMART hosted validation of the IFC export is the owner's own
+task and is not a gate here.
+
+**Roadmap entries and records 1.6.0 rests on.** [R107](PR_ROADMAP.md#r107) (the ADR 0181 implementation notes for
+R107.b2.1, R107.b2.2, R107.c3, R107.c3.1, R107.e2 (viewer) and R107.e2 (guide text), and the 1.6.0 design section), the
+roadmap entry "1.6.0 CI flake fixes" in [PR_ROADMAP.md](PR_ROADMAP.md), and the defect triage
+[R089a](verification/R089a-defect-triage.md). The prior release is the 1.5.0 record, [G-1.5.0](verification/G-1.5.0.md).
+Every merged head of those entries must have a green CI verdict (the fast tier) before the record is accepted.
+
+**What the 1.6.0 release record must show, in addition to the required evidence above:**
+
+| Area | Required for 1.6.0 |
+| --- | --- |
+| RC | Named on `main` after the preparation merges, with `release-version.sh` printing `1.6.0`, `pkgver` 1.6.0 and `pkgrel` 1. The record gives the commit, the source-archive and package SHA-256 values and the image digest |
+| CI | The full tier passes at the RC (`full-ci` label, `gh workflow run native.yml --ref <branch> -f tier=full`, or the `v*` tag). Its Arch package acceptance uses the published 1.5.0-1 as the prior release (`SKETCHYUP_PRIOR_RELEASE_PACKAGE`, SHA-256 `92c36696…`, pinned in `verify-package.sh` and `native.yml`) |
+| Downgrade window | The released 1.5.0 CLI refuses the schema-35 reference image, `tests/fixtures/reference-geo-v35.sketchyup`, with `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}` and exit status 1, and leaves the file unchanged (`native_format`, and `verify-package.sh` for every retained fixture newer than the released reader). It opens the schema-27 to 34 fixtures unchanged. The release notes say that a document with a georeferenced image does not open in 1.5.0 |
+| Split-package rollback | With `sketchyup-ifc` 1.6.0-1 installed, `pacman -U` of the 1.5.0-1 package is refused, so the record shows the documented steps (remove `sketchyup-ifc` first, then install `sketchyup-1.5.0-1`) run on a machine with both packages installed (D-071's lesson). `verify-package.sh` does not install or read the prior `sketchyup-ifc` package, so its SHA-256 is not pinned there |
+| Corpus | The owner approves a fresh live run of the supported provider profile against corpus v6 at the RC. The 1.5.0 approval does not carry over. The offline checks (`provider_release_corpus`, `assistant_tool_surface`) pass in CI at the RC. The corpus `inputSha256` values match the RC's writer, `SketchyUp/1.6.0` |
+| Orthophoto | The desktop import suites pass on X11 and on Wayland at 1× and 2× (`reference_image_input_tests`, and the `reference-georeference` case of `native_accessibility_audit`), and the CLI suites `reference_image_commands`, `reference_image_io`, `geotiff` and `world_file` pass in the pinned image |
+| Frame credit | The in-view suites pass with the real Blender in the CI image (`presentation_export`, `presentation_export_real`, `blender_job --real`, `presentation_batch_input_tests`, `presentation_store` and `presentation_cli`). The record states the cost of the view test against the per-frame budget of R099.f, measured, or says that it was not measured |
+| Clean machines | The RC package installs and opens migrated documents on a clean machine, as for 1.5.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
+| Accepted misses | No new budget miss is recorded for the 1.6.0 items. The STEP speed budgets and the render limits accepted at 1.5.0 carry over as accepted limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
+| Triage | Every open defect at the RC is not release-blocking. The triage holds 22 open defects (0 release-blocking, 0 Major, 7 Minor and 15 Limitation) at the 1.6.0 preparation, and the record gives the count at the RC |
 | Documentation | The release notes, the support matrix, the user guide, the changelog (its date set at the tag), SCOPE, the roadmap entry and ADR 0162's notes match the record. The changelog's date is set when the tag is made |
