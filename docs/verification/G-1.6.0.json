@@ -21,7 +21,7 @@
       "accepting the corpus gate (releaseAccepted stays false in the scorer output by design)",
       "the tag v1.6.0 and the GitHub release, once every check passes"
     ],
-    "parentConfirmation": "pending: the parent confirms that the approval covers RC2 (see contradictions and openForOwner)"
+    "parentConfirmation": "confirmed 2026-10-31: the owner's release permission covers the release candidate the release ships from, RC2; RC1 was replaced only for D-088, and the corpus run at RC1 stands because the RC2 provider_trial is byte-identical"
   },
   "tagCreated": true,
   "releaseCreated": true,
