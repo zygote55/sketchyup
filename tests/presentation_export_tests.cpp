@@ -1669,8 +1669,8 @@ int main(int argc, char **argv) {
             }
 
             // Stamps are chosen per render: a view that shows the terrain stamps it only when
-            // asked, and a view that looks away never stamps it. Scene notices keep the 1.5.0 rule
-            // for stills and animation frames.
+            // asked, and a view that looks away never stamps it. Stills and animation frames take
+            // the default, the same view rule (R107.c3.1).
             const auto inView =
                 PreparedRender::prepare(capture.frame(0, facingFrame), CreditStamp::ViewNotices);
             check(inView->manifest().value("viewCredits") == QJsonArray{notice} &&
@@ -1688,11 +1688,17 @@ int main(int argc, char **argv) {
                   "A frame looking away from the terrain neither lists nor burns a notice");
             check(looking->manifest().value("credits") == QJsonArray{notice},
                   "The scene's own list still names the terrain its scene shows");
-            const auto defaulted = PreparedRender::prepare(capture.frame(0, facingFrame));
-            check(defaulted->manifest().value("stampCredits") ==
-                          defaulted->manifest().value("credits") &&
-                      !defaulted->manifest().value("stampCredits").toArray().isEmpty(),
-                  "A still keeps the 1.5.0 stamp: the notices of the terrain its scene shows");
+            // R107.c3.1 (ADR 0181 §3.3): a still follows the view rule. Its default stamp is the
+            // notice of the terrain in its view, so a still that looks away burns none, though its
+            // list still names the terrain its scene shows.
+            const auto stillFacing = PreparedRender::prepare(capture.frame(0, facingFrame));
+            check(stillFacing->manifest().value("stampCredits") == QJsonArray{notice},
+                  "A still in view burns its notice by default");
+            const auto stillAway = PreparedRender::prepare(capture.frame(0, awayFrame));
+            check(stillAway->manifest().value("credits") == QJsonArray{notice} &&
+                      !stillAway->manifest().contains("viewCredits") &&
+                      stillAway->manifest().value("stampCredits").toArray().isEmpty(),
+                  "A still looking away from the terrain burns no notice by default");
 
             // The view rule itself, on explicit cameras: a perspective and an orthographic camera,
             // each looking at the terrain and each looking away from it.
