@@ -170,7 +170,7 @@ struct Fixture {
             try {
                 check(QTest::qWaitForWindowExposed(dialog), "The dialog is exposed");
                 dialog->activateWindow();
-                check(QTest::qWaitForWindowActive(dialog), "The dialog is active");
+                check(QTest::qWaitForWindowFocused(dialog), "The dialog has keyboard focus");
                 check(QTest::qWaitFor([&] {
                           auto *focused = QApplication::focusWidget();
                           return focused && dialog->isAncestorOf(focused);

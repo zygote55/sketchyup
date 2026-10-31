@@ -47,8 +47,10 @@ weston_status=0
 # D-040: Weston 15's show_input_panel_surface() destroys the input panel's slide animation
 # without cancelling its queued idle destroy, the only double destroy found for the CI crash in
 # weston_view_animation_destroy. An empty input-method path starts no weston-keyboard, so no
-# panel and no slide; no test uses the input method.
-printf '[input-method]\npath=\n' > "$test_runtime/weston.ini"
+# panel and no slide; no test uses the input method. The shell's own startup and close fades
+# are view animations too; the suites pass without them, so every shell animation is off.
+printf '[input-method]\npath=\n[shell]\nstartup-animation=none\nclose-animation=none\nfocus-animation=none\n' \
+  > "$test_runtime/weston.ini"
 # Weston 15 multiplies --width/--height by --scale, so 2x is 3200x2000 logical (6400x4000
 # device). The intended 3200x2000 device size cost +18 % wall time and +36 % CPU on 4 CPUs,
 # because a smaller output throttles frame callbacks less; see D-021 in R089a-defect-triage.md.

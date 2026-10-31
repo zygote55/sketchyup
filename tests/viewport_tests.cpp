@@ -117,6 +117,20 @@ int main(int argc, char **argv) {
         view->standardView(0);
         frame(view);
         auto navigated = view->renderStats();
+        // D-006: the failure has not reproduced, so a failing run keeps the counters that
+        // explain it: whether a frame was drawn at all, and what was uploaded during it.
+        if (navigated.geometryUploads != uploads.geometryUploads ||
+            navigated.transparencyUploads <= uploads.transparencyUploads)
+            std::cerr << "Camera movement counters: frames " << uploads.frames << " -> "
+                      << navigated.frames << ", geometry " << uploads.geometryUploads << " -> "
+                      << navigated.geometryUploads << ", transparency "
+                      << uploads.transparencyUploads << " -> " << navigated.transparencyUploads
+                      << ", bodyUploads " << uploads.bodyUploads << " -> " << navigated.bodyUploads
+                      << ", meshUploads " << uploads.meshUploads << " -> " << navigated.meshUploads
+                      << ", bodyMeshBuilds " << navigated.bodyMeshBuilds << ", rebuildMs "
+                      << navigated.rebuildMs << ", size " << view->width() << "x" << view->height()
+                      << ", visible " << view->isVisible() << ", renderer " << view->rendererReady()
+                      << '\n';
         check(navigated.geometryUploads == uploads.geometryUploads &&
                   navigated.transparencyUploads > uploads.transparencyUploads,
               "Camera movement only reorders transparency");

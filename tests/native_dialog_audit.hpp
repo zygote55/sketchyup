@@ -174,7 +174,7 @@ class Rescue {
 // ----- Keyboard primitives -----------------------------------------------------------
 inline void waitDialogFocus(QWidget &dialog) {
     dialog.activateWindow();
-    require(QTest::qWaitForWindowActive(&dialog), "Dialog receives native keyboard activation");
+    require(QTest::qWaitForWindowFocused(&dialog), "Dialog receives native keyboard focus");
     const bool transferred = QTest::qWaitFor([&] {
         auto *f = focused();
         return f && (f == &dialog || dialog.isAncestorOf(f));
@@ -470,7 +470,7 @@ childOf(Context &context, Match parent, const QString &button,
                 context.afterChildIsOpener = returnFocus(&dialog) == target;
                 if (!dialog.isActiveWindow()) {
                     dialog.activateWindow();
-                    (void)QTest::qWaitForWindowActive(&dialog);
+                    (void)QTest::qWaitForWindowFocused(&dialog);
                 }
                 if (dialog.isVisible()) {
                     // Return to the dialog's first control before Escape (keyboard only).
@@ -751,7 +751,7 @@ inline void runCase(Context &context, const Case &c, Result &result, bool enterP
             QTest::qWait(20);
             if (dialog.isVisible()) {
                 dialog.activateWindow();
-                (void)QTest::qWaitForWindowActive(&dialog);
+                (void)QTest::qWaitForWindowFocused(&dialog);
                 QTest::keyClick(focused(), Qt::Key_Escape);
                 closed = QTest::qWaitFor([&] { return !dialog.isVisible(); }, 3000);
             }
