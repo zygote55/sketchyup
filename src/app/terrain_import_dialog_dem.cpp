@@ -1,12 +1,11 @@
 #include "app/terrain_import_dialog.hpp"
 #include "app/terrain_dem_window.hpp"
 #include "app/terrain_import_dry_run.hpp"
+#include "app/user_guide_viewer.hpp"
 #include "geo/geographic.hpp"
 #include "io/geotiff_terrain.hpp"
 #include <QButtonGroup>
 #include <QComboBox>
-#include <QCoreApplication>
-#include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
 #include <QFrame>
@@ -19,7 +18,6 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QStringList>
-#include <QUrl>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
@@ -97,14 +95,6 @@ std::optional<std::pair<int, bool>> utmOfCrs(const std::string &crs) {
         return std::pair{code - 32700, false};
     return std::nullopt;
 }
-// The installed user guide, at the GeoTIFF page's section (UX §20.1). The package puts it in
-// share/doc/sketchyup beside the application's bin folder, as the assemblies are found.
-QUrl userGuideUrl() {
-    const auto base = QCoreApplication::applicationDirPath();
-    QUrl url = QUrl::fromLocalFile(QDir::cleanPath(base + "/../share/doc/sketchyup/USER_GUIDE.md"));
-    url.setFragment("terrain-from-a-downloaded-elevation-file");
-    return url;
-}
 } // namespace
 
 void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
@@ -181,7 +171,6 @@ void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
     userGuide_->setObjectName("terrainImportUserGuide");
     userGuide_->setAccessibleName("Open the user guide");
     userGuide_->setAutoDefault(false);
-    userGuide_->setEnabled(bool(setup_.openUserGuide));
     getFile->addWidget(getFileText, 1);
     getFile->addWidget(userGuide_, 0, Qt::AlignTop);
     box->addLayout(getFile);
@@ -478,11 +467,7 @@ void TerrainImportDialog::buildGeoTiff(QVBoxLayout *column) {
         schedule(400);
     });
     connect(demFit_, &QPushButton::clicked, this, [this] { fitToFile(); });
-    connect(userGuide_, &QPushButton::clicked, this, [this] {
-        if (setup_.openUserGuide && !setup_.openUserGuide(userGuideUrl()))
-            status_->setText("Could not open the user guide. Its file is USER_GUIDE.md in "
-                             "share/doc/sketchyup.");
-    });
+    connect(userGuide_, &QPushButton::clicked, this, [this] { openUserGuide(); });
     connect(siteSettings_, &QPushButton::clicked, this, [this] {
         if (!setup_.openSiteSettings)
             return;
@@ -654,6 +639,25 @@ void TerrainImportDialog::updateFromLatLon(QDoubleSpinBox *easting, QDoubleSpinB
                                .arg(demZoneLabel(zone, north));
     }
     updating_ = wasUpdating;
+}
+
+// R107.e2 (UX §22): the installed guide opens in its own non-modal window beside this dialog, at
+// the GeoTIFF page's section. One window is open at a time; closing it returns focus to the button.
+// A missing guide is also said in the footer.
+void TerrainImportDialog::openUserGuide() {
+    if (!guide_) {
+        guide_ = new UserGuideViewer(installedUserGuidePath(), kTerrainDownloadSection, this);
+        connect(guide_, &QDialog::finished, this, [this] {
+            guide_ = nullptr;
+            if (userGuide_)
+                userGuide_->setFocus(Qt::OtherFocusReason);
+        });
+        if (!guide_->loaded())
+            status_->setText("The user guide is not installed.");
+    }
+    guide_->show();
+    guide_->raise();
+    guide_->activateWindow();
 }
 
 void TerrainImportDialog::fitToFile() {

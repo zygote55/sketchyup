@@ -2658,7 +2658,7 @@ The panel's details keep a short form of the same facts after the import.
 
 ## 22. User guide viewer
 
-**Status: Approved by the owner on 2026-10-31 (R107.e2); not built yet.** The GeoTIFF page's **Open the user guide** button (20.1) opens this window. It replaces the system-browser opener. ADR 0181, R107.b2 section, gives the mechanism.
+**Status: Approved by the owner on 2026-10-31 (R107.e2); built in [PR #546](https://github.com/zygote55/sketchyup/pull/546) (ADR 0181, Implementation notes R107.e2 (viewer)).** The GeoTIFF page's **Open the user guide** button (20.1) opens this window. It replaces the system-browser opener. ADR 0181, R107.b2 section, gives the mechanism.
 
 - **The window.** Title "SketchyUp user guide". It is a separate, non-modal window opened from the import dialog. Closing it returns focus to **Open the user guide**.
 - **Content.** The installed `USER_GUIDE.md`, rendered read-only. It opens scrolled to its section: for the GeoTIFF page, the heading "Terrain from a downloaded elevation file", at the top of the view.

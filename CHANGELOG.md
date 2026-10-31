@@ -3,6 +3,7 @@
 ## Unreleased
 
 - R107.b2.1: the orthophoto engine and `--import-reference-image`. A PNG or JPEG with its world file, or an 8-bit RGB or RGBA GeoTIFF in WGS84 or NAD83 UTM, is placed as a georeferenced reference image, saved at schema 35 (`reference-geo-v1`), which 1.5.0 refuses.
+- User guide viewer (R107.e2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §22](docs/UX_DESIGN.md#22-user-guide-viewer)): the GeoTIFF page's **Open the user guide** button opens the installed guide in a read-only SketchyUp window at the download section, instead of handing the file to the desktop.
 
 ## 1.5.0 — 2026-10-31
 
