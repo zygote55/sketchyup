@@ -279,3 +279,13 @@ differ, these notes govern.
 - **Contradictions.** None with the counting rule. The bug was that a definition with no
   placement kept counting its members as stored geometry, so the rule's "each definition once"
   counted geometry that no placement uses.
+
+## Implementation notes (D-083)
+
+D-083 changes what erasing a context does to its descendants. Where this section and the rules above differ, these notes govern.
+
+- **Cause.** `Document::erase` removed the one record it was given. A group's children kept naming it as their parent, and the edit's validation, which resolves every body's parent chain, failed with "Missing parent entity". The command failed and published nothing.
+- **Rule.** Erasing a context erases its descendant bodies, and the placements they own, in one undoable edit. That is the set `eraseSelected` removes for a selected context. A nested group deletes only its own subtree; its ancestors and siblings stay. An ID that is not a body is still refused.
+- **Contract.** `geometry.delete` keeps its documented contract, "Delete context". A group is a context, so the command now does what that contract says. The generated tool reference does not change, and `scripts/generate-tool-reference.py --check` passes.
+- **Tests.** `command_tests`, `deleteGroupCommand`: the subtree is removed, a sibling stays, the result equals `geometry.erase_selection` on the same model, one undo restores the subtree and its parent links, and a nested group removes only its own subtree.
+- **Contradictions.** None.

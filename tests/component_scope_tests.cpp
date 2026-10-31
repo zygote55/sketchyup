@@ -19,6 +19,120 @@ template <class F> void rejects(F fn) {
     }
     check(rejected, "Invalid component scope must reject");
 }
+// A host definition with one member to place under, and a second definition to place there.
+struct NestedPlacementSetup {
+    Document doc;
+    Id host{}, hostInstance{}, secondInstance{}, part{}, member{}, hostRoot{}, partBody{};
+};
+
+NestedPlacementSetup nestedPlacementSetup() {
+    NestedPlacementSetup setup;
+    auto &doc = setup.doc;
+    // The host's member to place under is a group, the only kind a placement may name as parent.
+    const auto face = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}});
+    const auto inner = createGroup(doc, {face}, "Inner");
+    const auto outer = createGroup(doc, {inner}, "Outer");
+    const auto host = createComponent(doc, outer);
+    setup.host = host.definition;
+    setup.hostInstance = host.instance;
+    const auto hostDefinition = doc.definitions().at(setup.host);
+    setup.hostRoot = hostDefinition->root;
+    for (const auto &[id, body] : hostDefinition->members)
+        if (id != setup.hostRoot && body->kind == BodyKind::Group)
+            setup.member = id;
+    check(setup.member != 0, "The host definition has a group member to place under");
+    // A body outside the host definition: its ID is no member of the edit.
+    setup.partBody = doc.addFace({{{5, 0, 0}, {6, 0, 0}, {6, 1, 0}, {5, 1, 0}}});
+    setup.part = createComponent(doc, setup.partBody).definition;
+    // A second placement has scene IDs of its own, unlike the canonical member IDs.
+    setup.secondInstance =
+        placeComponent(doc, setup.host, Transform::translation({10, 0, 0})).instance;
+    return setup;
+}
+
+// D-083: a placement made inside a shared definition edit names its parent by the IDs that edit
+// shows: a member of the definition, or "0" for the definition's root. An ID outside the
+// definition is refused by name, and nothing is published.
+void nestedPlacementParents() {
+    const QJsonArray identity{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    // The request that places the part inside the host definition under `parent`.
+    auto request = [&](const NestedPlacementSetup &setup, const QJsonValue &parent) {
+        const QJsonObject place{{"command", "component.instance"},
+                                {"definition", QString::number(setup.part)},
+                                {"matrix", identity},
+                                {"parent", parent}};
+        const QJsonObject edit{{"command", "component.edit"},
+                               {"definition", QString::number(setup.host)},
+                               {"commands", QJsonArray{place}}};
+        return QJsonObject{{"apiVersion", 1},
+                           {"documentId", QString::fromStdString(setup.doc.identity())},
+                           {"expectedRevision", QString::number(setup.doc.revision())},
+                           {"commands", QJsonArray{edit}}};
+    };
+    // The parent of the one placement of the part that the host definition now records.
+    auto placedUnder = [](const NestedPlacementSetup &setup) {
+        const auto definition = setup.doc.definitions().at(setup.host);
+        Id parent = 0;
+        int placements = 0;
+        for (const auto &[root, target] : definition->references)
+            if (target == setup.part) {
+                parent = definition->members.at(root)->parent;
+                ++placements;
+            }
+        check(placements == 1, "The edit records exactly one placement of the part");
+        return parent;
+    };
+
+    {
+        auto setup = nestedPlacementSetup();
+        executeBatch(setup.doc, request(setup, QString::number(setup.member)));
+        check(placedUnder(setup) == setup.member,
+              "A member of the edited definition is accepted as a placement parent");
+    }
+    {
+        auto setup = nestedPlacementSetup();
+        executeBatch(setup.doc, request(setup, "0"));
+        check(placedUnder(setup) == setup.hostRoot,
+              "\"0\" in a definition edit places the component under the definition's root");
+    }
+    {
+        // A body outside the definition, and the scene ID of a placement's member: neither is in
+        // the definition, so each is refused by name and publishes nothing.
+        auto setup = nestedPlacementSetup();
+        const auto sceneMember =
+            setup.doc.instances().at(setup.secondInstance)->members.at(setup.member);
+        const auto stable = encodeDocument(setup.doc);
+        for (const auto outside : {setup.partBody, sceneMember}) {
+            bool refused = false;
+            try {
+                executeBatch(setup.doc, request(setup, QString::number(outside)));
+            } catch (const std::exception &error) {
+                refused = QString::fromStdString(error.what()).contains("is not in this edit");
+            }
+            check(refused, "A parent outside the edited definition is refused by name");
+            check(encodeDocument(setup.doc) == stable,
+                  "A refused placement parent publishes nothing");
+        }
+    }
+    {
+        // The same placement inside an instance's scope names the member by its scene ID.
+        auto setup = nestedPlacementSetup();
+        const auto scene = setup.doc.instances().at(setup.secondInstance)->members.at(setup.member);
+        const QJsonObject place{{"command", "component.instance"},
+                                {"definition", QString::number(setup.part)},
+                                {"matrix", identity},
+                                {"parent", QString::number(scene)}};
+        executeBatch(setup.doc,
+                     QJsonObject{{"apiVersion", 1},
+                                 {"documentId", QString::fromStdString(setup.doc.identity())},
+                                 {"expectedRevision", QString::number(setup.doc.revision())},
+                                 {"commands", QJsonArray{componentScopeCommand(
+                                                  setup.doc, setup.secondInstance, {place})}}});
+        check(placedUnder(setup) == setup.member,
+              "A scene ID inside an instance scope resolves to the definition member it shows");
+    }
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -205,6 +319,7 @@ int main(int argc, char **argv) {
             check(encodeDocument(isolated) == stableBytes,
                   "Invalid scoped commands roll back geometry and unique definitions");
         }
+        nestedPlacementParents();
         std::cout << "Component scene-ID scopes, placement frames, preview, selection, arrays and "
                      "undo passed\n";
     } catch (const std::exception &error) {

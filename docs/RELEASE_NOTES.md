@@ -91,6 +91,17 @@ changelog has no line for it.
 
 The triage holds 22 open defects: none is release-blocking, none is Major, 7 are Minor and 15 are Limitations.
 
+### Defects fixed
+
+From the [open-defect triage](verification/R089a-defect-triage.md). Each row there states its cause and its test.
+
+- **D-083** ([PR #554](https://github.com/zygote55/sketchyup/pull/554)): `geometry.delete` on a group also erases
+  the group's contents, so no child is left naming a parent that no longer exists.
+- **D-084** ([PR #554](https://github.com/zygote55/sketchyup/pull/554)): a placement inside a component definition
+  edit refuses a parent that the edit does not show, with a message that names it, and publishes nothing.
+- **D-085** ([PR #554](https://github.com/zygote55/sketchyup/pull/554)): `sketchyup-cli --script` batches read the
+  catalog library that `--export-catalog NAME --to-library` writes, so a `catalog.import` by library name finds its catalog.
+
 ### Versions
 
 | Item | Version |

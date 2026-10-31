@@ -112,6 +112,52 @@ void orphanedDefinitionCommands() {
     check(doc.definitions().size() == 2 && doc.instances().size() == 2,
           "Undo restores the removed definitions and their placements");
 }
+// D-083: geometry.delete takes a context, and a group's contents go with it, as erasing the group
+// as a selected context does. A child must not outlive its erased parent.
+void deleteGroupCommand() {
+    Document doc;
+    const auto inner = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
+    const auto nestedGroup = createGroup(doc, {inner}, "Nested");
+    const auto outer = createGroup(doc, {nestedGroup}, "Outer");
+    const auto sibling = doc.addFace({{{3, 0, 0}, {4, 0, 0}, {4, 1, 0}, {3, 1, 0}}});
+    Document erased = doc;
+    auto request = [](const Document &target, const QJsonObject &command) {
+        return QJsonObject{{"apiVersion", 1},
+                           {"documentId", QString::fromStdString(target.identity())},
+                           {"expectedRevision", QString::number(target.revision())},
+                           {"commands", QJsonArray{command}}};
+    };
+    const auto snapshot = doc.readSnapshot();
+    executeBatch(doc,
+                 request(doc, {{"command", "geometry.delete"}, {"body", QString::number(outer)}}));
+    check(!doc.bodies().contains(outer) && !doc.bodies().contains(nestedGroup) &&
+              !doc.bodies().contains(inner),
+          "Deleting a group removes its whole subtree");
+    check(doc.bodies().contains(sibling) && doc.bodies().size() == 1,
+          "Deleting a group leaves its siblings in place");
+    executeBatch(erased, request(erased, {{"command", "geometry.erase_selection"},
+                                          {"context", "0"},
+                                          {"entities",
+                                           QJsonArray{QJsonObject{{"body", QString::number(outer)},
+                                                                  {"kind", "context"},
+                                                                  {"entity", "0"}}}}}));
+    check(encodeDocument(doc) == encodeDocument(erased),
+          "geometry.delete on a group leaves the same document as erasing it as a context");
+    doc.undo();
+    check(doc.bodies().size() == snapshot.bodies().size(),
+          "One undo restores the deleted group and its contents");
+    for (const auto &[id, body] : snapshot.bodies())
+        check(*doc.bodies().at(id) == *body, "One undo restores every body record it removed");
+    check(doc.bodies().at(inner)->parent == nestedGroup &&
+              doc.bodies().at(nestedGroup)->parent == outer,
+          "Undo restores the parent links of the restored subtree");
+    executeBatch(doc, request(doc, {{"command", "geometry.delete"},
+                                    {"body", QString::number(nestedGroup)}}));
+    check(doc.bodies().contains(outer) && doc.bodies().at(outer)->parent == 0 &&
+              !doc.bodies().contains(nestedGroup) && !doc.bodies().contains(inner) &&
+              doc.bodies().contains(sibling),
+          "Deleting a nested group keeps its ancestors and removes only its own subtree");
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -1895,6 +1941,7 @@ int main(int argc, char **argv) {
         }
         rejects([] { commandDescription("internal.commit"); });
         orphanedDefinitionCommands();
+        deleteGroupCommand();
         std::cout << "Command catalog, required/unknown fields, handlers, single-step undo and "
                      "color bounds passed\n";
         return 0;

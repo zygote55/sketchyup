@@ -1716,3 +1716,13 @@ Closes the progress and Cancel that the catalog insert lacked (record F-2, owner
 - **Contradictions and gaps.** None with ADR 0174's text. UX_DESIGN 18.5 says nothing about progress or Cancel. The behaviour above is an addition, and it follows 16.4's rule that no sheet follows a cancel. UX 16.4 asks that Cancel return control within 100 ms. That holds on Xvfb and offscreen. The one weston run at 118 ms, and the 263 ms run where Cancel came before the sheet had focus, both wait for the platform's focus under the Settled rule (R091.h), which can add up to 300 ms. This is flagged, not changed.
 - **Row 4 of the §9 table.** R100.g froze its verdicts. This row carries a new measurement, marked (R100.i), as the brief directed.
 - **Not done.** The desktop dry run on each selection still runs on the UI thread (about 0.1 s for the 128 MiB opened catalog). The CLI has no progress, by design. X11 at scale 2, Wayland at scale 1, the sanitizers and the Qt 6.8 build were not run here.
+
+## Implementation notes (D-085)
+
+D-085 makes every `sketchyup-cli` operation read the catalog library, and the other data folders, from the folder the desktop application uses. Where this section and §7 differ, these notes govern.
+
+- **Cause.** The catalog library is `<AppDataLocation>/catalogs`, and `AppDataLocation` depends on the application's organization and name. The desktop sets them to SketchyUp and SketchyUp. The CLI set them only for some operations: the style and catalog operations, report schedules, presentation jobs and the session. A `--script` batch and the `--inspect` catalog-library listing read the folder named after the executable. A `catalog.import` with `library` in a script therefore failed with "No catalog with that name is in the catalog library", though `--export-catalog NAME --to-library` had written it and `--list-catalog NAME` found it.
+- **Rule.** The CLI sets the application names once, at startup, before any operation. Each operation then reads the folders the desktop reads: the catalog library, the style library, report schedules and presentation jobs. The per-operation calls are removed. Recovery takes an explicit directory and is unaffected.
+- **Tests.** `style_catalog_cli_tests`, `scriptLibraryImport`: it exports a catalog to the library with `--to-library`, then runs a `--script` batch whose `catalog.import` names that catalog.
+- **Not tested.** The `--inspect` catalog-library listing takes the same path and now reads the same folder. No test covers it.
+- **Contradictions.** None. The fix does what §7 already states.

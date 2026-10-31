@@ -542,6 +542,10 @@ ComponentResult createComponent(Document &doc, Id root, std::string name) {
 ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id parent,
                                std::string name) {
     local.validate();
+    if (parent && !doc.bodies().contains(parent))
+        throw std::runtime_error("Placement parent " + std::to_string(parent) +
+                                 " is not in this edit: name a group the edit shows, or 0 for "
+                                 "the root");
     if (parent && doc.bodies().at(parent)->kind != BodyKind::Group)
         throw std::runtime_error("Component placement parent must be a group or the model");
     const auto prototype = doc.definitions().at(definition);
