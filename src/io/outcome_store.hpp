@@ -1,5 +1,6 @@
 #pragma once
 #include "io/document_io.hpp"
+#include "io/native_limits.hpp"
 #include <QDateTime>
 #include <functional>
 #include <memory>
@@ -13,6 +14,10 @@ class OutcomeStoreError : public std::runtime_error {
   private:
     std::string code_;
 };
+// D-086: a commit records two containers, the before and the after, and either can be as large as
+// the largest valid saved container. The headroom holds the outcome records and their results.
+inline constexpr size_t outcomeMetadataBytes = 16 * 1024 * 1024;
+inline constexpr size_t outcomeStoreBytes = 2 * NativeLimits::containerBytes + outcomeMetadataBytes;
 // One exclusive writer per document/epoch. Only trusted coordinator code may
 // issue identities or record commits; this is not an externally callable tool.
 class OutcomeStore {
@@ -22,7 +27,7 @@ class OutcomeStore {
     using Now = std::function<QDateTime()>;
     struct Limits {
         size_t outcomes{10000};
-        size_t bytes{64 * 1024 * 1024};
+        size_t bytes{outcomeStoreBytes};
     };
     OutcomeStore(const QString &root, const QString &documentId);
     OutcomeStore(const QString &root, const QString &documentId, Limits limits,

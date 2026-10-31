@@ -2,7 +2,9 @@
 #include "automation/inspection_validation.hpp"
 #include "automation/transactions.hpp"
 #include "core/assets.hpp"
+#include "core/components.hpp"
 #include "io/document_io.hpp"
+#include "io/outcome_store.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonDocument>
@@ -69,6 +71,21 @@ Document largeModel() {
                         std::vector<std::uint8_t>(4 * 1024 * 1024, std::uint8_t(i + 1))));
     return doc;
 }
+// D-089: one 160-sided face placed `placements` times. Each placement materializes its own copy in
+// memory; the container stores the definition once and one small record per placement.
+Document placedModel(int placements, Id &marker) {
+    Document doc;
+    marker = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}}, "Marker");
+    std::vector<Vec3> ring;
+    for (int i = 0; i < 160; ++i) {
+        const double angle = 2 * 3.14159265358979323846 * i / 160;
+        ring.push_back({std::cos(angle), std::sin(angle), 0});
+    }
+    const auto component = createComponent(doc, doc.addFace({ring}, "Ring"), "Ring");
+    for (int i = 1; i < placements; ++i)
+        placeComponent(doc, component.definition, Transform::translation({0, 2.0 * i, 0}));
+    return doc;
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     if (app.arguments().contains("--print-capabilities")) {
@@ -83,6 +100,9 @@ int main(int argc, char **argv) {
         check(capabilities()["transactions"].toObject() == transactionCapabilities() &&
                   transactionCatalog().size() == 11,
               "Global discovery includes the transaction registry");
+        check(transactionCapabilities()["limits"].toObject()["outcomeBytes"] ==
+                  int(OutcomeStore::Limits{}.bytes),
+              "The published outcome budget must be the store's budget");
         QTemporaryDir files;
         check(files.isValid(), "Temporary transaction storage");
         Document empty;
@@ -583,16 +603,42 @@ int main(int argc, char **argv) {
             const auto described = api.execute(draftRequest(doc, "describe", id));
             check(described["stageVersion"] == 1 && described["changeCount"] == 1,
                   "A one-body draft over a large model must stage its exact change");
-            // A durable commit stores before and after containers within the 64 MiB outcome budget,
-            // which a 52 MiB model exceeds. That cap is not part of this fix and stays unchanged,
-            // so the refusal must name it and publish nothing.
+            // D-086: the outcome budget holds a before and an after copy of the largest valid file,
+            // so this 52 MiB model's durable commit publishes exactly one revision.
             const auto sealed =
                 api.execute(draftRequest(doc, "preview", id, {{"expectedVersion", 1}}));
             check(sealed["status"] == "sealed", "Sealing a large-model draft must succeed");
             const auto revision = doc.revision();
-            rejects("OUTCOME_LIMIT", [&] { api.execute(durableRequest(doc, "commit", sealed)); });
-            check(doc.revision() == revision,
-                  "A commit refused by the durable budget must publish nothing");
+            const auto committed = api.execute(durableRequest(doc, "commit", sealed));
+            check(committed["status"] == "committed" && doc.revision() == revision + 1,
+                  "A 52 MiB model must commit one revision within the outcome budget");
+        }
+        {
+            // D-089: a model over 64 MiB in memory whose container is small. The transaction path
+            // begins, applies, previews and commits it, and the committed model saves and reloads.
+            Id marker{};
+            TransactionCoordinator actor(placedModel(3000, marker), files.path() + "/placed");
+            TransactionDispatcher api(actor);
+            const auto &doc = actor.document();
+            check(doc.readSnapshotBytes() > 64 * 1024 * 1024,
+                  "Fixture must be over the old 64 MiB outcome budget in memory");
+            const auto revision = doc.revision();
+            const auto id = begin(api, doc)["transactionId"].toString();
+            api.execute(applyRequest(doc, id, 0, "move",
+                                     {QJsonObject{{"command", "geometry.translate"},
+                                                  {"body", QString::number(marker)},
+                                                  {"delta", QJsonArray{1, 0, 0}}}}));
+            const auto sealed =
+                api.execute(draftRequest(doc, "preview", id, {{"expectedVersion", 1}}));
+            check(sealed["status"] == "sealed", "Sealing a placed-model draft must succeed");
+            const auto committed = api.execute(durableRequest(doc, "commit", sealed));
+            check(committed["status"] == "committed" && doc.revision() == revision + 1,
+                  "A placed model over 64 MiB in memory must commit one revision");
+            const auto path = files.path() + "/placed.sketchyup";
+            auto saved = doc;
+            saveDocument(saved, path);
+            check(encodeContainer(loadDocument(path)) == encodeContainer(doc),
+                  "The committed placed model must save and reload unchanged");
         }
         std::cout << "Incremental transactions, immutable seals, retry receipts, schemas, expiry "
                      "and limits passed\n";

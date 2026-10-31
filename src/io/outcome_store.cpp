@@ -14,8 +14,9 @@
 #include <unistd.h>
 namespace sketchy {
 namespace {
-constexpr size_t hardLimit = 64 * 1024 * 1024;
 constexpr size_t resultLimit = 256 * 1024;
+// The bytes held for one pending request's result, up to the result limit and its metadata.
+constexpr size_t reserveBytes = resultLimit + 4096;
 constexpr qint64 retentionDays = 30;
 const QByteArray magic("SKUPOUT1", 8);
 [[noreturn]] void fail(const char *code, const char *message) {
@@ -235,8 +236,8 @@ struct OutcomeStore::State {
         for (const auto &value : next.records)
             if (value.toObject()["status"] == "pending")
                 ++pending;
-        require(size_t(bytes.size()) + pending * (resultLimit + 4096) <= limits.bytes,
-                "OUTCOME_LIMIT", "No capacity reserved for pending outcomes");
+        require(size_t(bytes.size()) + pending * reserveBytes <= limits.bytes, "OUTCOME_LIMIT",
+                "No capacity reserved for pending outcomes");
     }
     void write(Checkpoint next) {
         ready();
@@ -328,7 +329,7 @@ OutcomeStore::OutcomeStore(const QString &root, const QString &doc, Limits limit
     require(hex(doc, 32) && !root.isEmpty(), "INVALID_REQUEST",
             "Outcome storage requires a document identity and root");
     require(limits.outcomes > 0 && limits.outcomes <= 10000 && limits.bytes >= 1024 &&
-                limits.bytes <= hardLimit && bool(now),
+                limits.bytes <= outcomeStoreBytes && bool(now),
             "INVALID_REQUEST", "Invalid outcome storage limits");
     auto &s = *state_;
     s.doc = doc;
@@ -367,9 +368,11 @@ QJsonObject OutcomeStore::begin(const Document &base, const QString &hash, int t
             "Begin targets a different document");
     require(hex(hash, 64) && ttl >= 1 && ttl <= 300, "INVALID_REQUEST",
             "Invalid payload hash or lifetime");
-    require(base.readSnapshotBytes() <= s.limits.bytes, "OUTCOME_LIMIT",
-            "Base document exceeds durable storage capacity");
+    // D-089: the budget counts stored containers, not the in-memory size. A commit records a before
+    // and an after copy of this container, so both must fit with the request's result reserved.
     const auto baseBytes = encodeContainer(base);
+    require(2 * size_t(baseBytes.size()) + reserveBytes <= s.limits.bytes, "OUTCOME_LIMIT",
+            "Base document exceeds durable storage capacity");
     if (!s.checkpoint.latest.isEmpty()) {
         const auto previous = s.checkpoint.records[s.checkpoint.latest].toObject();
         const auto previousRevision = integer(previous["baseRevision"]) + 1;
@@ -427,9 +430,6 @@ QJsonObject OutcomeStore::commit(const QString &id, const QString &hash, const D
     require(revision < UINT64_MAX && before.revision() == revision &&
                 after.revision() == revision + 1,
             "STALE_REVISION", "Commit does not follow the accepted base revision");
-    require(before.readSnapshotBytes() <= s.limits.bytes &&
-                after.readSnapshotBytes() <= s.limits.bytes,
-            "OUTCOME_LIMIT", "Commit snapshots exceed storage capacity");
     require(size_t(QJsonDocument(result).toJson(QJsonDocument::Compact).size()) <= resultLimit,
             "OUTCOME_LIMIT", "Commit result exceeds its reserved budget");
     auto next = s.checkpoint;

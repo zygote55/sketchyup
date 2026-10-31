@@ -1,12 +1,16 @@
 #include "core/assets.hpp"
+#include "core/components.hpp"
+#include "io/native_limits.hpp"
 #include "io/outcome_store.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <QtEndian>
+#include <cmath>
 #include <csignal>
 #include <iostream>
 #include <sys/wait.h>
@@ -39,9 +43,84 @@ void write(const QString &path, const QByteArray &bytes) {
               file.write(bytes) == bytes.size(),
           "Write fixture");
 }
+template <class F> void refuses(const char *code, const char *message, F operation) {
+    try {
+        operation();
+    } catch (const OutcomeStoreError &error) {
+        check(error.code() == code && std::string(error.what()) == message, error.what());
+        return;
+    }
+    throw std::runtime_error(std::string("Expected ") + code);
+}
+// D-089: one 160-sided face placed `placements` times. Each placement materializes its own copy of
+// the face in memory, so the in-memory size grows with the placements, but the container stores the
+// definition once and one small record per placement. The marker is a loose body to edit.
+Document placedModel(int placements, Id &marker) {
+    Document doc;
+    marker = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}}, "Marker");
+    std::vector<Vec3> ring;
+    for (int i = 0; i < 160; ++i) {
+        const double angle = 2 * 3.14159265358979323846 * i / 160;
+        ring.push_back({std::cos(angle), std::sin(angle), 0});
+    }
+    const auto component = createComponent(doc, doc.addFace({ring}, "Ring"), "Ring");
+    for (int i = 1; i < placements; ++i)
+        placeComponent(doc, component.definition, Transform::translation({0, 2.0 * i, 0}));
+    return doc;
+}
+// `count` payloads of `bytes` each, with a loose body to edit.
+Document payloadModel(int count, size_t bytes, Id &marker) {
+    Document doc;
+    marker = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}}, "Marker");
+    for (int i = 0; i < count; ++i)
+        createAsset(doc, "Payload " + std::to_string(i), "application/octet-stream",
+                    std::make_shared<const AssetPayload>(
+                        std::vector<std::uint8_t>(bytes, std::uint8_t(i + 1))));
+    return doc;
+}
+// The process's peak resident set (VmHWM) in MiB, or -1 where /proc is unavailable.
+double peakMiB() {
+    QFile status("/proc/self/status");
+    if (!status.open(QIODevice::ReadOnly))
+        return -1;
+    for (const auto &line : status.readAll().split('\n'))
+        if (line.startsWith("VmHWM:"))
+            return line.mid(6).trimmed().split(' ').first().toDouble() / 1024;
+    return -1;
+}
+// `--measure-commit assets|placed`: one durable commit of a large synthetic model, timed, with the
+// process's peak resident set before and after it. Run alone so the peak is the commit's own.
+int measureCommit(const QString &model) {
+    QTemporaryDir files;
+    Id marker{};
+    auto before =
+        model == "placed" ? placedModel(3000, marker) : payloadModel(4, 16 * 1024 * 1024, marker);
+    auto after = before;
+    after.move(marker, {1, 0, 0});
+    const auto payload = hash("measure one commit");
+    const QJsonObject result{{"revision", QString::number(after.revision())},
+                             {"created", QJsonArray{}}};
+    OutcomeStore store(files.path() + "/store", QString::fromStdString(before.identity()));
+    const auto peakBefore = peakMiB();
+    QElapsedTimer timer;
+    timer.start();
+    const auto id = store.begin(before, payload)["requestId"].toString();
+    const auto beginMs = timer.restart();
+    check(store.commit(id, payload, before, after, result)["status"] == "committed",
+          "Measured commit must commit");
+    const auto commitMs = timer.elapsed();
+    std::cout << model.toStdString() << ": in-memory " << before.readSnapshotBytes()
+              << " bytes, stored before " << store.latestBefore().size() << " and after "
+              << store.latestAfter().size() << " bytes; begin " << beginMs << " ms, commit "
+              << commitMs << " ms; peak RSS " << peakBefore << " MiB before the commit, "
+              << peakMiB() << " MiB after it\n";
+    return 0;
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
+        if (app.arguments().value(1) == "--measure-commit")
+            return measureCommit(app.arguments().value(2));
         QTemporaryDir files;
         check(files.isValid(), "Temporary ledger directory");
         Document before;
@@ -134,16 +213,18 @@ int main(int argc, char **argv) {
                   "Failed admission cannot persist a pending identity");
         }
         {
+            // Begin admits the base, whose two copies and one result reservation fit the budget.
+            // The after copy is larger than the base, so the commit's own check refuses the pair.
             Document resource;
             auto asset = createAsset(
                 resource, "payload", "application/octet-stream",
-                std::make_shared<const AssetPayload>(std::vector<std::uint8_t>(200 * 1024, 17)));
+                std::make_shared<const AssetPayload>(std::vector<std::uint8_t>(100 * 1024, 17)));
             auto grown = resource;
             replaceAsset(
                 grown, asset,
-                std::make_shared<const AssetPayload>(std::vector<std::uint8_t>(210 * 1024, 18)));
+                std::make_shared<const AssetPayload>(std::vector<std::uint8_t>(450 * 1024, 18)));
             OutcomeStore bounded(files.path() + "/commit-budget",
-                                 QString::fromStdString(resource.identity()), {4, 400 * 1024});
+                                 QString::fromStdString(resource.identity()), {4, 512 * 1024});
             const auto id = bounded.begin(resource, payload)["requestId"].toString();
             const auto original = read(bounded.directory() + "/OUTCOMES");
             rejects("OUTCOME_LIMIT", [&] { bounded.commit(id, payload, resource, grown, {}); });
@@ -151,6 +232,64 @@ int main(int argc, char **argv) {
                   "Over-budget co-recorded snapshots must fail before disk effects");
             check(bounded.abort(id, payload, "commit_exceeded_capacity")["status"] == "aborted",
                   "Rejected commit must retain capacity to record a terminal abort");
+        }
+        {
+            // D-089: the store charges what it writes. The model's in-memory size is over 64 MiB,
+            // because each of 3,000 placements materializes the face, but its container stores the
+            // definition once, so it is well under 32 MiB. Begin and commit must both accept it.
+            Id marker{};
+            auto placed = placedModel(3000, marker);
+            check(placed.readSnapshotBytes() > 64 * 1024 * 1024 &&
+                      encodeContainer(placed).size() < 32 * 1024 * 1024,
+                  "Fixture must be over 64 MiB in memory and under 32 MiB stored");
+            auto movedPlaced = placed;
+            movedPlaced.move(marker, {1, 0, 0});
+            OutcomeStore placedStore(files.path() + "/placed",
+                                     QString::fromStdString(placed.identity()), {},
+                                     [&] { return now; });
+            const auto placedId = placedStore.begin(placed, payload)["requestId"].toString();
+            check(placedStore.commit(placedId, payload, placed, movedPlaced, result)["status"] ==
+                          "committed" &&
+                      placedStore.latestAfter() == encodeContainer(movedPlaced),
+                  "A model over 64 MiB in memory but small on disk must commit");
+        }
+        {
+            // D-086: the budget holds a before and an after container of the largest valid file.
+            // A model with the largest asset set (64 MiB of payloads) commits; on its own, each
+            // container is over the old 64 MiB budget.
+            check(OutcomeStore::Limits{}.bytes >= 2 * NativeLimits::containerBytes,
+                  "The outcome budget must hold two copies of the largest valid container");
+            Id marker{};
+            auto largest = payloadModel(4, 16 * 1024 * 1024, marker);
+            auto grown = largest;
+            grown.move(marker, {1, 0, 0});
+            OutcomeStore store(files.path() + "/largest",
+                               QString::fromStdString(largest.identity()));
+            const auto id = store.begin(largest, payload)["requestId"].toString();
+            check(store.commit(id, payload, largest, grown, result)["status"] == "committed" &&
+                      store.latestBefore().size() > 64 * 1024 * 1024 &&
+                      store.latestAfter() == encodeContainer(grown),
+                  "A model with 64 MiB of payloads must commit its exact before and after");
+        }
+        {
+            // D-086: 42 MiB of payloads is over the old budget once its two copies are counted. It
+            // commits under the new budget. The old budget refuses its begin with the same message
+            // as before, and persists nothing.
+            Id marker{};
+            auto midsize = payloadModel(3, 14 * 1024 * 1024, marker);
+            auto grown = midsize;
+            grown.move(marker, {1, 0, 0});
+            const auto midsizeDocument = QString::fromStdString(midsize.identity());
+            OutcomeStore store(files.path() + "/midsize", midsizeDocument);
+            const auto id = store.begin(midsize, payload)["requestId"].toString();
+            check(store.commit(id, payload, midsize, grown, result)["status"] == "committed",
+                  "A 42 MiB model must commit under the outcome budget");
+            OutcomeStore oldBudget(files.path() + "/midsize-64", midsizeDocument,
+                                   {4, 64 * 1024 * 1024}, [&] { return now; });
+            refuses("OUTCOME_LIMIT", "Base document exceeds durable storage capacity",
+                    [&] { oldBudget.begin(midsize, payload); });
+            check(oldBudget.lookup("1", payload)["status"] == "unknown",
+                  "A refused begin cannot persist a pending identity");
         }
         for (const auto phase :
              {OutcomeStore::Phase::BeforeWrite, OutcomeStore::Phase::AfterWrite,
