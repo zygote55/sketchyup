@@ -27,7 +27,9 @@
 #include "terrain_edit_test_kinds.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
+#include <cmath>
 #include <iostream>
+#include <numbers>
 #include <set>
 using namespace sketchy;
 void check(bool value, const char *message) {
@@ -42,6 +44,73 @@ template <class F> void rejects(F fn) {
         rejected = true;
     }
     check(rejected, "Invalid command must reject");
+}
+// A flat 1,000-vertex face at height `level`: unique-vertex ballast.
+Id ring(Document &doc, int level) {
+    std::vector<Vec3> loop;
+    for (int i = 0; i < 1000; ++i) {
+        const auto angle = 2 * std::numbers::pi * i / 1000;
+        loop.push_back({std::cos(angle), std::sin(angle), 2.0 * level});
+    }
+    return doc.addFace({loop});
+}
+ComponentResult heavyComponent(Document &doc, int rings, const std::string &name, int firstLevel) {
+    std::set<Id> parts;
+    for (int i = 0; i < rings; ++i)
+        parts.insert(ring(doc, firstLevel + i));
+    return createComponent(doc, createGroup(doc, parts, name), name);
+}
+// D-075, the user's scenario at small scale: two single-instance definitions of 50,000
+// unique vertices each. Their sum fits the 100,000 limit; keeping each replaced record
+// counts 150,000. Each command is previewed, as `sketchyup-cli --script --preview` does,
+// then committed.
+void orphanedDefinitionCommands() {
+    Document doc;
+    const auto alpha = heavyComponent(doc, 50, "Alpha", 0);
+    const auto beta = heavyComponent(doc, 50, "Beta", 50);
+    check(doc.materializedTotals().vertices == 100000, "Two single-instance definitions fit");
+    Id alphaMember = 0;
+    for (const auto &[member, body] : doc.definitions().at(alpha.definition)->members)
+        if (member != doc.definitions().at(alpha.definition)->root)
+            alphaMember = member;
+    auto request = [&](const QJsonObject &command) {
+        return QJsonObject{{"apiVersion", 1},
+                           {"documentId", QString::fromStdString(doc.identity())},
+                           {"expectedRevision", QString::number(doc.revision())},
+                           {"commands", QJsonArray{command}}};
+    };
+    const QJsonObject edit{
+        {"command", "component.edit"},
+        {"definition", QString::number(alpha.definition)},
+        {"commands", QJsonArray{QJsonObject{{"command", "geometry.translate"},
+                                            {"body", QString::number(alphaMember)},
+                                            {"delta", QJsonArray{1, 0, 0}}}}}};
+    const QJsonObject unique{{"command", "component.make_unique"},
+                             {"body", QString::number(alpha.instance)}};
+    const QJsonObject explode{{"command", "group.explode"},
+                              {"body", QString::number(beta.instance)},
+                              {"merge", false}};
+    const QJsonObject edited = executeBatch(doc, request(edit));
+    check(edited["removedDefinitions"].toArray().isEmpty(),
+          "A component edit removes no definition");
+    const auto beforePreview = encodeDocument(doc);
+    previewBatch(doc, request(unique));
+    check(encodeDocument(doc) == beforePreview, "Previewing make unique publishes nothing");
+    const auto made = executeBatch(doc, request(unique));
+    check(made["removedDefinitions"].toArray() == QJsonArray{QString::number(alpha.definition)},
+          "Make unique names the replaced definition it removes");
+    previewBatch(doc, request(explode));
+    const auto exploded = executeBatch(doc, request(explode));
+    check(exploded["removedDefinitions"].toArray() == QJsonArray{QString::number(beta.definition)},
+          "Explode names the definition it removes");
+    check(doc.definitions().size() == 1 && doc.instances().size() == 1 &&
+              doc.materializedTotals().vertices == 100000,
+          "The exploded and made-unique document keeps 100,000 unique vertices");
+    doc.undo();
+    doc.undo();
+    doc.undo();
+    check(doc.definitions().size() == 2 && doc.instances().size() == 2,
+          "Undo restores the removed definitions and their placements");
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -1825,6 +1894,7 @@ int main(int argc, char **argv) {
             }
         }
         rejects([] { commandDescription("internal.commit"); });
+        orphanedDefinitionCommands();
         std::cout << "Command catalog, required/unknown fields, handlers, single-step undo and "
                      "color bounds passed\n";
         return 0;

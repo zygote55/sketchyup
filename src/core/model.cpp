@@ -22,6 +22,7 @@
 namespace sketchy {
 Document Document::readSnapshot() const {
     Document result(displayUnits_);
+    result.componentDraft_ = componentDraft_;
     result.displayPrecision_ = displayPrecision_;
     result.style_ = style_;
     result.solar_ = solar_;
@@ -322,10 +323,12 @@ UniqueGeometryObserver &uniqueGeometryObserver() {
     static UniqueGeometryObserver observer;
     return observer;
 }
+// A component draft (D-075) holds the edited definition's members as plain bodies, and its
+// stored records are templates for nested references, so they are not counted again here.
 LimitCounts computeUniqueGeometry(const DocumentTotals &totals,
                                   const std::map<Id, size_t> &placementCounts,
                                   const ComponentDefinitions &definitions,
-                                  const ComponentVariantIndex *variants) {
+                                  const ComponentVariantIndex *variants, bool componentDraft) {
     auto unique = limitCounts(totals);
     if (variants && !variants->placements.empty()) {
         // A placement of a variant owns the variant's records, not the template's, and
@@ -355,7 +358,8 @@ LimitCounts computeUniqueGeometry(const DocumentTotals &totals,
         for (const auto &[definition, count] : placementCounts)
             if (count && geometry.direct.contains(definition))
                 add(limitCounts(geometry.direct.at(definition)), -(long long)count);
-        add(limitCounts(geometry.stored), 1);
+        if (!componentDraft)
+            add(limitCounts(geometry.stored), 1);
         for (const auto &[variant, uses] : variants->placementUses) {
             add(limitCounts(geometry.direct.at(variant->definition)), (long long)uses);
             add(ownedBy(*variant), -(long long)uses);
@@ -386,22 +390,26 @@ LimitCounts computeUniqueGeometry(const DocumentTotals &totals,
             subtract(unique.curves, owned.curves * count);
             subtract(unique.guides, owned.guides * count);
         }
-        const auto stored = limitCounts(geometry.stored);
-        unique.bodies += stored.bodies;
-        unique.vertices += stored.vertices;
-        unique.faces += stored.faces;
-        unique.wires += stored.wires;
-        unique.edges += stored.edges;
-        unique.curves += stored.curves;
-        unique.guides += stored.guides;
+        if (!componentDraft) {
+            const auto stored = limitCounts(geometry.stored);
+            unique.bodies += stored.bodies;
+            unique.vertices += stored.vertices;
+            unique.faces += stored.faces;
+            unique.wires += stored.wires;
+            unique.edges += stored.edges;
+            unique.curves += stored.curves;
+            unique.guides += stored.guides;
+        }
     }
     return unique;
 }
 void checkUniqueGeometry(const DocumentTotals &totals,
                          const std::map<Id, size_t> &placementCounts,
                          const ComponentDefinitions &definitions, const Edit *edit,
-                         const ComponentVariantIndex *variants = nullptr) {
-    const auto unique = computeUniqueGeometry(totals, placementCounts, definitions, variants);
+                         const ComponentVariantIndex *variants = nullptr,
+                         bool componentDraft = false) {
+    const auto unique =
+        computeUniqueGeometry(totals, placementCounts, definitions, variants, componentDraft);
     if (const auto &observer = uniqueGeometryObserver())
         observer(totals, placementCounts, definitions, variants, unique);
     if (const auto exceeded = exceededLimit(unique, LimitClass::UniqueGeometry);
@@ -564,7 +572,7 @@ LimitCounts uniqueGeometryCounts(const DocumentTotals &totals,
                                  const std::map<Id, size_t> &placementCounts,
                                  const ComponentDefinitions &definitions,
                                  const ComponentVariantIndex *variants) {
-    return computeUniqueGeometry(totals, placementCounts, definitions, variants);
+    return computeUniqueGeometry(totals, placementCounts, definitions, variants, false);
 }
 void setUniqueGeometryObserver(UniqueGeometryObserver observer) {
     uniqueGeometryObserver() = std::move(observer);
@@ -1961,7 +1969,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     if (incremental)
         for (const auto &[root, instance] : addedInstances)
             countPlacementChange(placementCounts, nullptr, instance);
-    checkUniqueGeometry(totals, placementCounts, definitions, &edit, variants.get());
+    checkUniqueGeometry(totals, placementCounts, definitions, &edit, variants.get(),
+                        componentDraft_);
     // A lock is authoritative across every command path. Changing only visibility
     // or lock flags is allowed so a locked entity can always be revealed/unlocked.
     auto lockedIn = [](const auto &records, Id id) {
@@ -2651,7 +2660,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        Id nextDrawingItemId, Id nextComponentDriverId,
                        std::optional<SiteOrigin> site, CameraPathRecords cameraPaths,
                        Id nextCameraPathId, RenderPresetRecords renderPresets,
-                       Id nextRenderPresetId) {
+                       Id nextRenderPresetId, bool componentDraft) {
     restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
@@ -2661,7 +2670,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                    std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
                    nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
                    nextComponentDriverId, std::move(site), std::move(cameraPaths),
-                   nextCameraPathId, std::move(renderPresets), nextRenderPresetId);
+                   nextCameraPathId, std::move(renderPresets), nextRenderPresetId, componentDraft);
 }
 void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
                               std::map<Id, BodyPtr> bodies, std::uint64_t revision,
@@ -2678,7 +2687,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
                               DrawingItemRecords drawingItems, Id nextDrawingItemId,
                               Id nextComponentDriverId, std::optional<SiteOrigin> site,
                               CameraPathRecords cameraPaths, Id nextCameraPathId,
-                              RenderPresetRecords renderPresets, Id nextRenderPresetId) {
+                              RenderPresetRecords renderPresets, Id nextRenderPresetId,
+                              bool componentDraft) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
@@ -2768,7 +2778,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         DocumentTotals materialized;
         for (const auto &[id, b] : bodies)
             addTotals(materialized, b);
-        checkUniqueGeometry(materialized, placementCounts, definitions, nullptr, variants.get());
+        checkUniqueGeometry(materialized, placementCounts, definitions, nullptr, variants.get(),
+                            componentDraft);
     }
     hosted = freezeHostedComponents(hosted);
     validateHostedComponents(*hosted, bodies, definitions, instances);
@@ -2804,6 +2815,7 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
     auto fresh = std::make_shared<State>();
     auto session = std::make_shared<State>();
     identity_ = std::move(identity);
+    componentDraft_ = componentDraft;
     displayUnits_ = units;
     displayPrecision_ = displayPrecision;
     style_ = style;

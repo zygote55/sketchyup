@@ -258,6 +258,10 @@ class Document {
     // The variant a placement shows; null when it shows its definition's template.
     std::shared_ptr<const ComponentVariant> componentVariant(Id placement) const;
     std::uint64_t revision() const { return revision_; }
+    // A component edit draft (D-075, editComponentDefinition): its unique-geometry check
+    // counts its plain bodies, not the stored definition records. The real document's check
+    // counts those records when the edit publishes. A draft also removes no definition.
+    bool componentDraft() const { return componentDraft_; }
     // Maintained incrementally by apply, undo/redo, amendment and restore.
     const DocumentTotals &materializedTotals() const { return totals_; }
     // Test/debug switch (default off, or SKETCHYUP_FULL_VALIDATION_ORACLE=1). When on,
@@ -369,7 +373,8 @@ class Document {
                  DrawingItemRecords drawingItems = {}, Id nextDrawingItemId = 1,
                  Id nextComponentDriverId = 1, std::optional<SiteOrigin> site = std::nullopt,
                  CameraPathRecords cameraPaths = {}, Id nextCameraPathId = 1,
-                 RenderPresetRecords renderPresets = {}, Id nextRenderPresetId = 1);
+                 RenderPresetRecords renderPresets = {}, Id nextRenderPresetId = 1,
+                 bool componentDraft = false);
 
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
@@ -389,9 +394,11 @@ class Document {
                         Id nextDrawingItemId = 1, Id nextComponentDriverId = 1,
                         std::optional<SiteOrigin> site = std::nullopt,
                         CameraPathRecords cameraPaths = {}, Id nextCameraPathId = 1,
-                        RenderPresetRecords renderPresets = {}, Id nextRenderPresetId = 1);
+                        RenderPresetRecords renderPresets = {}, Id nextRenderPresetId = 1,
+                        bool componentDraft = false);
 
     std::string identity_;
+    bool componentDraft_{};
     DisplayUnit displayUnits_{DisplayUnit::Meters};
     int displayPrecision_{fullDisplayPrecision};
     ModelStyle style_;

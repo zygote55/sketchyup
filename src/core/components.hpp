@@ -1,5 +1,6 @@
 #pragma once
 #include "core/model.hpp"
+#include <set>
 namespace sketchy {
 struct ComponentRegeneration {
     std::size_t placements{}, variants{};
@@ -25,6 +26,12 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local = {
 ComponentResult replaceComponent(Document &doc, Id instance, Id definition);
 // Copies parameter records with new driver IDs and keeps the placement's overrides.
 ComponentResult makeComponentUnique(Document &doc, Id instance);
+// D-075: the definitions among `candidates` that nothing still refers to. `placed` names the
+// definitions that keep a placement, and a definition that a remaining definition's nested
+// reference names, or that a library assembly identifies, is kept. A dropped definition can
+// release the definitions it references, so the test repeats until no candidate drops.
+std::set<Id> unreferencedDefinitions(const ComponentDefinitions &definitions,
+                                     const std::set<Id> &placed, std::set<Id> candidates);
 // The optional parameter step of a template edit (ADR 0165 §4): given the new
 // template and the current record, return the record to store. It may update or
 // remove parameters and drivers, so a template edit that deletes a driver's target

@@ -241,3 +241,41 @@ allocator floors for every materialized body; the container stays below the
 128 MiB file bound and no schema changes. Capability output keeps `bodies`,
 `vertices` and `guides` as the unique values and adds `placements` and the
 materialized totals. [Evidence](../verification/R082gg-placement-limits.md).
+
+## Implementation notes (D-075)
+
+D-075 refines the counting rule above in two places. Where this section and the rule
+differ, these notes govern.
+
+- **The component edit draft (part 1).** `editComponentDefinition` runs its nested commands on a
+  scratch `Document` whose plain bodies are the edited definition's members. The draft is
+  marked as a component draft (`Document::componentDraft`, set by `restore`, copied by
+  snapshots). Its unique-geometry check counts its plain bodies and the placements it shows,
+  less the records those placements own, and it does not add the stored definition records.
+  The stored record of the edited definition is the copy the edit replaces, so counting both
+  counted the definition twice. The edited definition's own members still must fit the limits
+  alone, so the draft refuses an edit that makes the edited definition exceed the limit by itself.
+- **The real document is authoritative.** When the edit publishes, `apply` checks the real
+  document: stored records with the new record in place of the old one, and placements
+  subtracted. `publish` also sums the stored definitions (`validateComponentDefinitions`) before
+  it applies, so an edit whose stored sum alone exceeds the limit is refused there, and its
+  message names the definition at which the sum crosses the limit. That can be a definition
+  other than the edited one. The check that counts loose geometry is the document-wide one.
+- **Orphaned definitions (part 2).** `group.explode` of a placement, and `component.make_unique`,
+  remove each definition that the edit leaves with no placement, unless something still refers
+  to it: a nested reference in a definition that remains, or a library assembly identity
+  (ADR 0165). Removal is in the same edit, so one undo restores the definition with its
+  placement. The removal repeats while a removed definition releases another. A component draft
+  removes nothing. Definitions left unplaced in any other way are unchanged, and no purge
+  command exists. `component.replace` is unchanged.
+- **Reporting.** A batch response lists the definitions its edit removed in `removedDefinitions`,
+  beside `createdDefinitions`.
+- **Measured.** A 60,000-vertex single-instance definition moves one member: the draft counted
+  120,000 before the fix and 60,000 after. The owner's scenario at small scale (two
+  single-instance definitions of 50,000 vertices each, 100,000 in all) ran `component.edit`,
+  `component.make_unique` and `group.explode` through `sketchyup-cli --script --preview` and then
+  committed each one. Before the fix the first refused at 150,000 vertices. Each command reports
+  its removal (`removedDefinitions`, the replaced or exploded definition).
+- **Contradictions.** None with the counting rule. The bug was that a definition with no
+  placement kept counting its members as stored geometry, so the rule's "each definition once"
+  counted geometry that no placement uses.
