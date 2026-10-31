@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.5.0 — unreleased
+## 1.5.0 — 2026-10-31
+
+Tag `v1.5.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.5.0).
 
 SketchyUp 1.5.0 is a minor release. It carries the 1.5 follow-ups that the 1.4.0 owner decisions
 left for 1.5, the first GeoTIFF elevation import (R107.b, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md))
@@ -18,7 +20,7 @@ writes it, and a GeoTIFF terrain is written at schema 34, which 1.4.0 refuses. T
 - GeoTIFF LZW (R107.b1.1, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): the GeoTIFF reader decodes LZW-compressed rasters, which USGS uses for 3DEP. Overview images are skipped by R107.b1.2.
 - GeoTIFF overviews (R107.b1.2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md)): the GeoTIFF reader skips the reduced-resolution overviews of a 3DEP tile and reads its full-resolution image, so a tile as USGS distributes it imports; a second full-resolution image, a transparency mask, a loop, or more than 16 further images are still refused by name.
 - GeoTIFF import engine for the desktop dialog (R107.b3, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [PR #534](https://github.com/zygote55/sketchyup/pull/534)): a path-based GeoTIFF dry run and import with no 64 MiB limit, the file's facts, spacing that takes the model's room, a zero offset refused, the site's geographic record written when a GeoTIFF establishes the origin, the digest bound to the read, stable refusal codes with plain sentences, and the void posts listed in the refusal.
-- Render limits for terrains (R099.f): a 249,218-triangle terrain and a 20,000-body capture now export and render; a terrain counts against its own 250,000-triangle class, and the manifest bound is 128 MiB. The 20,000-body limit is unchanged: a 20,000-body capture prepares in 1.70 s (p50), over the 1 s per-frame budget, and the 10,000-placement capture (30,257 bodies) is still refused by name ([PR #526](https://github.com/zygote55/sketchyup/pull/526)).
+- Render limits for terrains (R099.f): a 249,218-triangle terrain and a 19,998-body capture now export and render; a terrain counts against its own 250,000-triangle class, and the manifest bound is 128 MiB. The 20,000-body limit is unchanged: a 19,998-body capture prepares in 1.70 s (p50), over the 1 s per-frame budget, and the 10,000-placement capture (30,257 bodies) is still refused by name ([PR #526](https://github.com/zygote55/sketchyup/pull/526)).
 - STEP import entity cap (R098.k): a STEP file whose reader holds more than 2,000,000 entities is refused before any transfer, with the count and the limit named; STEP keeps one tessellation thread, because parallel meshing gave no speed-up on the 100-sphere model ([PR #525](https://github.com/zygote55/sketchyup/pull/525); 1.5 follow-up 7; [ADR 0172](docs/decisions/0172-step-exchange-subset.md)).
 - STEP conversion speed (R098.j): importing the 100-sphere model with a new native file takes 10.17 s (was 14.70 s; still over its 10 s budget, a documented limit), and without a file 6.87 s (met); exporting the 90,954-face model takes 9.96 s (was 16.56 s; budget 5 s, a documented limit) and writes 100.6 MB, not 224 MB, with no parametric curves on the edges ([PR #524](https://github.com/zygote55/sketchyup/pull/524)).
 - STEP import restart-and-exclude (R098.i, [PR #522](https://github.com/zygote55/sketchyup/pull/522)): a STEP file whose tessellation crashes the helper or overruns its limits is restarted without the part it stopped on (at most three times), and the import is partial and names that part; a sandbox kill, or a stop before the tessellation, still refuses the file whole (1.5 follow-up 4; [ADR 0172](docs/decisions/0172-step-exchange-subset.md)).
@@ -32,6 +34,7 @@ writes it, and a GeoTIFF terrain is written at schema 34, which 1.4.0 refuses. T
   - D-072 ([PR #523](https://github.com/zygote55/sketchyup/pull/523)): the sanitized native MCP step no longer leaks a 96-byte Wayland proxy at exit.
   - D-073 ([PR #528](https://github.com/zygote55/sketchyup/pull/528)): a catalog insert that finishes at once can no longer wait forever. It was introduced with R100.i, after 1.4.0.
   - D-074 ([PR #534](https://github.com/zygote55/sketchyup/pull/534)): a GeoTIFF terrain import whose window is narrower than its spacing no longer loops forever. It was introduced with R107.b1 and was never in a release.
+  - D-076 to D-081 (fixed before the release; numbered at the RC1 triage, see the [open-defect triage](docs/verification/R089a-defect-triage.md)): D-076, a 1/3 arc-second GeoTIFF tile refused by a too-tight tolerance; D-077, a GeoTIFF import that ignored the room of other terrains; D-078, a CRS label with no geographic record; D-079, a digest taken after the read; D-080, a test-only keyboard-audit fix; D-081, a STEP export that could not be read back (shipped in 1.4.0). D-076 to D-080 were never in a release.
 
 ## 1.4.0 — 2026-10-29
 

@@ -10,7 +10,7 @@
   ],
   "version": "1.5.0",
   "recordComplete": true,
-  "gateStatus": "RC1 record complete; the full tier passed at the RC; tag and release follow this record's merge under the owner's 2026-10-30 permission",
+  "gateStatus": "published",
   "ownerApproval": {
     "date": "2026-10-30",
     "permission": "I want you to do whatever you need to get this released. You have my permission.",
@@ -20,9 +20,9 @@
       "the tag v1.5.0 and the GitHub release, once every check passes"
     ]
   },
-  "tagCreated": false,
-  "releaseCreated": false,
-  "published": false,
+  "tagCreated": true,
+  "releaseCreated": true,
+  "published": true,
   "rc": {
     "name": "RC1",
     "commit": "1ca204fdea1bd43a7e9936e35b35757bcec10c45",
@@ -486,13 +486,13 @@
     "main push run 41145912353 (PR #539, 0b0c75d5) failed one native job; its Weston line matches D-031, so it is counted under D-031 with no new ID; the RC full tier passed the job"
   ],
   "followUpsOnMain": [
-    "D-076 to D-081 IDs added to RELEASE_NOTES.md (1.5.0) and CHANGELOG.md (1.5.0)",
-    "CHANGELOG 1.5.0 date set at the tag (M10)",
-    "SUPPORT_MATRIX.md F03 terrain row: 'No LandXML, GeoJSON, GeoTIFF/DEM or LAS/LAZ import' conflicts with the 1.5.0 elevation row; correct the GeoTIFF wording",
-    "RELEASE_NOTES.md 1.5.0 Known limitations: 'IFC is unchanged from 1.4.0: it is not yet accepted' conflicts with G-1.4.0, which accepted F04 IFC (decisions 9 and 10)",
-    "'20,000-body capture' in CHANGELOG, SUPPORT_MATRIX.md and R089a is the 19,998-body capture of R099.e (79,992 faces); the release notes say 19,998",
-    "tests/provider_release_corpus_tests.py header still says v5 is authoritative; CURRENT is v6 (carried from 1.4.0)",
-    "PR_ROADMAP 1.5.0 status line says 'not yet released'; update at publication"
+    "D-076 to D-081 IDs added to RELEASE_NOTES.md (1.5.0) and CHANGELOG.md (1.5.0): done in the publication PR",
+    "CHANGELOG 1.5.0 date set at the tag (M10): done, 2026-10-31",
+    "SUPPORT_MATRIX.md F03 terrain row: 'No LandXML, GeoJSON, GeoTIFF/DEM or LAS/LAZ import' conflicts with the 1.5.0 elevation row; correct the GeoTIFF wording: done in the publication PR",
+    "RELEASE_NOTES.md 1.5.0 Known limitations: 'IFC is unchanged from 1.4.0: it is not yet accepted' conflicts with G-1.4.0, which accepted F04 IFC (decisions 9 and 10): done in the publication PR",
+    "'20,000-body capture' in CHANGELOG, SUPPORT_MATRIX.md and R089a is the 19,998-body capture of R099.e (79,992 faces); the release notes say 19,998: done in CHANGELOG, SUPPORT_MATRIX.md and RELEASE_NOTES.md; R089a's 1.5.0 section still uses the old label and the publication PR did not change it",
+    "tests/provider_release_corpus_tests.py header still says v5 is authoritative; CURRENT is v6 (carried from 1.4.0): open; test code, not changed by the publication PR",
+    "PR_ROADMAP 1.5.0 status line says 'not yet released': done in the publication PR"
   ],
   "openForOwner": [
     "The frame credit has no off switch (ADR 0181, R107.c2 notes; a control needs a UX decision)",
@@ -504,9 +504,29 @@
     "buildingSMART hosted validation of the IFC export is the owner's own task, not a gate"
   ],
   "publishedRelease": {
-    "status": "to be filled at publication",
-    "tag": null,
-    "release": null,
-    "assets": []
+    "tag": "v1.5.0",
+    "tagType": "annotated",
+    "tagMessage": "SketchyUp 1.5.0",
+    "tagObject": "537f41195a0695abd46db993a2019f68ebab9808",
+    "taggerDate": "2026-10-31T04:08:16Z",
+    "pointsAt": "1ca204fdea1bd43a7e9936e35b35757bcec10c45",
+    "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.5.0",
+    "title": "SketchyUp 1.5.0",
+    "publishedAt": "2026-10-31T04:08:28Z",
+    "latest": true,
+    "prerelease": false,
+    "draft": false,
+    "assets": {
+      "sketchyup-1.5.0.tar.gz": "8b8814242cea46df1ac31784321d0143ef8b100888d0e52a7bdb33c80877efaa",
+      "sketchyup-1.5.0-1-x86_64.pkg.tar.zst": "92c36696e47eddfc5d3fba2d98f8dc56405f737779bc4fafe78f43b4951dd668",
+      "sketchyup-ifc-1.5.0-1-x86_64.pkg.tar.zst": "5378248f0de6acc989fdc97937113ca7625adcf620f3d4eef90b34ca3e985b82",
+      "PKGBUILD": "9053f2f60b3d3f5ccfcef3c2861ec360dd890a9cd74f8bf6a5704362c1620406",
+      "SHA256SUMS": "d2286dc1993fdf6f9fd0815f9a8bec160d4c94755db56530f4ce36615fd9a954",
+      "MANIFEST.json": "3d61643a55fde95b57991f7e9c43a46c6eea1a2366fd347a46ace7e984a87652",
+      "THIRD_PARTY_NOTICES": "67ad91bda52403f238c0ab65475d3865f276baa7ddad1b92f9dcb54e6da00713"
+    },
+    "assetsVerified": "downloaded from the release by the parent; sha256sum -c SHA256SUMS passes for the archive, both packages and THIRD_PARTY_NOTICES; each downloaded file is byte-identical to the RC artifact; MANIFEST.json matches the files and its gitCommit is the RC commit; GitHub's asset digests equal these values",
+    "recordPr": "PR #542 (15751131) merged before the tag was made",
+    "fullTierRun": {"run": 41167302631, "headBranch": "v1.5.0", "status": "in_progress when written", "conclusion": null}
   }
 }

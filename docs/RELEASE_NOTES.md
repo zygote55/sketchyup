@@ -6,8 +6,8 @@ SketchyUp 1.5.0 is a minor release. It carries the five follow-ups that the 1.4.
 (STEP restart-and-exclude, STEP speed, the STEP entity cap, render limits for terrains and large captures, and the
 Styles and catalog dialogs), the first elevation import from files the user downloads (R107.b, part of offline
 geographic work under C06), the source credits that GeoTIFF terrains add to exports (R107.c), the documentation of
-that import (R107.e) and the defect fixes D-068 to D-075. The release is gated through its
-[M10 acceptance](M10_ACCEPTANCE.md#the-150-release); its record is `verification/G-1.5.0.md`,
+that import (R107.e) and the defect fixes D-068 to D-081. The release is gated through its
+[M10 acceptance](M10_ACCEPTANCE.md#the-150-release); its record is [verification/G-1.5.0.md](verification/G-1.5.0.md),
 written at the release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
 [user guide](USER_GUIDE.md) describes each workflow. C06 stays in the Investigate class until its R107.d
 geocoding is accepted, so this release does not claim C06 as delivered.
@@ -108,7 +108,7 @@ Existing commands, queries and schemas keep their shapes; everything new is addi
   produce.
 - **Still refused.** A 10,000-placement capture (30,257 bodies, 119.16 MB) is refused by name. The GLB modelling
   limit of 100,000 faces and the render snapshot's limit of 20,000 bodies are unchanged.
-- **Budget.** The per-frame budget is 1 s at the 95th percentile. The terrain and the 20,000-body capture are over it;
+- **Budget.** The per-frame budget is 1 s at the 95th percentile. The terrain and the 19,998-body capture are over it;
   the record gives only their medians. The 3,700-body model prepares in 303 ms (95th percentile 304 ms)
   ([R099.f](verification/R099e-presentation.md#12-r099f-render-limits-for-terrains-and-large-captures),
   [PR #526](https://github.com/zygote55/sketchyup/pull/526)).
@@ -130,7 +130,7 @@ Existing commands, queries and schemas keep their shapes; everything new is addi
 
 ### Defects fixed since 1.4.0
 
-From the [open-defect triage](verification/R089a-defect-triage.md). Each row there states its cause and its test.
+From the [open-defect triage](verification/R089a-defect-triage.md). Each row there states its cause and its test. D-076 to D-080 were fixed before this release and were never in a release; D-081 shipped in 1.4.0.
 
 - **D-068 and D-069** ([PR #527](https://github.com/zygote55/sketchyup/pull/527)): the Quantities Tags popover no
   longer prints a Qt Wayland popup warning, and the desktop build's compiler warnings are fixed.
@@ -149,6 +149,12 @@ From the [open-defect triage](verification/R089a-defect-triage.md). Each row the
   make-unique that left a definition with no placement also kept counting it. The edit now counts the definition once,
   and an explode or make-unique removes a definition that nothing uses any more, in the same edit, so one undo brings
   it back. A batch response lists such definitions in `removedDefinitions`.
+- **D-076** ([PR #530](https://github.com/zygote55/sketchyup/pull/530)): a real USGS 1/3 arc-second GeoTIFF tile was refused by a too-tight post-step tolerance.
+- **D-077** ([PR #534](https://github.com/zygote55/sketchyup/pull/534)): a GeoTIFF import into a model with other terrains chose its spacing without their room, so a window could be refused.
+- **D-078** ([PR #534](https://github.com/zygote55/sketchyup/pull/534)): a GeoTIFF import set a coordinate-system label with no geographic record, so the zone and vertical checks did not run.
+- **D-079** ([PR #534](https://github.com/zygote55/sketchyup/pull/534)): the file's SHA-256 was taken after the read, so a file changed during the read could be recorded with the wrong digest.
+- **D-080** ([PR #536](https://github.com/zygote55/sketchyup/pull/536)): a test-only fix to the keyboard audit's handling of radio groups.
+- **D-081** ([PR #524](https://github.com/zygote55/sketchyup/pull/524)): a STEP export of a 90,954-face model could not be read back, because its 224 MB file exceeded the 128 MiB input limit. Shipped in 1.4.0.
 
 ### Versions
 
@@ -201,14 +207,13 @@ copy such a document before you open it in 1.5.0 if you may need 1.4.0.
 
 The 1.4.0 limitations still apply where a row above does not lift them. In particular:
 
-- **IFC** is unchanged from 1.4.0: it is not yet accepted, its buildingSMART hosted validation has not been run, and a
-  10,000-body import takes about 12 s against a 10 s budget. The owner accepted that as a limit on 2026-10-28.
+- **IFC** is unchanged from 1.4.0 and accepted with two documented limits, as [G-1.4.0](verification/G-1.4.0.md) records: a 10,000-body import takes about 12 s against 10 s (the owner accepted that as a limit on 2026-10-28, decision 9), and the export passes the buildingSMART rules run locally and `ifcopenshell.validate` but was not checked by buildingSMART's hosted service (decision 10).
 - **STEP** is partly met. Its speed budgets are missed, as above, and they are accepted limits. A 1,000,000-triangle
   export has not been measured since R098.j. The 1.4.0 record shows a crash at 21.6 s under the 4 GiB cap, and says
   the model cannot be built in one document. The other STEP limits of 1.4.0 hold: 128 MiB input, 1,000,000 triangles
   and 100,000 per element, a document of 100,000 faces of unique geometry, and an export refused above 256 MiB.
   Cancel latency on the real helper was not measured.
-- **Render limits:** the 10,000-placement capture is refused, and the terrain and the 20,000-body capture are over the
+- **Render limits:** the 10,000-placement capture is refused, and the terrain and the 19,998-body capture are over the
   1 s per-frame budget at their medians. The batch projection (960 frames, about 3.4 hours) is from a 48-frame run,
   and the full run was not made. An EEVEE preset with no finished frame cannot resume.
 - **Styles and catalogs:** the IFC and STEP report bars are colour-only, and the IFC import report has no
