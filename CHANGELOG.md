@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.6.0 — unreleased
+## 1.6.0 — 2026-10-31
+
+Tag `v1.6.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.6.0).
 
 - Georeferenced orthophoto import (R107.b2.2, [ADR 0181](docs/decisions/0181-maps-geolocation-feasibility.md), [UX §21](docs/UX_DESIGN.md#21-orthophoto-as-a-georeferenced-reference-image-desktop)): a GeoTIFF, or a PNG or JPEG with a world file, opens **Place georeferenced image** from the reference-images panel, which reads the file on a worker, shows its zone, datum, corners, elevation, credit and name, and places it in one undoable edit.
 - R107.b2.1: the orthophoto engine and `--import-reference-image`. A PNG or JPEG with its world file, or an 8-bit RGB or RGBA GeoTIFF in WGS84 or NAD83 UTM, is placed as a georeferenced reference image, saved at schema 35 (`reference-geo-v1`), which 1.5.0 refuses.

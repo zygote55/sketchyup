@@ -7,8 +7,8 @@ offline geographic work under C06), credits a DEM terrain in a frame or a view o
 camera's view (R107.c3 and R107.c3.1), and adds an in-app viewer for the user guide, with the guide text for these
 features (R107.e2). It also fixes D-082 to D-085, reported against 1.5.0: on a large model, MCP and assistant transactions and read snapshots no longer fail on their memory budgets (D-082), and three command fixes (D-083 to D-085). It carries the CI flake work of the 1.6.0 scope. That work fixed no defect by evidence, and
 its triage is in the [open-defect triage](verification/R089a-defect-triage.md). The release is gated through its
-[M10 acceptance](M10_ACCEPTANCE.md#the-160-release); its record, `docs/verification/G-1.6.0.md`, is written at the
-release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
+[M10 acceptance](M10_ACCEPTANCE.md#the-160-release); its record is [verification/G-1.6.0.md](verification/G-1.6.0.md),
+written at the release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
 [user guide](USER_GUIDE.md) describes each workflow. C06 stays in the Investigate class until its R107.d geocoding
 is accepted. R107.d is held and is not in this release, so this release does not claim C06 as delivered.
 
@@ -89,7 +89,7 @@ changelog has no line for it.
   test runs. **D-031** has its cause placed, not reproduced, and **D-034** is diagnosable: a recurrence would now name the
   frame that timed out.
 
-The triage holds 22 open defects: none is release-blocking, none is Major, 7 are Minor and 15 are Limitations.
+The triage holds 24 open defects: none is release-blocking, none is Major, 8 are Minor and 16 are Limitations. Two were added at the release candidate: D-086 (a Limitation: a model whose saved file is over about 32 MiB can stage and preview an edit but cannot commit it, because the 64 MiB outcome store holds the before and the after copy) and D-087 (Minor: re-rendering a render saved before 1.6.0 can still burn a terrain credit outside its view).
 
 ### Defects fixed
 
@@ -180,7 +180,7 @@ The 1.5.0 limitations still apply where a row above does not lift them. In parti
   its files, keeps its 1.5.0 stamp, and its manifest has no view test, so a terrain outside the camera's view may still
   carry the note. The cost of the view test is not measured.
 - **Guide:** links are not followed, and the viewer was not run on Qt 6.8.
-- **Defects:** the triage lists 22 open defects, none release-blocking and none Major (7 Minor, 15 Limitations). The
+- **Defects:** the triage lists 24 open defects, none release-blocking and none Major (8 Minor, 16 Limitations), D-086 and D-087 among them. The
   record gives the count at the release candidate.
 - **Everything in the 1.5.0 list** that no row above changes, including the IFC and STEP limits, the GeoTIFF elevation
   limits, the source-credit limits and the geographic coordinate limits.
