@@ -28,6 +28,16 @@ QJsonObject request(const Document &doc, QString query, QJsonObject args = {}) {
     args["query"] = query;
     return args;
 }
+// The room study plus thirteen 4 MiB payloads: about 52 MiB of records, within the 64 MiB asset
+// budget, shared (not copied) by every snapshot taken from it.
+Document largeModel() {
+    auto doc = loadDocument(QString(SOURCE_DIR) + "/examples/m4-room-study.sketchyup");
+    for (int i = 0; i < 13; ++i)
+        createAsset(doc, "Bulk " + std::to_string(i), "application/octet-stream",
+                    std::make_shared<const AssetPayload>(
+                        std::vector<std::uint8_t>(4 * 1024 * 1024, std::uint8_t(i + 1))));
+    return doc;
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -61,8 +71,9 @@ int main(int argc, char **argv) {
         const auto captured =
             session.execute(doc, request(doc, "snapshot.begin", {{"ttlSeconds", 10}}), &editor);
         const auto id = captured["snapshotId"];
-        check(session.retainedCount() == 1 && session.retainedBytes() >= doc.readSnapshotBytes(),
-              "Snapshot retention accounting omitted current model records");
+        check(session.retainedCount() == 1 && session.retainedBytes(doc) > 0 &&
+                  session.retainedBytes(doc) < doc.readSnapshotBytes(),
+              "A fresh snapshot shares the live model and is charged only its own bookkeeping");
         const auto ref = inspectionReference(doc, window);
         auto measurement = request(doc, "measure.entity", {{"target", ref}, {"space", "world"}});
         const QJsonValue baseline = session.execute(doc, measurement, &editor)["data"];
@@ -136,10 +147,10 @@ int main(int argc, char **argv) {
         const auto third = session.execute(doc, request(doc, "snapshot.begin"));
         session.execute(doc, request(doc, "snapshot.begin"));
         rejects("SNAPSHOT_LIMIT", [&] { session.execute(doc, request(doc, "snapshot.begin")); });
-        const auto bytes = session.retainedBytes();
+        const auto bytes = session.retainedBytes(doc);
         session.execute(doc,
                         request(doc, "snapshot.release", {{"snapshotId", third["snapshotId"]}}));
-        check(session.retainedCount() == 3 && session.retainedBytes() < bytes,
+        check(session.retainedCount() == 3 && session.retainedBytes(doc) < bytes,
               "Release must retire storage");
         rejects("SNAPSHOT_UNAVAILABLE", [&] {
             session.execute(
@@ -150,7 +161,7 @@ int main(int argc, char **argv) {
         check(session.retainedCount() == 2, "Only expired snapshots should retire");
         now += std::chrono::seconds(60);
         session.execute(doc, request(doc, "document.describe"));
-        check(session.retainedCount() == 0 && session.retainedBytes() == 0,
+        check(session.retainedCount() == 0 && session.retainedBytes(doc) == 0,
               "Expired snapshot bytes must be reclaimed on dispatch");
         const auto shortLived =
             session.execute(doc, request(doc, "snapshot.begin", {{"ttlSeconds", 1}}));
@@ -164,19 +175,55 @@ int main(int argc, char **argv) {
               "Expiry during inspection must reject and reclaim the result");
         expireDuringQuery = false;
 
+        {
+            // D-082: a 52 MiB model shares every record with its new snapshot, so the capture is
+            // admitted. Once live edits drop 36 MiB that only the snapshot holds, the next capture
+            // is refused while the held snapshot keeps answering.
+            auto large = largeModel();
+            InspectionSession bulk({4, 32 * 1024 * 1024});
+            const auto first = bulk.execute(large, request(large, "snapshot.begin"));
+            check(bulk.retainedCount() == 1 && large.readSnapshotBytes() > 48 * 1024 * 1024,
+                  "A snapshot of a large shared model must be admitted");
+            std::vector<Id> payloads;
+            for (const auto &[id, asset] : large.assets())
+                if (asset->payload && asset->payload->bytes().size() == 4 * 1024 * 1024 &&
+                    payloads.size() < 9)
+                    payloads.push_back(id);
+            check(payloads.size() == 9, "Fixture must include bulk payloads");
+            for (const auto id : payloads)
+                eraseAsset(large, id);
+            rejects("SNAPSHOT_LIMIT", [&] { bulk.execute(large, request(large, "snapshot.begin")); });
+            auto view = request(large, "document.describe", {{"snapshotId", first["snapshotId"]}});
+            view["expectedRevision"] = first["revision"];
+            check(bulk.execute(large, view)["data"].toObject()["counts"].toObject()["assets"] == 15,
+                  "A held snapshot must keep answering after live edits");
+            auto release = request(large, "snapshot.release", {{"snapshotId", first["snapshotId"]}});
+            release["expectedRevision"] = first["revision"];
+            bulk.execute(large, release);
+            bulk.execute(large, request(large, "snapshot.begin"));
+            check(bulk.retainedCount() == 1,
+                  "Releasing the held snapshot must free its budget for another capture");
+        }
         Document resource;
         const auto payload =
             std::make_shared<const AssetPayload>(std::vector<std::uint8_t>(2 * 1024 * 1024, 17));
-        createAsset(resource, "Owned resource", "application/octet-stream", payload);
+        const auto asset =
+            createAsset(resource, "Owned resource", "application/octet-stream", payload);
         InspectionSession resourceBound({4, 1024 * 1024});
+        resourceBound.execute(resource, request(resource, "snapshot.begin"));
+        check(resourceBound.retainedCount() == 1 &&
+                  resourceBound.retainedBytes(resource) < payload->bytes().size(),
+              "A snapshot shares owned payloads with the live model and is not charged for them");
+        eraseAsset(resource, asset);
+        check(resourceBound.retainedBytes(resource) > payload->bytes().size(),
+              "A held snapshot is charged for payloads the live model no longer holds");
         rejects("SNAPSHOT_LIMIT",
                 [&] { resourceBound.execute(resource, request(resource, "snapshot.begin")); });
-        check(resourceBound.retainedCount() == 0 &&
-                  resource.readSnapshotBytes() > payload->bytes().size(),
-              "Owned payloads must be charged before snapshot allocation");
+        check(resourceBound.retainedCount() == 1,
+              "A refused capture must not retain partial storage");
         InspectionSession tiny({4, 1024});
         rejects("SNAPSHOT_LIMIT", [&] { tiny.execute(doc, request(doc, "snapshot.begin")); });
-        check(tiny.retainedBytes() == 0 && tiny.retainedCount() == 0,
+        check(tiny.retainedBytes(doc) == 0 && tiny.retainedCount() == 0,
               "Failed capture must not retain partial storage");
         rejects("INVALID_REQUEST", [&] { InspectionSession invalid({5, 1024}); });
         const auto beforeReplace = session.execute(doc, request(doc, "snapshot.begin"));
@@ -193,7 +240,7 @@ int main(int argc, char **argv) {
                 [&] { session.execute(reopened, request(reopened, "snapshot.begin"), &editor); });
         session.execute(doc, request(doc, "snapshot.begin"));
         session.clear();
-        check(session.retainedCount() == 0 && session.retainedBytes() == 0,
+        check(session.retainedCount() == 0 && session.retainedBytes(doc) == 0,
               "Closing the client session must release all captures");
         QFile schemas(QString(SOURCE_DIR) + "/docs/api/inspection-session-v1.json");
         check(schemas.open(QIODevice::ReadOnly) &&

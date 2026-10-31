@@ -73,3 +73,16 @@ The caller serializes dispatch with document/editor operations. This class does
 not run workers, mutate selection, alter files, open sockets or provide view
 capture. R040.c connects desktop feedback; R041 adds private mutation staging and
 durable commit outcomes. A read snapshot is not an editing transaction.
+
+## Implementation notes (D-082)
+
+A capture is charged the records it does not share with the live model, as measured at each
+admission. At capture every record is shared, so the new capture costs its bookkeeping and its
+editor state. A held capture's charge grows as live edits replace records it still holds, and
+the next `snapshot.begin` is refused with `SNAPSHOT_LIMIT` while the held captures exceed the
+32 MiB budget. The reply's `retainedBytes` is the charge at capture. The four-capture limit,
+expiry and release rules are unchanged. The lifetime paragraph above that says shared data is
+charged "at full size separately for each capture" is superseded for admission. Capture now
+copies the record maps before the admission check; it still copies no JSON, history, asset or
+payload bytes. The rule, the measurements and the durable-commit limit are in
+[ADR 0022](0022-private-staging.md#implementation-notes-d-082).

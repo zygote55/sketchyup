@@ -551,7 +551,7 @@ void preparedAndAmend() {
     const auto prepared = doc.prepareEdit(
         [&](Document &candidate) { createDrawingView(candidate, view(sheet, scene)); });
     check(doc.drawingViews().empty() && prepared.snapshot().drawingViews().size() == 1 &&
-              prepared.retainedBytes() > prepared.snapshot().readSnapshotBytes(),
+              prepared.retainedBytes(doc) > prepared.snapshot().bytesNotSharedWith(doc),
           "Prepared sheet edits stay private and are charged");
     const ModelState model(doc);
     doc.applyPrepared(prepared);

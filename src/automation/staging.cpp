@@ -20,12 +20,20 @@ StagingSession::StagingSession(Limits limits, Now now) : limits_(limits), now_(s
 void StagingSession::prune() {
     const auto now = now_();
     for (auto i = stages_.begin(); i != stages_.end();) {
-        if (now >= i->second.expires) {
-            bytes_ -= i->second.bytes;
+        if (now >= i->second.expires)
             i = stages_.erase(i);
-        } else
+        else
             ++i;
     }
+}
+size_t StagingSession::charge(const Stage &stage, const Document &live) const {
+    return stage.prepared->retainedBytes(live) + stage.fixedBytes;
+}
+size_t StagingSession::retainedBytes(const Document &live) const {
+    size_t total = 0;
+    for (const auto &[id, stage] : stages_)
+        total += charge(stage, live);
+    return total;
 }
 StagingSession::Stage &StagingSession::get(const Document &live, const QString &stageId) {
     prune();
@@ -64,8 +72,7 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
         fail("WRONG_DOCUMENT", "Batch does not target this document");
     if (batch["expectedRevision"] != QString::number(live.revision()))
         fail("STALE_REVISION", "Batch does not target the current revision");
-    if (stages_.size() >= limits_.proposals ||
-        live.readSnapshotBytes() > (limits_.retainedBytes - bytes_) / 3)
+    if (stages_.size() >= limits_.proposals)
         fail("STAGE_LIMIT", "No capacity to prepare another private proposal");
     const auto expires = now_() + std::chrono::seconds(ttlSeconds);
     Stage stage;
@@ -129,9 +136,9 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
     const auto resultBytes = QJsonDocument(stage.result).toJson(QJsonDocument::Compact).size();
     if (resultBytes > responseLimit - 4096)
         fail("LIMIT_EXCEEDED", "Proposed created-ID result exceeds 256 KiB; split the task");
-    stage.bytes = stage.prepared->retainedBytes() + size_t(resultBytes) * 2 +
-                  stage.changes.capacity() * 256 + sizeof(Stage) + 1024;
-    if (stage.bytes > limits_.retainedBytes - bytes_)
+    stage.fixedBytes = size_t(resultBytes) * 2 + stage.changes.capacity() * 256 + sizeof(Stage) +
+                       1024;
+    if (retainedBytes(live) + charge(stage, live) > limits_.retainedBytes)
         fail("STAGE_LIMIT", "Proposal exceeds the retained staging budget");
     if (now_() >= expires)
         fail("STAGE_UNAVAILABLE", "Proposal expired during preparation");
@@ -141,9 +148,7 @@ QJsonObject StagingSession::prepare(const Document &live, const QJsonObject &bat
     } while (stages_.contains(id));
     auto result = envelope(live, id, stage);
     result["createdIds"] = stage.result;
-    const auto retained = stage.bytes;
     stages_.emplace(id, std::move(stage));
-    bytes_ += retained;
     return result;
 }
 QJsonObject StagingSession::describe(const Document &live, const QString &id) {
@@ -188,15 +193,6 @@ std::shared_ptr<const Document::PreparedEdit> StagingSession::proposal(const Doc
                                                                        const QString &id) {
     return get(live, id).prepared;
 }
-void StagingSession::release(const QString &id) {
-    const auto i = stages_.find(id);
-    if (i == stages_.end())
-        return;
-    bytes_ -= i->second.bytes;
-    stages_.erase(i);
-}
-void StagingSession::clear() {
-    stages_.clear();
-    bytes_ = 0;
-}
+void StagingSession::release(const QString &id) { stages_.erase(id); }
+void StagingSession::clear() { stages_.clear(); }
 } // namespace sketchy

@@ -814,7 +814,7 @@ void preparedAndAmend() {
     const auto prepared = doc.prepareEdit(
         [&](Document &candidate) { createDrawingItem(candidate, f.sheet, line()); });
     check(doc.drawingItems().size() == 1 && prepared.snapshot().drawingItems().size() == 2 &&
-              prepared.retainedBytes() > prepared.snapshot().readSnapshotBytes(),
+              prepared.retainedBytes(doc) > prepared.snapshot().bytesNotSharedWith(doc),
           "Prepared item edits stay private and are charged");
     const ModelState model(doc);
     doc.applyPrepared(prepared);

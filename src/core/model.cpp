@@ -577,38 +577,62 @@ LimitCounts uniqueGeometryCounts(const DocumentTotals &totals,
 void setUniqueGeometryObserver(UniqueGeometryObserver observer) {
     uniqueGeometryObserver() = std::move(observer);
 }
-size_t Document::readSnapshotBytes() const {
-    size_t result = sizeof(Document) + identity_.size() + 256 + hostedComponentBytes(hosted_);
-    for (const auto &[id, body] : bodies_)
-        result += bytes(body) + 64;
-    for (const auto &[id, definition] : definitions_)
-        result += componentBytes(definition) + 64;
-    for (const auto &[id, instance] : instances_)
-        result += componentBytes(instance) + 64;
-    for (const auto &[id, tag] : tags_)
-        result += sizeof(TagRecord) + tag->name.size() + 64;
-    for (const auto &[id, material] : materials_)
-        result += sizeof(MaterialRecord) + material->name.size() + 64;
-    for (const auto &[id, asset] : assets_)
-        result += assetBytes(asset) + 64;
-    for (const auto &[id, scene] : scenes_)
-        result += sceneBytes(scene) + 64;
-    for (const auto &[id, section] : sections_)
-        result += sectionBytes(section) + 64;
+namespace {
+// Each entry costs its map node in every copy. A record costs its own bytes unless the base
+// holds the same pointer under the same ID; without a base, every record is charged.
+template <class Records, class Bytes>
+size_t recordBytes(const Records &records, const Records *base, Bytes bytesOf) {
+    size_t result = 0;
+    for (const auto &[id, record] : records) {
+        result += 64;
+        if (!base) {
+            result += bytesOf(record);
+            continue;
+        }
+        const auto held = base->find(id);
+        if (held == base->end() || held->second != record)
+            result += bytesOf(record);
+    }
+    return result;
+}
+} // namespace
+size_t Document::readSnapshotBytes() const { return chargedBytes(nullptr); }
+size_t Document::bytesNotSharedWith(const Document &base) const { return chargedBytes(&base); }
+size_t Document::chargedBytes(const Document *base) const {
+    size_t result = sizeof(Document) + identity_.size() + 256;
+    if (!base || base->hosted_ != hosted_)
+        result += hostedComponentBytes(hosted_);
+    result += recordBytes(bodies_, base ? &base->bodies_ : nullptr,
+                          [](const auto &body) { return bytes(body); });
+    result += recordBytes(definitions_, base ? &base->definitions_ : nullptr,
+                          [](const auto &definition) { return componentBytes(definition); });
+    result += recordBytes(instances_, base ? &base->instances_ : nullptr,
+                          [](const auto &instance) { return componentBytes(instance); });
+    result += recordBytes(tags_, base ? &base->tags_ : nullptr,
+                          [](const auto &tag) { return sizeof(TagRecord) + tag->name.size(); });
+    result += recordBytes(materials_, base ? &base->materials_ : nullptr, [](const auto &material) {
+        return sizeof(MaterialRecord) + material->name.size();
+    });
+    result += recordBytes(assets_, base ? &base->assets_ : nullptr,
+                          [](const auto &asset) { return assetBytes(asset); });
+    result += recordBytes(scenes_, base ? &base->scenes_ : nullptr,
+                          [](const auto &scene) { return sceneBytes(scene); });
+    result += recordBytes(sections_, base ? &base->sections_ : nullptr,
+                          [](const auto &section) { return sectionBytes(section); });
     result += activeSections_.size() * 64;
-    for (const auto &[id, annotation] : annotations_)
-        result += annotationBytes(annotation) + 64;
-    for (const auto &[id, sheet] : drawingSheets_)
-        result += drawingSheetBytes(sheet) + 64;
-    for (const auto &[id, view] : drawingViews_)
-        result += drawingViewBytes(view) + 64;
-    for (const auto &[id, item] : drawingItems_)
-        result += drawingItemBytes(item) + 64;
-    for (const auto &[id, path] : cameraPaths_)
-        result += cameraPathBytes(path) + 64;
-    for (const auto &[id, preset] : renderPresets_)
-        result += renderPresetBytes(preset) + 64;
-    if (variants_)
+    result += recordBytes(annotations_, base ? &base->annotations_ : nullptr,
+                          [](const auto &annotation) { return annotationBytes(annotation); });
+    result += recordBytes(drawingSheets_, base ? &base->drawingSheets_ : nullptr,
+                          [](const auto &sheet) { return drawingSheetBytes(sheet); });
+    result += recordBytes(drawingViews_, base ? &base->drawingViews_ : nullptr,
+                          [](const auto &view) { return drawingViewBytes(view); });
+    result += recordBytes(drawingItems_, base ? &base->drawingItems_ : nullptr,
+                          [](const auto &item) { return drawingItemBytes(item); });
+    result += recordBytes(cameraPaths_, base ? &base->cameraPaths_ : nullptr,
+                          [](const auto &path) { return cameraPathBytes(path); });
+    result += recordBytes(renderPresets_, base ? &base->renderPresets_ : nullptr,
+                          [](const auto &preset) { return renderPresetBytes(preset); });
+    if (variants_ && (!base || base->variants_ != variants_))
         result += componentVariantBytes(*variants_);
     result += (surfaceFloors_.size() + edgeFloors_.size()) * 96;
     for (const auto &[id, floor] : definitionFloors_)

@@ -91,6 +91,12 @@ changelog has no line for it.
 
 The triage holds 22 open defects: none is release-blocking, none is Major, 7 are Minor and 15 are Limitations.
 
+### Defects fixed
+
+From the [open-defect triage](verification/R089a-defect-triage.md). Each row there states its cause and its test.
+
+- **D-082** (Major, found by a peer session's report on 2026-10-31): on a large model, every MCP and assistant transaction failed with `STAGE_LIMIT`, and every `snapshot.begin` with `SNAPSHOT_LIMIT`, although the model was within the document limits. A proposal or a read snapshot is now charged only for the records it does not share with the live model, and the charge is checked when it is admitted. The 128 MiB staging, 32 MiB snapshot and 64 MiB durable outcome budgets are unchanged, so a durable commit still stores the before and after models within the 64 MiB outcome budget.
+
 ### Versions
 
 | Item | Version |

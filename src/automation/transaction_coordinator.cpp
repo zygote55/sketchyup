@@ -192,7 +192,7 @@ bool TransactionCoordinator::uncertain() const {
 }
 size_t TransactionCoordinator::retainedStagingBytes() const {
     owner();
-    return staging_.retainedBytes();
+    return staging_.retainedBytes(document_);
 }
 void TransactionCoordinator::edit(const std::function<void(Document &)> &operation) {
     Operation guard(*this);
