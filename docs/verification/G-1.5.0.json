@@ -1,0 +1,512 @@
+{
+  "layer": "1.5.0 release record (G-1.5.0)",
+  "date": "2026-10-30",
+  "procedure": "docs/M10_ACCEPTANCE.md (Required evidence at the RC; The 1.5.0 release; Release record)",
+  "rows": [
+    "1.5 follow-ups: R098.i, R098.j, R098.k, R099.f, R100.h, R100.i",
+    "C06 GeoTIFF elevation import: R107.b1, R107.b1.1, R107.b1.2, R107.b3, R107.b4 (R107.b2 and R107.d not in 1.5.0)",
+    "R107.c1 and R107.c2 source credits; R107.e documentation",
+    "Defect fixes D-068 to D-081"
+  ],
+  "version": "1.5.0",
+  "recordComplete": true,
+  "gateStatus": "RC1 record complete; the full tier passed at the RC; tag and release follow this record's merge under the owner's 2026-10-30 permission",
+  "ownerApproval": {
+    "date": "2026-10-30",
+    "permission": "I want you to do whatever you need to get this released. You have my permission.",
+    "covers": [
+      "one live corpus run of the supported profile at RC1 (R086.i), with no retries",
+      "accepting the corpus gate (releaseAccepted stays false in the scorer output by design)",
+      "the tag v1.5.0 and the GitHub release, once every check passes"
+    ]
+  },
+  "tagCreated": false,
+  "releaseCreated": false,
+  "published": false,
+  "rc": {
+    "name": "RC1",
+    "commit": "1ca204fdea1bd43a7e9936e35b35757bcec10c45",
+    "branch": "release/1.5.0",
+    "mergeOf": "PR #540 (D-075)",
+    "headOfMainAtCut": true,
+    "cutAt": "2026-10-31 at about 01:49Z (the #540 push run began 2026-10-31T01:49:26Z)",
+    "laterMainChanges": [
+      "PR #541 (R086.i corpus record and RC1 triage; records only, after the RC; main at e0495fad)"
+    ],
+    "sourceArchive": {
+      "file": "sketchyup-1.5.0.tar.gz",
+      "sha256": "8b8814242cea46df1ac31784321d0143ef8b100888d0e52a7bdb33c80877efaa"
+    },
+    "packages": [
+      {
+        "file": "sketchyup-1.5.0-1-x86_64.pkg.tar.zst",
+        "name": "sketchyup",
+        "version": "1.5.0-1",
+        "sha256": "92c36696e47eddfc5d3fba2d98f8dc56405f737779bc4fafe78f43b4951dd668"
+      },
+      {
+        "file": "sketchyup-ifc-1.5.0-1-x86_64.pkg.tar.zst",
+        "name": "sketchyup-ifc",
+        "version": "1.5.0-1",
+        "optional": true,
+        "sha256": "5378248f0de6acc989fdc97937113ca7625adcf620f3d4eef90b34ca3e985b82"
+      }
+    ],
+    "thirdPartyNotices": {
+      "file": "THIRD_PARTY_NOTICES",
+      "sha256": "67ad91bda52403f238c0ab65475d3865f276baa7ddad1b92f9dcb54e6da00713"
+    },
+    "sha256sumsSha256": "d2286dc1993fdf6f9fd0815f9a8bec160d4c94755db56530f4ce36615fd9a954",
+    "manifestSha256": "3d61643a55fde95b57991f7e9c43a46c6eea1a2366fd347a46ace7e984a87652",
+    "pkgbuildSha256": "9053f2f60b3d3f5ccfcef3c2861ec360dd890a9cd74f8bf6a5704362c1620406",
+    "manifestBuildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "priorRelease": {
+      "file": "sketchyup-1.4.0-1-x86_64.pkg.tar.zst",
+      "sha256": "0d3dd1503fae3ef372956bd40f6d8d0a176d813b4bd8e71595cc978048c4a3d7",
+      "source": "published v1.4.0 asset; SKETCHYUP_PRIOR_RELEASE_PACKAGE; equals the verify-package.sh pin and the native.yml pin"
+    },
+    "qt68ReferencePackageSha256": "1e3bef953bc6beac10b3a3b895f72ae537cf9ddb6d69f66c98a74d5827c7a0e7",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true,
+    "releaseVersionScript": "1.5.0",
+    "pkgver": "1.5.0",
+    "pkgrel": 1,
+    "run1": {
+      "at": "2026-10-31T01:50Z",
+      "packages": [],
+      "logSha256": "3ff54bdc8f5c9dcb29873387468d3906ce393a2b078abe17166bf888e40b4890"
+    },
+    "run2": {
+      "at": "2026-10-31T03:00:53Z",
+      "packages": [
+        "sketchyup-1.5.0-1-x86_64.pkg.tar.zst",
+        "sketchyup-ifc-1.5.0-1-x86_64.pkg.tar.zst"
+      ],
+      "logSha256": "3ff54bdc8f5c9dcb29873387468d3906ce393a2b078abe17166bf888e40b4890"
+    },
+    "walkthrough": "docs/verification/G-1.5.0.md#local-walkthrough-at-rc1",
+    "supersededRcs": []
+  },
+  "images": {
+    "packageBuild": {
+      "name": "sketchyup-build:20261002",
+      "id": "sha256:a4f0465cd5526d080bc6686368f27a38dd09dd666dbc6f0a356e8138b409b71c"
+    },
+    "pinned": {
+      "name": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+      "id": "sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+      "archBaseDevelDate": "2026-09-28"
+    },
+    "fresh": {
+      "name": "archlinux:base-devel",
+      "pulled": "2026-10-30",
+      "id": "sha256:624bdc7fc6615155d67bc34cf7146c0c9fd0e3c92943977da63a630e4ca49c30"
+    },
+    "reference": {
+      "name": "archlinux:base-devel-20241013.0.269705",
+      "id": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2"
+    }
+  },
+  "ciAtRc": {
+    "run": 41157172520,
+    "url": "https://github.com/zygote55/sketchyup/actions/runs/41157172520",
+    "event": "push",
+    "branch": "release/1.5.0",
+    "tier": "full",
+    "headSha": "1ca204fdea1bd43a7e9936e35b35757bcec10c45",
+    "attempt": 1,
+    "startedAt": "2026-10-31T01:49:35Z",
+    "status": "completed",
+    "completedAt": "2026-10-31T04:05:20Z",
+    "verdict": "success",
+    "jobsPassed": 13,
+    "jobsTotal": 13,
+    "jobs": [
+      {"name": "Development build and checks", "conclusion": "success"},
+      {"name": "Native tests: X11 1x", "conclusion": "success"},
+      {"name": "Native tests: X11 2x", "conclusion": "success"},
+      {"name": "Native tests: Wayland 1x", "conclusion": "success"},
+      {"name": "Native tests: Wayland 2x", "conclusion": "success"},
+      {"name": "Native tests: audit and accessibility", "conclusion": "success"},
+      {"name": "Native tests: fractional scaling, Blender worker and M5", "conclusion": "success"},
+      {"name": "Blender interoperability", "conclusion": "success"},
+      {"name": "Sanitized builds", "conclusion": "success"},
+      {"name": "IFC library and helper", "conclusion": "success"},
+      {"name": "SKP parser, helper and import", "conclusion": "success"},
+      {"name": "Qt 6.8 reference compile", "conclusion": "success"},
+      {"name": "Arch package acceptance", "conclusion": "success"}
+    ],
+    "ctest": {"allPassed": true, "Development build and checks": [280, 1, 2], "Sanitized builds": [74, 145, 7, 1],
+              "Arch package acceptance": [279], "IFC library and helper": [8, 1, 10, 6],
+              "SKP parser, helper and import": [11, 5], "Blender interoperability": [2],
+              "Native tests: fractional scaling, Blender worker and M5": [11]},
+    "fastTierJobs": "skipped in the full-tier run"
+  },
+  "frozenProviderInputs": {
+    "manifest": {
+      "file": "tests/provider-release-corpus-v6.json",
+      "sha256": "ccd6890b2ee4f5c4e7c507ae82578ad490ad5072a2fd60793e69560545b21073",
+      "writer": "SketchyUp/1.5.0"
+    },
+    "scorer": "ba50fa5a131a2de113e4c78e03d9724867748835c0fcfc0a437e761712b57784",
+    "providerTrial": "3334224b4c4d14e20aa31dc9dd01150adc89aa6a3ca15117435ba3cbbe612338",
+    "instructions": "313b9f911735f28e21bb1c9310d727416568d0c460971c43315faf4dd1f376be",
+    "reviewBundle": "cbee7a5203c70f858456b852cd1fb50a1cb46975cec2e5ffc2f6e670aa7234e8"
+  },
+  "prs": {
+    "R098.i": [522],
+    "R098.j": [524],
+    "R098.k": [525],
+    "R099.f": [526],
+    "R100.h": [520],
+    "R100.i": [521],
+    "R107.b1": [529],
+    "R107.b1.1": [530],
+    "R107.b1.2": [531],
+    "R107.b UX design": [532],
+    "R107.b3": [534],
+    "R107.b4": [536, 538],
+    "R107.c1": [533],
+    "R107.c2": [535],
+    "R107.e": [537],
+    "defects": {
+      "D-068 and D-069": [527],
+      "D-070": [519],
+      "D-071": [518],
+      "D-072": [523],
+      "D-073": [528],
+      "D-074, D-077, D-078, D-079": [534],
+      "D-075": [540],
+      "D-076": [530],
+      "D-080": [536],
+      "D-081": [524]
+    },
+    "1.4.0 records and publication": [516, 517, 518],
+    "release preparation": [539],
+    "after the RC, not in 1.5.0": [541],
+    "allMergedInWindow": [516, 517, 518, 519, 520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 539, 540]
+  },
+  "ciAtMergedHeads": {
+    "mergeCommitsV140ToRc": 34,
+    "prMerges": 25,
+    "nonPrMerges": 9,
+    "everyPrHeadPassed": true,
+    "prHeadCheck": "CI verdict (fast tier) SUCCESS on each of PRs 516 to 540, from GitHub check rollups",
+    "failedMainPushRuns": [
+      {
+        "commit": "0b0c75d5",
+        "pr": 539,
+        "run": 41145912353,
+        "createdAt": "2026-10-30T23:41:04Z",
+        "conclusion": "failure",
+        "failedJobs": [
+          "Native tests: fractional scaling, Blender worker and M5",
+          "CI verdict"
+        ],
+        "cause": "visible_focus_input_tests --workspace=sheets under QT_SCALE_FACTOR=1.5 on Weston headless timed out after 120 s; the Weston line 'finalizing a layer with views still on it' matches D-031 (open, Minor)",
+        "rerun": false,
+        "defectId": null,
+        "subsequentPush": {
+          "commit": "1ca204fd",
+          "pr": 540,
+          "run": 41157162187,
+          "conclusion": "success",
+          "tier": "fast only; the native fractional job was skipped"
+        },
+        "rcFullTierSameJob": "passed on attempt 1 (run 41157172520)"
+      }
+    ]
+  },
+  "localWalkthrough": {
+    "trim": "M10 owner trim (2026-10-15), as at 1.4.0",
+    "releaseArtifacts": {
+      "runs": [
+        "2026-10-31T01:50Z (run 1)",
+        "2026-10-31T03:00:53Z (run 2)"
+      ],
+      "firstAttempt": true,
+      "logSha256": "3ff54bdc8f5c9dcb29873387468d3906ce393a2b078abe17166bf888e40b4890"
+    },
+    "packageAcceptance": {
+      "run": "rc150-package-acceptance",
+      "image": "sketchyup-build:20261002",
+      "exit": 0,
+      "firstTry": true,
+      "startedAt": "2026-10-30T18:50:28-07:00",
+      "finishedAt": "2026-10-30T20:00:33-07:00",
+      "limits": "5 GiB, 2 CPUs, -j2; boost, eigen, opencascade and patchelf installed first",
+      "priorRelease": "sketchyup-1.4.0-1 (published asset, 0d3dd150...) via SKETCHYUP_PRIOR_RELEASE_PACKAGE",
+      "priorCliReadsSchemasUpTo": 33,
+      "newerFixturesRefusedUnchanged": 1,
+      "installedMigrations": 37,
+      "outputLogSha256": "345be48cf599ba14b1a2726fde06f8b6a1521ba28efaa6d4ebc33995d0c688f9",
+      "jobLogSha256": "bbb0dd39dbffc4e64955c8a501704fc66ac6e08dfb39e926ac7a86e64bbf5233"
+    },
+    "cleanMachines": {
+      "method": "R087.u lifecycle extended for 1.5.0; one fresh container per machine; --network none; 2 CPUs; 4 GiB; caches prepared with the network beforehand",
+      "pinned": {
+        "image": "sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+        "archive": "2026/10/02",
+        "qt": "6.11.2 (qt6-base 6.11.2-3, qt6-wayland 6.11.2-1)",
+        "mesa": "1:26.2.3-2",
+        "glibc": "2.44+r50+g1848099f063e-1",
+        "pacman": "7.1.0.r9.g54d9411-2",
+        "closure": 60,
+        "closureForbidden": 0,
+        "firstAttempt": true,
+        "steps": [
+          "network-isolated=true",
+          "install-and-closure",
+          "ifc-install-and-closure",
+          "cli-open-save",
+          "offscreen-launch",
+          "xvfb-launch",
+          "migrations=37",
+          "sheets-preflight-blocks",
+          "sheets-cli-smoke",
+          "mcp-sheet-queries",
+          "assemblies-rebuild-identical=6",
+          "f02-parameter-fixture",
+          "mcp-parameter-queries",
+          "f03-terrain-import",
+          "f03-terrain-xvfb",
+          "mcp-terrain-queries",
+          "smoke-150",
+          "dem-terrain-xvfb",
+          "downgrade-window",
+          "rollback-refused-with-ifc",
+          "remove-ifc-clean",
+          "rollback",
+          "remove-clean",
+          "upgrade-preferences-remove",
+          "lifecycle"
+        ],
+        "stepLines": 25,
+        "result": "lifecycle=pass",
+        "logSha256": "264e6a668a1578b1302b425ca60d6b8e3bd85aa4d52ce2c82c824c9639a33cab"
+      },
+      "fresh": {
+        "image": "sha256:624bdc7fc6615155d67bc34cf7146c0c9fd0e3c92943977da63a630e4ca49c30",
+        "archive": "2026/10/29 snapshot (new preparation, 156 packages)",
+        "qt": "6.12.0 (qt6-base 6.12.0-3, qt6-wayland 6.12.0-1)",
+        "mesa": "1:26.2.6-1",
+        "glibc": "2.44+r50+g1848099f063e-1",
+        "pacman": "7.1.0.r9.g54d9411-3",
+        "closure": 60,
+        "closureForbidden": 0,
+        "firstAttempt": true,
+        "stepLines": 25,
+        "result": "lifecycle=pass",
+        "logSha256": "f0fef782e905be206fcb7f3f2016b5598c13c53bccf10f2d3dbe4f1c97ca6963"
+      },
+      "qt68Reference": {
+        "image": "sha256:291198370afb8645d8341adfc354a407c0f981fd66a3bd89a267080db05314c2",
+        "archive": "2024/10/15",
+        "qt": "6.8.0 (qt6-base 6.8.0-1, qt6-wayland 6.8.0-1)",
+        "mesa": "1:24.2.4-1",
+        "glibc": "2.40+r16+gaa533d58ff-2",
+        "pacman": "7.0.0.r3.g7736133-1",
+        "gcc": "14.2.1+r134+gab884fffe3fc-1",
+        "cmake": "3.30.5-1",
+        "build": {
+          "script": "build-snapshot-150.sh",
+          "exit": 0,
+          "firstAttempt": true,
+          "seconds": 1738,
+          "withoutIfc": true,
+          "makepkgFlags": "--nocheck --nodeps",
+          "packageSha256": "1e3bef953bc6beac10b3a3b895f72ae537cf9ddb6d69f66c98a74d5827c7a0e7"
+        },
+        "closure": 64,
+        "ifcPackage": "not installed",
+        "firstAttempt": true,
+        "stepLines": 23,
+        "smoke": "smoke-150-ref.sh (8 checks; no IFC or STEP checks)",
+        "result": "lifecycle=pass",
+        "logSha256": "358f14fe97e6d941e6ab88160911659287fcd5b424a843c1ca3a81b7ded401f7"
+      }
+    },
+    "smoke150": [
+      "help lists the 1.5.0 options",
+      "IFC import, export and re-import (21 bodies)",
+      "STEP import, AP214 export and re-import (2 bodies, 6 faces)",
+      ".skp import of the synthetic box (2 bodies, 6 faces)",
+      "quantities report CSV and JSON",
+      "style apply, export and re-apply to the same bytes",
+      "presentation.describe",
+      "geographic site record round trip at schema 32",
+      "GeoTIFF DEM import: imported, schema 34 terrain-dem-v1, site record round trip",
+      "DEM credit in OBJ export: manifest.credits and line 2 of model.obj; no credit without DEM"
+    ],
+    "downgradeWindow": {
+      "priorCli": "published 1.4.0-1, reads up to schema 33",
+      "refusedUnchanged": 3,
+      "exitCode": 1,
+      "refusalMessage": "Invalid required features",
+      "refusedFixtures": [
+        "terrain-dem-v34 (committed schema-34 GeoTIFF terrain)",
+        "the installed package's own DEM import",
+        "that fixture saved again by 1.5.0"
+      ],
+      "openedUnchanged": [
+        "presentation-v30",
+        "edge-styles-v31",
+        "geographic-site-v32",
+        "material-texture-size-v33",
+        "the installed package's schema-29 terrain",
+        "component-parameters-v28",
+        "drawing-sheets-v27"
+      ],
+      "sheetFreeSaveAccepted": true
+    },
+    "splitPackageRollback": {
+      "machines": ["pinned", "fresh"],
+      "withIfcInstalled": "pacman -U sketchyup-1.4.0-1 exits 1: installing sketchyup (1.4.0-1) breaks dependency 'sketchyup=1.5.0' required by sketchyup-ifc; nothing changed",
+      "afterRemovingIfc": "pacman -U installs sketchyup-1.4.0-1; its CLI opens the demo saved by 1.5.0 and refuses the DEM document",
+      "steps": ["rollback-refused-with-ifc=pass", "rollback=pass"]
+    },
+    "d036": {
+      "poppler": "26.10.0",
+      "qpdf": "12.4.2",
+      "pages": 2,
+      "syntaxErrors": 0,
+      "qpdfCheck": "exit 0",
+      "title": "SketchyUp drawing sheets",
+      "creator": "SketchyUp",
+      "textSha256": "c4812bec0daae81faace78adaefab42a32aaee03fe3a6ba62171658d5cc21940",
+      "machines": ["pinned", "fresh", "reference"]
+    },
+    "harnessSha256": {
+      "lifecycle-150.sh": "23884a0a0932552a3759599baf7c6e46045651ef1978c2d0925a48fb4d29f661",
+      "run-lifecycle-150.sh": "6058464389c2f3298f82aef7e8e84401d5c0a42ea1e315b6d2390e2e5955f6e2",
+      "smoke-150.sh": "278bbc38a37fbd219246ce85f77c7bbc0fc81c337903caddddf465528071014a",
+      "downgrade-150.sh": "ea8b9650f0978f2f993af0312ebcef6f698346f08cac16a20a45f649a074f8d3",
+      "lifecycle-150-ref.sh": "49f0a45829e42548db0d45c89bb86cbfd351297f5894f88b684a5f2f54cff6fa",
+      "run-lifecycle-150-ref.sh": "644bfd12149c11a2033063fc2289361bc25710950110f9d6cf5e5995f4bf12be",
+      "smoke-150-ref.sh": "97791a29c2eabf8e33dc86b53c8f3ea619c91cc67c9670bed16129a98dd3fcec",
+      "build-snapshot-150.sh": "5658e760d2c835127b00924284ff9a4033ca5e80a2aefa4cb620518c0eaf9438",
+      "terrain-grid.xyz": "6c65b19ae79bb8e309a20e16def2e5cb7456e293f9fb688faa623ac3e172089e"
+    }
+  },
+  "rowAcceptance": {
+    "notApplicable": "1.5.0 is not a new Extended row (M10, The 1.5.0 release); its carried items ship with the limits their records and the release notes state",
+    "carried": {
+      "R098.i": {"status": "shipped", "limits": "sandbox kill or stop before tessellation still refuses the file whole; mutation checks not run"},
+      "R098.j": {"status": "shipped; budget misses are accepted limits", "numbers": "import with a native file 10.17 s (budget 10 s); export of the 90,954-face model 9.96 s (budget 5 s)", "decision": "owner decision 8, 2026-10-28"},
+      "R098.k": {"status": "shipped", "limits": "2,000,000-entity refusal; one tessellation thread"},
+      "R099.f": {"status": "shipped; over the 1 s per-frame budget at the 95th percentile", "numbers": "terrain 249,218 triangles, median preparation 3.69 s; 19,998-body capture, median 1.70 s; 10,000-placement capture refused by name"},
+      "R100.h": {"status": "shipped", "limits": "IFC and STEP report bars colour only; IFC import report has no Save report"},
+      "R100.i": {"status": "shipped", "limits": "Cancel after the edit is composed comes too late and the insert commits"},
+      "R107.b1 to R107.b4": {"status": "shipped; part of C06, which stays Investigate", "limits": "WGS84 and NAD83 only; no geoid; voids refused; 250,000 triangles per model with decimation; no MCP or assistant import"},
+      "R107.c1 and R107.c2": {"status": "shipped", "limits": "frame credit always on and visibility-based; DXF and STEP limits as the release notes state"},
+      "R107.e": {"status": "shipped", "limits": "Markdown viewer may not scroll to the guide's anchor"}
+    }
+  },
+  "provider": {
+    "profile": "chatgpt-astra",
+    "model": "gpt-6-astra",
+    "connection": "chatgpt-plan",
+    "record": "docs/verification/R086i-rc150-remote-evaluation.md",
+    "corpusVersion": 6,
+    "frozenAt": "2026-10-30T18:49:49-07:00 (2026-10-31T01:49:49Z)",
+    "window": "2026-10-30T18:49:53-07:00/2026-10-30T19:01:11-07:00",
+    "elapsedMs": 672305,
+    "reportedTokens": 1609877,
+    "providerAttempts": 114,
+    "remoteAttempts": 105,
+    "remoteHttp200": 105,
+    "loopbackAttempts": 9,
+    "toolCalls": 143,
+    "toolCallErrors": 2,
+    "toolCallErrorCode": "CONTEXT_MISMATCH (read-only entity.describe, Resize repeats 2 and 3)",
+    "largestRunReportedTokens": 179521,
+    "largestRunShareOfBudget": "34.2% of 524,288",
+    "maximumProviderTurns": 9,
+    "maximumElapsedMs": 85000,
+    "monetaryCost": null,
+    "reviewer": "Claude Opus 5.5 (orchestrator: receipt, geometry-oracle and final-text review of every run); not independent human release sign-off",
+    "reviewBundleSha256": "cbee7a5203c70f858456b852cd1fb50a1cb46975cec2e5ffc2f6e670aa7234e8",
+    "corpusPassed": true,
+    "tasksPassed": "8 of 8 tasks 3/3 (thresholds 2 of 3 for Room, Resize, Advanced and Site; 3 of 3 for the others)",
+    "undoRecovery": "24/24",
+    "blockers": [],
+    "releaseAccepted": false,
+    "ranAt": "1ca204fd (RC1)"
+  },
+  "triage": {
+    "open": 22,
+    "releaseBlocking": 0,
+    "major": 0,
+    "minor": 8,
+    "limitation": 14,
+    "openAt140Rc": {"open": 26, "minor": 12, "limitation": 14},
+    "minorIds": ["D-006", "D-007", "D-008", "D-009", "D-019", "D-031", "D-034", "D-040"],
+    "limitationIds": ["D-001", "D-004", "D-005", "D-010", "D-011", "D-012", "D-013", "D-014", "D-015", "D-016", "D-017", "D-018", "D-020", "D-029"],
+    "fixedDuring150": "D-068 to D-081 (D-068 to D-075 in the CHANGELOG and M10; D-076 to D-081 described by feature in the release notes)",
+    "addedAtRc": [
+      {"id": "D-076", "class": "Major", "status": "fixed before the RC (PR #530)"},
+      {"id": "D-077", "class": "Major", "status": "fixed before the RC (PR #534)"},
+      {"id": "D-078", "class": "Major", "status": "fixed before the RC (PR #534)"},
+      {"id": "D-079", "class": "Minor", "status": "fixed before the RC (PR #534)"},
+      {"id": "D-080", "class": "Minor", "status": "fixed before the RC (PR #536)"},
+      {"id": "D-081", "class": "Major", "status": "fixed before the RC (PR #524); shipped in 1.4.0"}
+    ],
+    "fixedDuring150ByPr": {
+      "#518": ["D-071"],
+      "#519": ["D-070"],
+      "#523": ["D-072"],
+      "#524": ["D-081"],
+      "#527": ["D-068", "D-069"],
+      "#528": ["D-073"],
+      "#530": ["D-076"],
+      "#534": ["D-074", "D-077", "D-078", "D-079"],
+      "#536": ["D-080"],
+      "#540": ["D-075"]
+    }
+  },
+  "waivedAdr0161": [
+    "Intel campaigns and the sharing-off memory control",
+    "X11 output hotplug",
+    "suspend/resume",
+    "a physical 150% output",
+    "physical pointer capture",
+    "input methods",
+    "D-020 on Hyprland",
+    "automatic X11 output placement",
+    "an interactive Orca session",
+    "the manual walkthrough on the installed RC"
+  ],
+  "notRunAtRc": [
+    "native and dialog-audit cells that no CI line runs",
+    "a local ctest or sanitized build",
+    "sketchyup-ifc on the Qt 6.8 reference machine",
+    "R098.i mutation checks"
+  ],
+  "unresolvedAtWriting": [
+    "main push run 41145912353 (PR #539, 0b0c75d5) failed one native job; its Weston line matches D-031, so it is counted under D-031 with no new ID; the RC full tier passed the job"
+  ],
+  "followUpsOnMain": [
+    "D-076 to D-081 IDs added to RELEASE_NOTES.md (1.5.0) and CHANGELOG.md (1.5.0)",
+    "CHANGELOG 1.5.0 date set at the tag (M10)",
+    "SUPPORT_MATRIX.md F03 terrain row: 'No LandXML, GeoJSON, GeoTIFF/DEM or LAS/LAZ import' conflicts with the 1.5.0 elevation row; correct the GeoTIFF wording",
+    "RELEASE_NOTES.md 1.5.0 Known limitations: 'IFC is unchanged from 1.4.0: it is not yet accepted' conflicts with G-1.4.0, which accepted F04 IFC (decisions 9 and 10)",
+    "'20,000-body capture' in CHANGELOG, SUPPORT_MATRIX.md and R089a is the 19,998-body capture of R099.e (79,992 faces); the release notes say 19,998",
+    "tests/provider_release_corpus_tests.py header still says v5 is authoritative; CURRENT is v6 (carried from 1.4.0)",
+    "PR_ROADMAP 1.5.0 status line says 'not yet released'; update at publication"
+  ],
+  "openForOwner": [
+    "The frame credit has no off switch (ADR 0181, R107.c2 notes; a control needs a UX decision)",
+    "A DEM terrain is credited when its scene manifest lists it, even when it is off camera (ADR 0181, R107.c2 notes)",
+    "A Markdown viewer may not jump to the user guide's anchor: choose (a) a rendered HTML copy or (b) the GitHub page (ADR 0181, R107.b4 link notes)",
+    "The GeoTIFF dialog's default window is the file's centre when the site has no origin; UX section 20.2 said the window is empty and Import waits (ADR 0181, R107.b4 notes; UX 20.2 as-built note)",
+    "Whether the 1 s per-frame budget covers the terrain and 19,998-body capture sizes (R099.e section 12)",
+    "SCOPE C06 stays Investigate until R107.d is accepted; R107.b2 and R107.d are not in 1.5.0",
+    "buildingSMART hosted validation of the IFC export is the owner's own task, not a gate"
+  ],
+  "publishedRelease": {
+    "status": "to be filled at publication",
+    "tag": null,
+    "release": null,
+    "assets": []
+  }
+}
