@@ -1100,7 +1100,7 @@ int main(int argc, char **argv) {
             // sketchyup-cli (the R090.b scripted check uses it). SketchyUp 1.0.0 reports
             // "Unsupported container field": its manifest check runs before the
             // required-feature check, so it never reaches the features message. A prior
-            // release that reads schema 27 or later (1.1.x through 1.4.x) opens the sheet
+            // release that reads schema 27 or later (1.1.x through 1.5.x) opens the sheet
             // documents instead, unchanged.
             const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
             if (!prior.isEmpty()) {

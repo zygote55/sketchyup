@@ -1239,7 +1239,7 @@ int main(int argc, char **argv) {
             for (const auto &value :
                  QJsonDocument::fromJson(out).object()["readDocumentVersions"].toArray())
                 reads = std::max(reads, value.toInt());
-            check(reads >= 26 && reads <= 33, "The prior release reads schema 26 to 33");
+            check(reads >= 26 && reads <= 34, "The prior release reads schema 26 to 34");
             const auto fixturePath = files.filePath("prior-v28.sketchyup");
             const auto fixtureBytes = read(fixtures.filePath("component-parameters-v28.sketchyup"));
             write(fixturePath, fixtureBytes);

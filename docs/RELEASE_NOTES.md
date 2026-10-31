@@ -1,5 +1,186 @@
 # SketchyUp release notes
 
+## 1.6.0
+
+SketchyUp 1.6.0 is a minor release. It places a georeferenced orthophoto as a reference image (R107.b2, part of
+offline geographic work under C06), credits a DEM terrain in a frame or a view only when the terrain is in the
+camera's view (R107.c3 and R107.c3.1), and adds an in-app viewer for the user guide, with the guide text for these
+features (R107.e2). It also carries the CI flake work of the 1.6.0 scope. That work fixed no defect by evidence, and
+its triage is in the [open-defect triage](verification/R089a-defect-triage.md). The release is gated through its
+[M10 acceptance](M10_ACCEPTANCE.md#the-160-release); its record, `docs/verification/G-1.6.0.md`, is written at the
+release candidate. The [support matrix](SUPPORT_MATRIX.md) states what is supported, and the
+[user guide](USER_GUIDE.md) describes each workflow. C06 stays in the Investigate class until its R107.d geocoding
+is accepted. R107.d is held and is not in this release, so this release does not claim C06 as delivered.
+
+Existing commands, queries and schemas keep their shapes, and a document with no georeferenced image is written
+exactly as 1.5.0 writes it. One behaviour changes. A DEM terrain's source notice is no longer burned into a frame,
+a still, an animation frame or a perspective sheet view that does not show the terrain.
+
+### Georeferenced orthophoto (R107.b2, part of C06)
+
+- **Desktop.** **View → Reference images**, then **Import reference image…**. A `.tif` or `.tiff` file, or a PNG or
+  JPEG with its world file beside it, opens **Place georeferenced image**. The dialog reads the file on a worker and
+  shows the zone, datum, corners, elevation, credit and name before **Import georeferenced image** places it as one
+  undo step. A PNG or JPEG without a world file opens the plain reference-image dialog, as before
+  ([R107.b2.2](decisions/0181-maps-geolocation-feasibility.md), [UX §21](UX_DESIGN.md#21-orthophoto-as-a-georeferenced-reference-image-desktop)).
+- **Command line.** `sketchyup-cli --import-reference-image PATH`, with `--reference-zone` (needed for a world file when
+  the site has no geographic record), `--reference-datum`, `--reference-credit`, `--reference-elevation` and `--output`
+  for a new native file ([R107.b2.1](decisions/0181-maps-geolocation-feasibility.md)).
+- **Inputs.** A PNG or JPEG with a north-up world file (`.pgw`, `.pngw`, `.jgw`, `.jpgw` or `.wld`), or an 8-bit RGB or
+  RGBA GeoTIFF, uncompressed, LZW or Deflate, in WGS84 UTM (zones 32601 to 32660 and 32701 to 32760) or NAD83 UTM
+  (zones 26901 to 26923). NAD83 is a labelled approximation, taken as WGS84 with a notice. A JPEG-compressed GeoTIFF,
+  a BigTIFF, 16-bit or float pixels, a rotated or flipped world file, and a geographic-coordinate GeoTIFF are refused,
+  each with a sentence that names the cause.
+- **Limits.** At most 4096 by 4096 pixels, and at most 16 MiB as stored. A larger image is refused with the advice to
+  crop it, and nothing is resampled. Each side is at most 1,000 km. Each corner must lie within 3° of its zone's
+  central meridian and between 80° S and 84° N. An image cannot cross zones, so a GeoTIFF in a zone other than the
+  site's record is refused.
+- **Viewport only.** The image is drawn in the viewport. It is not drawn in renders, exports or presentation frames,
+  and its credit reaches none of them. The credit (optional, at most 256 bytes) is stored with the image and shown in
+  the panel and in the import report.
+- **Placement.** The image lies flat at the elevation given, and is not draped onto terrain. A site with no origin
+  takes one at the image's centre, rounded to 100 m. A change of the site's zone is refused while a georeferenced
+  image uses the old zone, and a re-anchor that would leave the image's zone is refused.
+- **Measured** on the pinned image, with the host shared. A 4096 by 4096 RGBA GeoTIFF of 64 MiB, uncompressed,
+  imports through the CLI in 2.3 s; the process peak was about 167 MiB, of which about 121 MiB is above the process
+  baseline. The desktop dialog reached its Ready state for the same file in 0.79 s and 1.05 s, with a process peak of
+  about 408 MiB that includes the whole application. A 4096 by 4096 RGB GeoTIFF with Deflate imports in 2.5 s. A real
+  photograph was not measured, and a photograph of that size may exceed 16 MiB as stored.
+- **Not in this release.** Drawing the image in exports and frames (the owner decided that the orthophoto stays
+  viewport-only in 1.6.0), calibrating a georeferenced image (refused by name), any online lookup, and MCP or assistant
+  import of an orthophoto.
+
+### Frame credit in the camera view (R107.c3, R107.c3.1)
+
+- **The rule.** A DEM terrain's source notice is burned into a presentation frame, a still, an animation frame or a
+  perspective sheet view only when the terrain's bounding box meets that camera's view volume. The test is
+  conservative and has no occlusion test, so a terrain behind a building still counts. Before 1.6.0 a frame showed the
+  notice of every terrain its scene showed. To-scale and measured sheet views keep their line rule
+  ([R107.c3](decisions/0181-maps-geolocation-feasibility.md), [R107.c3.1](decisions/0181-maps-geolocation-feasibility.md)).
+- **The batch checkbox.** **Burn source credits into frames** is in the batch dialog. It is checked by default, and
+  the dialog checks it again each time it opens. When it is off, no frame carries a burned note. The batch manifest
+  still lists the notices of the terrain its scenes show, and each frame's record lists the notices in its view,
+  whichever way the box is set. `sketchyup-cli --export-presentation` takes `burnCredits` (a boolean, default true).
+- **Measured** in real Blender, on a 512 by 384 frame with the 3DEP fixture. The note showed in 379 text-bright
+  pixels of the top 24 rows when the terrain was in view and the box was on, and in none when the box was off or the
+  camera looked away. The cost of the view test was not measured, so the per-frame budget of R099.f was not re-measured
+  for 1.6.0.
+
+### User guide viewer and guide text (R107.e2)
+
+- **Viewer.** The GeoTIFF page's **Open the user guide** button opens the installed guide in a read-only window, scrolled
+  to "Terrain from a downloaded elevation file". It replaces the system opener of 1.5.0, which might not scroll to the
+  section. Links in the guide are shown as text and are not followed. Nothing is fetched. If the guide is missing, the
+  window says so and names the folder it looked in ([UX §22](UX_DESIGN.md#22-user-guide-viewer)).
+- **Guide text.** The user guide gains "Orthophoto from a downloaded image file", a paragraph on the batch checkbox and
+  the in-view credit rule. The support matrix gains the orthophoto row. The guide text is in
+  [ADR 0181](decisions/0181-maps-geolocation-feasibility.md) (Implementation notes, R107.e2 (guide text)).
+
+### CI flake work (1.6.0 scope)
+
+No flake was fixed by evidence, so no row of the [triage](verification/R089a-defect-triage.md) is marked Fixed and the
+changelog has no line for it.
+
+- **D-019** (a Qt Wayland protocol error when a window hidden during a file operation is shown again) is decided as a
+  Limitation. Its probe hides the window for a whole file operation, which no product flow does.
+- **D-007** (a dialog reported active before it had focus) has its race removed from ten dialog waits, which now wait
+  for keyboard focus. **D-008** waits for the end of its scene transition, not a fixed time.
+- **D-040** (a Weston crash in a shell animation) is further mitigated: the remaining shell animations are off in the
+  test runs. **D-031** has its cause placed, not reproduced, and **D-034** is diagnosable: a recurrence would now name the
+  frame that timed out.
+
+The triage holds 22 open defects: none is release-blocking, none is Major, 7 are Minor and 15 are Limitations.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.6.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.6.0-1, x86_64; `sketchyup-ifc` 1.6.0-1 (optional, IFC and STEP helper) |
+| Native document | Schema 35 at most, in SKUPDOC container version 2; reads versions 1 through 35. Saves record the writer `SketchyUp/1.6.0`. The public schema changed only for the native document (`sketchyup-document-v35`) |
+| MCP, inspection, transactions, recipes and other public schemas | Unchanged from 1.5.0 |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits, as in 1.5.0. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.6.0 writer. The assistant's tool surface did not change since 1.4.0. Evaluated at the release candidate; the results are in the release record |
+| New third-party code | None. The orthophoto reader uses the GeoTIFF reader's inflater and the texture decoders that 1.5.0 already ships |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.5.0.
+
+### File format
+
+1.6.0 reads document versions 1 through 35 and writes the schema each document needs:
+
+| Schema | Feature | Written when |
+| --- | --- | --- |
+| 35 | `reference-geo-v1` | a reference image has a georeference (a world file or a GeoTIFF placed on the site) |
+| 34 | `terrain-dem-v1` | the terrain was made from a GeoTIFF file (its source record) |
+| 33 | `material-texture-size-v1` | a material has a texture size |
+| 32 | `geographic-site-v1` | the site has a geographic record |
+| 31 | `edge-styles-v1` | the document style has an edge stroke |
+| 30 | `presentation-v1` | the document has a camera path or a render preset |
+| 29 | `terrain-v1` | the document has a terrain or a site origin |
+| 28, 27, 26 | component parameters, sheets, none | as in 1.5.0 |
+
+A document with more than one feature is written at the highest schema it needs.
+
+SketchyUp 1.5.0 reads schemas 1 through 34 and refuses schema 35. The released 1.5.0-1 CLI refuses a schema-35 file
+with a geographic site record with `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}`, and
+a schema-35 file with a site but no geographic record with `"error":"Unsupported container field"` in the same form. Both
+exit with status 1, and the file is unchanged (checked on the published package, 2026-10-31). The package acceptance runs the same check, and
+[ADR 0162](decisions/0162-release-versioning.md) records it.
+
+### Upgrade from 1.5.0-1
+
+Run `pacman -U sketchyup-1.6.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install
+`sketchyup-ifc-1.6.0-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a 1.5.0-1 package built
+from the release source to 1.6.0-1. It checks that the 1.5.0-1 CLI refuses the schema-35 fixture unchanged and opens
+the schema 27 to 34 fixtures unchanged.
+
+### Rollback
+
+To roll back, first remove `sketchyup-ifc` if it is installed (`pacman -R sketchyup-ifc`). It requires the exact
+`sketchyup` version, so pacman refuses the rollback while it is installed and changes nothing (D-071). Then install
+`sketchyup-1.5.0-1-x86_64.pkg.tar.zst` with `pacman -U`. A document that holds a georeferenced reference image is
+schema 35 and does not open in 1.5.0, so copy such a document before you open it in 1.6.0 if you may need 1.5.0. A
+document without one is written at its usual schema and opens in 1.5.0.
+
+### Budgets
+
+- **No new budget was missed in the measurements above, and no owner acceptance of a 1.6.0 budget is recorded.** The
+  orthophoto has no time budget in ADR 0181 §9. Its CLI memory increase of about 121 MiB is inside the proposed 256 MiB.
+  The desktop peak includes the whole application, so it is not compared with that figure.
+- **Carried from 1.5.0, accepted there.** The STEP speed budgets (an import with a native file takes 10.17 s against
+  10 s; an export takes 9.96 s against 5 s), and the render limits: a 19,998-body capture prepares in 1.70 s, over the
+  1 s per-frame budget, and a 10,000-placement capture is refused by name.
+- **Not yet measured.** The view test of R107.c3 runs once for each frame. Its cost is not measured, so the per-frame
+  budget has not been checked against it.
+
+### Known limitations
+
+The 1.5.0 limitations still apply where a row above does not lift them. In particular:
+
+- **Orthophoto:** viewport only, so its credit reaches no export or frame. The 16 MiB stored limit applies, and a real
+  photograph was not measured. Only north-up images are read. NAD83 is an approximation. The read cannot be stopped part
+  way: Cancel closes the dialog at once and discards the result. The dialog's layout at 200% text was not checked, and
+  it was not run on Qt 6.8, the declared minimum (the pinned image has Qt 6.11.2). Its fuzz and sanitizer runs belong to
+  the R083 campaign.
+- **Frame credit:** no occlusion test, so a terrain behind a building still counts. A render from 1.5.0, re-rendered from
+  its files, keeps its 1.5.0 stamp, and its manifest has no view test, so a terrain outside the camera's view may still
+  carry the note. The cost of the view test is not measured.
+- **Guide:** links are not followed, and the viewer was not run on Qt 6.8.
+- **Defects:** the triage lists 22 open defects, none release-blocking and none Major (7 Minor, 15 Limitations). The
+  record gives the count at the release candidate.
+- **Everything in the 1.5.0 list** that no row above changes, including the IFC and STEP limits, the GeoTIFF elevation
+  limits, the source-credit limits and the geographic coordinate limits.
+
+### Not in this release
+
+- R107.d (geocoding, held). C06 stays Investigate until R107.d is accepted.
+- The orthophoto in exports and presentation frames, and any online source for an image.
+- The buildingSMART hosted validation of the IFC export. That is the owner's own task and is not a gate for this release.
+- Rows the owner deferred: R103 (2026-10-27), R106 and R108, and R104.b (formula mapping). R105.b to R105.d are design
+  only, and Sketchfab (R105.d) is deferred.
+- The 1.5.0 list still holds: Ruby extensions (C02), DWG (C05), collaboration (C07), `.skp` export, IFC2X3 and IFC4X3
+  export, STEP AP242 export, and any import format beyond those listed.
+
 ## 1.5.0
 
 SketchyUp 1.5.0 is a minor release. It carries the five follow-ups that the 1.4.0 owner decisions left for 1.5

@@ -119,3 +119,39 @@ informational: readers accept any writer string, and retained fixtures that reco
   re-pinned in `cb7a536a` (R099.c), before 1.4.0, and `assistant_tool_surface_tests` passes against it.
 - Contradiction, not changed: `tests/provider_release_corpus_tests.py` still says in its header that v5 is
   authoritative, while its `CURRENT` manifest is v6 (see the 1.4.0 notes above).
+
+## Implementation notes (1.6.0 release preparation)
+
+- The prior release for the 1.6.0-1 package is the published `sketchyup-1.5.0-1-x86_64.pkg.tar.zst` (SHA-256
+  `92c36696e47eddfc5d3fba2d98f8dc56405f737779bc4fafe78f43b4951dd668`, checked against the `gh release download v1.5.0`
+  asset and its `SHA256SUMS`). Unpacked into a private directory without pacman, its `sketchyup-cli --format-capabilities`
+  reports `documentVersion` 34 and `readDocumentVersions` 1 through 34. It refuses the schema-35 reference image
+  `tests/fixtures/reference-geo-v35.sketchyup` with `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}`,
+  exit status 1, and leaves the file unchanged. It opens the schema-34 terrain `terrain-dem-v34.sketchyup` with exit status 0. The
+  text is the one the package acceptance's `.status == "failed"` check reads; it was not derived from the source.
+- The split package's prior release needs no pin in `verify-package.sh`, as in 1.5.0. The script unpacks only the `sketchyup`
+  package. The published `sketchyup-ifc-1.5.0-1` (SHA-256 `5378248f…5b82`) was checked against `SHA256SUMS`, and no script reads it.
+- The `released_packages` table and `known_release_sha256` gained 1.5.0-1. `vercmp` orders the table, and 1.6.0-1 upgrades from 1.5.0-1.
+- Prior-release tests (`SKETCHYUP_PRIOR_CLI`). The 1.5.0 reader opens schema 34, so `terrain_io` now checks that the released reader
+  opens `terrain-dem-v34.sketchyup` unchanged; it had checked that 1.4.0 refused it. `component_parameter_io` accepts a prior that
+  reads 26 to 34. `native_format` already requires the released reader to refuse the schema-35 file (R107.b2.1), and that check
+  now runs against 1.5.0.
+- The writer string is part of the fixture bytes. Bumping it to `SketchyUp/1.6.0` changed these fixtures, each regenerated with its
+  generator into a new directory, compared, and copied in:
+  - `geographic-site-v32.sketchyup` (`geographic_site_tests --write-fixture`) and `terrain-dem-v34.sketchyup`
+    (`terrain_import_tests --write-fixture`): the writer, and the document identifier, which the generators create anew;
+  - `material-texture-size-v33.sketchyup` (`material_texture_size_tests --write-fixture`): one byte, the writer; its identifier is fixed;
+  - `reference-geo-v35.sketchyup` (`sketchyup-cli --import-reference-image tests/fixtures/reference/north-up.png --reference-zone 30N
+    --output`): the writer, and the identifier;
+  - the five catalog fixtures (`catalog_tests --write-fixtures` into a new directory). The committed fixtures had to match the generator
+    byte for byte, so the catalog test failed until they were replaced. Only the writer string changed.
+  The four `.sketchyup` fixtures keep their schemas (32, 33, 34 and 35). Their document chunk and identifier change with the writer,
+  so `validate-native` reports new hashes for them.
+- The eight `inputSha256` values in each of the six corpus manifests were regenerated for the `SketchyUp/1.6.0` writer. Each task was
+  described with `provider_trial --describe gpt-6-astra` twice, and the input file's SHA-256 matched the describe output. The prompt
+  hashes did not change. The corpus stays at v6: the assistant's tool surface did not change since 1.4.0, which the corpus freeze
+  reproduces (`toolsSha256`, the allowed commands and both instruction hashes), and the baseline file is unchanged since before 1.4.0.
+- The IFC export goldens (`tests/fixtures/ifc/export/*.ifc`) change on their `FILE_NAME` and `IFCAPPLICATION` lines, regenerated with
+  `IFC_UPDATE_GOLDENS=1 ifc_export_tests` against the helper built from the vendored IfcOpenShell tree in this worktree.
+- Contradiction, not changed: `tests/provider_release_corpus_tests.py` still says in its header that v5 is authoritative, while its
+  `CURRENT` manifest is v6 (see the 1.4.0 notes above).
