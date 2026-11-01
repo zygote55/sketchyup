@@ -419,6 +419,20 @@ in the assistant panel. The retained local
 CPU profile is experimental, with no quality guarantee, automatic model download
 or cloud fallback.
 
+**Remove unused definitions, materials and assets (scripting and MCP).** A scripted model that
+places a part several times leaves the earlier attempts behind. `component.delete_definition`
+removes one component definition that nothing places, nests or identifies as a library assembly.
+If something still uses it, the command refuses and names the placements, the definitions that
+nest it, or the assembly. Its result lists `nowUnused`, the definitions that the removal left
+unused; they stay until you delete them too. `document.purge_unused` removes every unused
+definition, material and asset in one undo step. Set `dryRun` to `true` to see the same lists
+without changing the model:
+
+```json
+{"command": "component.delete_definition", "definition": "12"}
+{"command": "document.purge_unused", "dryRun": true}
+```
+
 ## Exchange and present a model
 
 Use File import/export commands for GLB/glTF, OBJ/MTL, STL or the documented 2D

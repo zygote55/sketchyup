@@ -726,6 +726,59 @@ std::set<Id> unreferencedDefinitions(const ComponentDefinitions &definitions,
     }
     return dropped;
 }
+DefinitionUse definitionUse(const Document &doc, Id definition) {
+    DefinitionUse use;
+    for (const auto &[root, instance] : doc.instances())
+        if (instance->definition == definition)
+            use.placements.push_back(root);
+    for (const auto &[id, other] : doc.definitions()) {
+        if (id == definition)
+            continue;
+        for (const auto &[member, target] : other->references)
+            if (target == definition) {
+                use.nestedBy.push_back(id);
+                break;
+            }
+    }
+    const auto &found = doc.definitions().at(definition);
+    if (found->parameters)
+        use.assembly = found->parameters->assembly;
+    return use;
+}
+DefinitionRemoval deleteComponentDefinition(Document &doc, Id definition) {
+    const auto use = definitionUse(doc, definition);
+    const auto name = "Component definition #" + std::to_string(definition);
+    if (!use.placements.empty())
+        throw DefinitionInUseError("DEFINITION_PLACED",
+                                   name + " has " + std::to_string(use.placements.size()) +
+                                       " placement(s) and cannot be deleted",
+                                   definition, use);
+    if (!use.nestedBy.empty())
+        throw DefinitionInUseError(
+            "DEFINITION_NESTED", name + " is nested in another definition and cannot be deleted",
+            definition, use);
+    if (use.assembly)
+        throw DefinitionInUseError("DEFINITION_ASSEMBLY",
+                                   name + " is a library assembly and cannot be deleted",
+                                   definition, use);
+    const auto old = doc.definitions().at(definition);
+    std::set<Id> placed;
+    for (const auto &[root, instance] : doc.instances())
+        placed.insert(instance->definition);
+    auto remaining = doc.definitions();
+    remaining.erase(definition);
+    // Only the definitions this one references can become unused, and only one level deep.
+    std::set<Id> released;
+    for (const auto &[member, target] : old->references)
+        released.insert(target);
+    DefinitionRemoval result{definition, {}, {}};
+    for (const auto id : unreferencedDefinitions(remaining, placed, released))
+        result.nowUnused.push_back(id);
+    Edit edit{"Delete unused definition", {}};
+    edit.definitions.push_back({definition, old, nullptr});
+    result.changes = doc.apply(std::move(edit), doc.revision());
+    return result;
+}
 ComponentResult editComponentDefinition(Document &doc, Id id,
                                         const std::function<ChangeReport(Document &)> &edit,
                                         Transform editingFrame,

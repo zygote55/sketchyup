@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Unique geometry limits raised about threefold for 1.7.0 (R110, [ADR 0005](docs/decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)): 300,000 vertices, faces and wires and 900,000 edges per document, a 96 MiB model chunk and a 256 MiB file. The undo history budget rises from 64 MiB to 192 MiB. A legacy raw JSON file keeps its 128 MiB limit. No format or schema change.
+- Scripting commands `component.delete_definition` and `document.purge_unused` remove unused component definitions, materials and assets, in one undo step; `dryRun` reports the same lists without a change (R111, [ADR 0005](docs/decisions/0005-document-protocol.md#removing-unused-definitions-r111), [PR #564](https://github.com/zygote55/sketchyup/pull/564)).
 
 ## 1.6.1 — 2026-11-01
 

@@ -1580,6 +1580,16 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 **Verify:** `document_limits_tests` and `document_limits_io_tests` accept exactly 300,000 vertices, faces and wires and 900,000 edges, refuse one more on edit and on load with the D06 message naming the new maximum, and refuse a 96 MiB + 1 document chunk and a 256 MiB + 1 file before decoding. `unique_limits_acceptance` saves, reopens and re-saves a 300,000-vertex model byte for byte (35 MiB document chunk), takes a small scripted transaction, saves, and undoes it. It then moves all 150 loose bodies in one edit (charged 174.5 MiB, accepted and undone); refuses a 100-body whole-document transaction at the 128 MiB staging budget (261.4 MiB staged) and commits a 20-body one; accepts one member edit of a component of two closed 100,000-face spheres (183.1 MiB charged, undo and redo exact); and refuses the same edit with three spheres (300,000 faces) at 192 MiB. `unique_limits_benchmark` (manual, core only) and `real_model_benchmark` measured the families, the densest shape, a 89 MiB file and a 191 MiB history edit (R082w v3). The normal build and the touched suites pass. The sanitized run of the limit suites is not done.
 
+#### R111 — Remove unused definitions, materials and assets
+
+**Status:** In progress (PR #564). Scripting only; the desktop interface does not change. The rules are in [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111).
+
+**Requires:** [ADR 0005](decisions/0005-document-protocol.md#implementation-notes-d-075) (the D-075 removals that these commands extend) and [ADR 0165](decisions/0165-constrained-component-parameters.md) (the library assembly identity).
+
+**Build:** `component.delete_definition` removes one definition that nothing places, nests or identifies as a library assembly, and refuses any other with a named blocker. `document.purge_unused` removes every unused definition, then every unused material, then every unused asset, in one edit that a dry run reports without changing the document. Both are registered in the catalog, so they reach the session, transactions, MCP and the tool reference. The desktop assistant's allowlist omits them, as it omits `material.delete`. The API contracts are regenerated with the project's generators.
+
+**Verify:** `purge_unused` on a synthetic mixed document (placed, library-assembly, nested and unused definitions; cascading materials and assets), with a dry run that leaves the saved bytes identical, undo and redo, a save and reopen, and a scripted session round trip; the `commands` and `components` suites; the assistant tool-surface baseline and the generator drift checks.
+
 #### 1.5 follow-ups from the 1.4.0 decisions
 
 Recorded 2026-10-28 from the owner's decisions on the 1.4.0 release documents. None of these is in 1.4.0. Each is a row for the 1.5 plan:

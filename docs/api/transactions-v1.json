@@ -4756,6 +4756,32 @@
                                 {
                                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                                     "additionalProperties": false,
+                                    "description": "Remove unused definitions, materials and assets",
+                                    "properties": {
+                                        "assets": {
+                                            "type": "boolean"
+                                        },
+                                        "command": {
+                                            "const": "document.purge_unused"
+                                        },
+                                        "definitions": {
+                                            "type": "boolean"
+                                        },
+                                        "dryRun": {
+                                            "type": "boolean"
+                                        },
+                                        "materials": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
                                     "description": "Create tag or folder",
                                     "properties": {
                                         "command": {
@@ -8365,6 +8391,27 @@
                                     },
                                     "required": [
                                         "body",
+                                        "command"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                    "additionalProperties": false,
+                                    "description": "Delete unused component definition",
+                                    "properties": {
+                                        "command": {
+                                            "const": "component.delete_definition"
+                                        },
+                                        "definition": {
+                                            "description": "Canonical uint64 decimal string",
+                                            "maxLength": 20,
+                                            "pattern": "^[1-9][0-9]*$",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "definition",
                                         "command"
                                     ],
                                     "type": "object"

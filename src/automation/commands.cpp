@@ -39,6 +39,7 @@
 #include "core/solid_boolean.hpp"
 #include "core/tags.hpp"
 #include "core/transform_selection.hpp"
+#include "core/unused.hpp"
 #include "geometry/constraints.hpp"
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
@@ -175,6 +176,45 @@ QJsonObject topologyDescription(const Document &doc, Id context) {
             {"guides", guides},
             {"nextId", QString::number(body.surface.nextId)},
             {"nextEdgeId", QString::number(body.topology.nextId)}};
+}
+// R111: the blockers of a refused definition delete, by ID. Each list names at most five.
+QJsonObject definitionUseDetails(Id definition, const DefinitionUse &use) {
+    constexpr qsizetype listed = 5;
+    QJsonArray placements, nested;
+    for (const auto placement : use.placements)
+        if (placements.size() < listed)
+            placements.append(QString::number(placement));
+    for (const auto other : use.nestedBy)
+        if (nested.size() < listed)
+            nested.append(QString::number(other));
+    QJsonObject details{{"definition", QString::number(definition)},
+                        {"placements", double(use.placements.size())},
+                        {"placementIds", placements},
+                        {"nestedBy", nested}};
+    if (use.assembly)
+        details["assembly"] = QJsonObject{{"id", QString::fromStdString(use.assembly->id)},
+                                          {"version", double(use.assembly->version)}};
+    return details;
+}
+// R111: what document.purge_unused removed, or would remove. Names are model data, so bounded.
+QJsonObject purgeReportJson(const PurgeReport &report, bool dryRun) {
+    QJsonArray definitions, materials, assets;
+    for (const auto &item : report.definitions)
+        definitions.append(QJsonObject{{"id", QString::number(item.id)},
+                                       {"name", QString::fromStdString(boundedName(item.name))},
+                                       {"uniqueVertices", double(item.uniqueVertices)}});
+    for (const auto &item : report.materials)
+        materials.append(QJsonObject{{"id", QString::number(item.id)},
+                                     {"name", QString::fromStdString(boundedName(item.name))}});
+    for (const auto &item : report.assets)
+        assets.append(QJsonObject{{"id", QString::number(item.id)},
+                                  {"name", QString::fromStdString(boundedName(item.name))}});
+    return {{"dryRun", dryRun},
+            {"definitions", QJsonObject{{"removed", definitions},
+                                        {"uniqueVerticesFreed",
+                                         double(report.uniqueVerticesFreed)}}},
+            {"materials", QJsonObject{{"removed", materials}}},
+            {"assets", QJsonObject{{"removed", assets}}}};
 }
 QJsonArray tagDescription(const Document &doc) {
     QJsonArray tags;
@@ -661,7 +701,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     const auto baseRevision = doc.revision();
     Document staged = doc.readSnapshot();
     QJsonArray created, copies, transfers, componentOperations, recipeOperations, sweeps, booleans,
-        solidOperations, assertionCommands, terrainOperations, styleOperations, catalogOperations;
+        solidOperations, assertionCommands, terrainOperations, styleOperations, catalogOperations,
+        purgeOperations;
     std::vector<std::pair<Id, Id>> createdFaceIds;
     struct Lineage {
         std::map<Id, std::vector<Id>> faces, vertices, edges;
@@ -813,6 +854,23 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                                               ? std::optional(decodeDisplayPrecision(
                                                     command["precision"], units))
                                               : std::nullopt);
+        } else if (name == "document.purge_unused") {
+            PurgeOptions options;
+            auto flag = [&](const char *key, bool fallback) {
+                if (!command.contains(key))
+                    return fallback;
+                if (!command[key].isBool())
+                    throw std::runtime_error(std::string("Purge option ") + key +
+                                             " must be a boolean");
+                return command[key].toBool();
+            };
+            options.definitions = flag("definitions", true);
+            options.materials = flag("materials", true);
+            options.assets = flag("assets", true);
+            options.dryRun = flag("dryRun", false);
+            const auto report = purgeUnused(staged, options);
+            compose(report.changes);
+            purgeOperations.append(purgeReportJson(report, options.dryRun));
         } else if (name.startsWith("asset.")) {
             if ((command.contains("name") && !command["name"].isString()) ||
                 (command.contains("mediaType") && !command["mediaType"].isString()))
@@ -1487,6 +1545,20 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
             const auto result = executeHostedCommand(staged, command);
             compose(result.changes);
             componentOperations.append(result.operation);
+        } else if (name == "component.delete_definition") {
+            const auto definition = id(command["definition"]);
+            if (!staged.definitions().contains(definition))
+                throw InspectionError("NOT_FOUND", "Component definition #" +
+                                                       std::to_string(definition) +
+                                                       " does not exist");
+            const auto removal = deleteComponentDefinition(staged, definition);
+            compose(removal.changes);
+            QJsonArray nowUnused;
+            for (const auto unused : removal.nowUnused)
+                nowUnused.append(QString::number(unused));
+            componentOperations.append(QJsonObject{{"command", name},
+                                                   {"definition", QString::number(definition)},
+                                                   {"nowUnused", nowUnused}});
         } else if (name.startsWith("component.")) {
             if (command.contains("name") && !command["name"].isString())
                 throw std::runtime_error("Component name must be a string");
@@ -1586,6 +1658,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                         nested.toString().startsWith("section.") ||
                         nested.toString().startsWith("annotation.") || nested == "component.edit" ||
                         nested == "component.edit_instance" || nested == "component.axes" ||
+                        nested == "component.delete_definition" ||
+                        nested == "document.purge_unused" ||
                         (nested.toString().startsWith("tag.") && nested != "tag.assign"))
                         throw std::runtime_error(
                             "Use a separate explicit scope for shared definition or axis edits");
@@ -1792,10 +1866,16 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                                     std::move(mapping.vertices), std::move(mapping.edges), true});
         }
     }
-    if (edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
+    // R111: a purge that reports and changes nothing (a dry run, or nothing unused) makes a batch
+    // with no edit, which succeeds. Any other batch with no edit is refused, as before.
+    const bool unchanged =
+        edit.changes.empty() && edit.definitions.empty() && edit.instances.empty() &&
         edit.tags.empty() && edit.materials.empty() && edit.assets.empty() && !edit.displayUnits &&
-        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site && edit.scenes.empty() && edit.cameraPaths.empty() && edit.renderPresets.empty() && edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
-        edit.drawingSheets.empty() && edit.drawingViews.empty() && edit.drawingItems.empty())
+        !edit.displayPrecision && !edit.hosted && !edit.style && !edit.solar && !edit.site &&
+        edit.scenes.empty() && edit.cameraPaths.empty() && edit.renderPresets.empty() &&
+        edit.sections.empty() && !edit.activeSections && edit.annotations.empty() &&
+        edit.drawingSheets.empty() && edit.drawingViews.empty() && edit.drawingItems.empty();
+    if (unchanged && purgeOperations.isEmpty())
         throw std::runtime_error("Batch has no committed changes");
     if (sheetBatch) {
         edit.drawingSheetScope = true;
@@ -1910,7 +1990,8 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
     const auto survivingSolidOperations = pruneSolids(solidOperations);
     const auto beforeDefinitions = doc.definitions();
     const auto beforeVariants = doc.componentVariantRecords();
-    const auto report = doc.apply(std::move(edit), doc.revision());
+    // Only a purge that changed nothing reaches here unchanged, and an empty edit is not applied.
+    const auto report = unchanged ? ChangeReport{} : doc.apply(std::move(edit), doc.revision());
     // ADR 0165 §6: drivers this batch created, the placements and variants it
     // regenerated, and the drivers it moved from bound to changedSinceBound.
     const auto createdDrivers = createdComponentDrivers(beforeDefinitions, doc.definitions());
@@ -2015,6 +2096,7 @@ static QJsonObject executeBatchWithReferences(Document &doc, const QJsonObject &
                        {"terrainOperations", terrainOperations},
                        {"styleOperations", styleOperations},
                        {"catalogOperations", catalogOperations},
+                       {"purgeOperations", purgeOperations},
                        {"assertions", assertions},
                        {"sweeps", survivingSweeps},
                        {"booleans", survivingBooleans},
@@ -2041,6 +2123,10 @@ QJsonObject executeBatch(Document &doc, const QJsonObject &request, BatchRespons
     } catch (const TerrainError &error) {
         // ADR 0168: terrain refusals keep their shared error code.
         throw InspectionError(error.code(), error.what());
+    } catch (const DefinitionInUseError &error) {
+        // R111: a refused definition delete names its blockers.
+        throw InspectionError(error.code(), error.what(),
+                              definitionUseDetails(error.definition(), error.use()));
     }
 }
 // The dry run's drawable result (ADR 0166 §2): `geometry` holds every body that is
