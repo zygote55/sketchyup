@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.6.1 — unreleased
 
-- D-089 and D-086: durable MCP and assistant commits budget the stored containers, not the in-memory model size, and the outcome budget holds a before and an after copy of the largest valid file (`outcomeBytes` 268812472; [ADR 0023](docs/decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086), [PR #560](https://github.com/zygote55/sketchyup/pull/560)).
+Patch release of 1.6.0. No format, schema or API change: 1.6.1 reads and writes what 1.6.0 does, and the downgrade window is 1.6.0-1. The release notes are in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md#161).
+
+- Defect fix D-089 (Major): durable MCP and assistant commits budget the stored containers, not the in-memory model size, so a large model no longer fails with `OUTCOME_LIMIT` "Base document exceeds durable storage capacity" ([ADR 0023](docs/decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086), [PR #560](https://github.com/zygote55/sketchyup/pull/560)).
+- Defect fix D-086 (Limitation): the outcome store's budget is 2 × the largest valid container + 16 MiB (`outcomeBytes` 268812472), so a model whose saved container is over 32 MiB can commit ([ADR 0023](docs/decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086), [PR #560](https://github.com/zygote55/sketchyup/pull/560)).
 
 ## 1.6.0 — 2026-10-31
 

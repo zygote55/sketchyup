@@ -397,7 +397,7 @@ need to be re-created.
 
 Open **View → Assistant** or press **Ctrl+J**. Preferences offers the implemented
 OpenAI connections and an experimental numeric-loopback Ollama adapter. The
-supported provider for 1.0, 1.1 and 1.2 is the remote OpenAI connection: choose **Continue with
+supported provider for 1.0 through 1.6.1 is the remote OpenAI connection: choose **Continue with
 ChatGPT** to sign in with a ChatGPT plan (the subscription that includes Codex;
 SketchyUp does not use the Codex tool or its credentials). The local adapter is
 experimental and is not a 1.0 requirement ([provider scope](decisions/0160-provider-scope-for-1-0.md)).
@@ -413,7 +413,7 @@ before further editing or saving.
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
 [tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086a-frozen-provider-corpus.md)
 describe the supported commands and evaluation boundary. The assistant does not work
-with drawing sheets or component parameters in 1.2: the sheet and component parameter
+with drawing sheets or component parameters in 1.6.1: the sheet and component parameter
 operations in the tool reference are available over MCP and the transaction APIs, not
 in the assistant panel. The retained local
 CPU profile is experimental, with no quality guarantee, automatic model download
