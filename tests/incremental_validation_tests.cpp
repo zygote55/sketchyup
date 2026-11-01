@@ -116,7 +116,7 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
         ballast.insert(doc.addFace({loop}, "Ballast"));
     }
     // Locked groups of 100 faces each. One group over all 300 faces would be one edit whose undo
-    // record exceeds the 64 MiB history budget.
+    // record is charged to the history budget.
     for (auto next = ballast.begin(); next != ballast.end();) {
         std::set<Id> chunk;
         for (int n = 0; n < 100 && next != ballast.end(); ++n, ++next)

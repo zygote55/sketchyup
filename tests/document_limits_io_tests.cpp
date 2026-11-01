@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
                   "300,100 of 300,000",
               "An oversized unique-vertex file is rejected on load");
         // R110: a document chunk declared over the 96 MiB model bound is refused by its range before
-        // its bytes are read, and a raw file over the 256 MiB file bound is refused before it is parsed.
+        // its bytes are read, and a raw JSON file over its 128 MiB bound is refused before it is parsed.
         {
             const auto manifestLength = qFromLittleEndian<quint32>(container.constData() + 12);
             auto manifest = QJsonDocument::fromJson(container.mid(16, manifestLength)).object();
@@ -166,9 +166,9 @@ int main(int argc, char **argv) {
                       "Invalid document chunk range or encoding",
                   "A document chunk over the 96 MiB model bound is refused by its range");
             check(rejection([&] {
-                      decodeContainer(QByteArray(qsizetype(NativeLimits::fileBytes) + 1, ' '));
-                  }) == "Raw document exceeds 256 MiB",
-                  "A raw file over the 256 MiB file bound is refused by name");
+                      decodeContainer(QByteArray(qsizetype(NativeLimits::rawJsonBytes) + 1, ' '));
+                  }) == "Raw document exceeds 128 MiB",
+                  "A raw JSON file over the 128 MiB raw bound is refused by name");
         }
         std::cout << "Document limits I/O: 40,000-body save/reload, placement, unique body and "
                      "unique vertex load checks passed\n";

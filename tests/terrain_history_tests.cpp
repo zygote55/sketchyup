@@ -1,8 +1,8 @@
 // D-043: terrain's own history limit class (ADR 0168 decision 3). A terrain up to the
 // 250,000-triangle document limit is created, imported, regenerated, re-parameterised and
-// exploded as ONE undoable edit, undo and redo restore the exact records, the general
-// 64 MiB history budget is not used by terrain tiles, and the worst tile set and record a
-// 250,000-triangle terrain can have still fits one regeneration's before and after.
+// exploded as ONE undoable edit, undo and redo restore the exact records, the general history
+// budget (192 MiB since 1.7.0, 64 MiB before) is not used by terrain tiles, and the worst tile set
+// and record a 250,000-triangle terrain can have still fits one regeneration's before and after.
 // Under AddressSanitizer (the serial sanitized CI job) the near-limit core cases run, the
 // worst-case accounting is skipped and the command case uses a 120 x 120 point file.
 #include "automation/commands.hpp"
@@ -77,9 +77,10 @@ void createAndRegenerate() {
     const auto created = createTerrain(doc, mesh, record(mesh));
     const auto afterCreate = bodies(doc);
     check(triangles(doc) == 249218 && doc.history().total == 1, "create is one edit");
-    // The tiles are charged to terrain's class, not to the 64 MiB general budget.
-    check(doc.terrainHistoryBytes() > Document::historyLimit &&
-              doc.historyBytes() < 64 * 1024,
+    // The tiles are charged to terrain's class, not to the general budget. They are more than the
+    // 64 MiB general budget that 1.6.1 had, so they could not have fit in it; the general budget
+    // is 192 MiB since R110, and the tiles are charged to terrain's class either way.
+    check(doc.terrainHistoryBytes() > 64 * 1024 * 1024 && doc.historyBytes() < 64 * 1024,
           "a 250k terrain's tiles are charged to the terrain history class");
     undoRedo(doc, {}, afterCreate, "create");
     // Every tile changes (lifted mesh): the whole tile set before and after in one edit.
@@ -113,22 +114,15 @@ void explode() {
     check(!isTerrain(doc, terrain) && doc.history().total == 2, "explode is one edit");
     undoRedo(doc, before, bodies(doc), "explode");
     Document large;
-    // 235 x 235 cells is 110,450 faces: over the limit with margin, and far cheaper than the
-    // 250k terrain, which the cases above and `commands` already cover.
+    // 235 x 235 cells is 110,450 faces. Since R110 the unique face limit is 300,000, so this
+    // explodes; the refusal one face over that limit is in document_limits_tests.
     const auto big = grid(235, 235);
     const auto bigTerrain = createTerrain(large, big, record(big)).terrain;
-    const auto revision = large.revision();
-    std::string code, message;
-    try {
-        explodeTerrain(large, bigTerrain);
-    } catch (const TerrainError &error) {
-        code = error.code();
-        message = error.what();
-    }
-    check(code == "LIMIT_EXCEEDED" && message.find("100,000-face modelling limit") !=
-                                          std::string::npos &&
-              large.revision() == revision && isTerrain(large, bigTerrain),
-          "explode of a 110k-face terrain refuses on the modelling face limit: " + message);
+    explodeTerrain(large, bigTerrain);
+    check(!isTerrain(large, bigTerrain) && large.history().total == 2,
+          "explode of a 110k-face terrain is one edit under the 300,000-face limit");
+    large.undo();
+    check(isTerrain(large, bigTerrain), "undo restores the 110k-face terrain");
 }
 // The worst a 250,000-triangle terrain can charge: disjoint triangles (three vertices and
 // three boundary edges each, the most per triangle) and a record at its source limits.
@@ -254,16 +248,14 @@ void commands() {
     check(same(doc, afterSettings), "undo returns to the first settings change");
     if (!full)
         return;
-    // Explode of a near-250k terrain refuses on the modelling face limit, with its code.
+    // Since R110 the modelling face limit is 300,000. This near-250k terrain has no loose faces,
+    // so its explode is under the limit: the command goes through, and undo restores the terrain.
     const auto unchanged = doc.revision();
-    std::string code;
-    try {
-        run(doc, {{"command", "terrain.explode"}, {"body", QString::number(terrain)}});
-    } catch (const InspectionError &error) {
-        code = error.code();
-    }
-    check(code == "LIMIT_EXCEEDED" && doc.revision() == unchanged,
-          "terrain.explode of a near-limit terrain refuses with LIMIT_EXCEEDED");
+    run(doc, {{"command", "terrain.explode"}, {"body", QString::number(terrain)}});
+    check(doc.revision() == unchanged + 1 && !isTerrain(doc, terrain),
+          "terrain.explode of a near-limit terrain is one edit under the 300,000-face limit");
+    doc.undo();
+    check(isTerrain(doc, terrain), "undo restores the near-limit terrain");
 }
 } // namespace
 int main(int argc, char **argv) {

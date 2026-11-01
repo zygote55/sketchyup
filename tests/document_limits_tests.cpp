@@ -278,7 +278,8 @@ void draftCountsEditedDefinitionOnce() {
           "A refused component edit publishes nothing");
 
     // A definition that exceeds the limit alone is not built here: one edit that creates about
-    // 300,000 vertices of members is refused by the 64 MiB undo history budget (R110 finding).
+    // 300,000 vertices of members is refused by the 192 MiB undo history budget (R110 finding;
+    // unique_limits_acceptance refuses a component of three 100,000-face spheres, and accepts two).
 }
 
 // R110: Explode terrain joins the terrain's triangles to the modelling faces against the unique

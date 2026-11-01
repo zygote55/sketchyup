@@ -444,7 +444,7 @@ Document budgetModel(int bodies, int facesPerBody) {
 // The R098.h model: the largest model a document holds (src/core/document_limits.hpp). A definition is one body under a group,
 // from `makeMember`; it is placed `placements` times, so the materialized counts are placements x the body's. The unique
 // geometry is one body (the unique limits count the definition's members once). One edit per placement: one edit of the whole
-// model is refused by the 64 MiB history budget (src/core/model.cpp).
+// model is refused by the history budget (src/core/model.cpp; 64 MiB before R110, 192 MiB since 1.7.0).
 // A single triangle of 10 mm: the smallest member, for the placement and body limits.
 std::shared_ptr<Body> triangleBody(Id id) {
     auto body = std::make_shared<Body>();

@@ -283,7 +283,10 @@ class Document {
     bool canUndo() const { return !undo_.empty(); }
     bool canRedo() const { return !redo_.empty(); }
     size_t historyBytes() const { return historyBytes_; }
-    static constexpr size_t historyLimit = 64 * 1024 * 1024;
+    // R110 (1.7.0, owner decision 2026-11-01): 192 MiB, three times the 1.6.1 budget. An edit is
+    // charged its records before and after, in full, so the budget limits one edit's size (ADR 0005,
+    // R110, has the measured limits). The refusal message states this number (src/core/model.cpp).
+    static constexpr size_t historyLimit = 192 * 1024 * 1024;
     // Terrain's own history limit class (ADR 0168 decision 3, D-043). A terrain operation
     // replaces whole tile sets in one edit, so the record and tile changes of terrain
     // edits are charged here (Edit::terrainBytes), not against historyLimit. Sized for a

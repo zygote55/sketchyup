@@ -122,7 +122,10 @@ int main() {
             payload->properties["property" + std::to_string(i)] = std::string(2048, 'x');
         bounded.apply({"Bounded metadata", {{boundedId, beforeProperties, payload}}},
                       bounded.revision());
-        for (int i = 0; i < 160; ++i)
+        // Each paint charges the body's before and after, about 0.56 MB with the payload above, so
+        // 400 paints exceed the 192 MiB budget (R110) and force eviction.
+        constexpr int paints = 400;
+        for (int i = 0; i < paints; ++i)
             bounded.paint(boundedId, {float(i % 10) / 10, .2f, .3f});
         check(bounded.historyBytes() <= Document::historyLimit,
               "History evicts to its allocation budget");
@@ -132,7 +135,8 @@ int main() {
             bounded.undo();
             ++undoCount;
         }
-        check(undoCount > 0 && undoCount < 162, "Budget eviction removes oldest undo entries");
+        check(undoCount > 0 && undoCount < paints + 2,
+              "Budget eviction removes oldest undo entries");
         while (bounded.canRedo())
             bounded.redo();
         check(*bounded.bodies().at(boundedId) == finalBody,
