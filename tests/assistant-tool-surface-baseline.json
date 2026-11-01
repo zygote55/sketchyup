@@ -107,9 +107,9 @@
     },
     "every-command-with-clarification": {
       "toolCount": 41,
-      "toolsBytes": 137775,
-      "toolsSha256": "a8d71ce4ed1d66f0a176ee80b7de478dc2c782d49f4acdcd4f35990f43a11133",
-      "chatGptPlanToolsBytes": 139403,
+      "toolsBytes": 138521,
+      "toolsSha256": "dd749db0e900a8007ef2c8b8b84205c3530e0c4e1081a3df184957685ec934f9",
+      "chatGptPlanToolsBytes": 140149,
       "names": [
         "document.describe",
         "solar.describe",

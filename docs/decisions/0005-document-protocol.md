@@ -266,8 +266,9 @@ differ, these notes govern.
   to it: a nested reference in a definition that remains, or a library assembly identity
   (ADR 0165). Removal is in the same edit, so one undo restores the definition with its
   placement. The removal repeats while a removed definition releases another. A component draft
-  removes nothing. Definitions left unplaced in any other way are unchanged, and no purge
-  command exists. `component.replace` is unchanged.
+  removes nothing. Definitions left unplaced in any other way are unchanged. Removing them is
+  the R111 command set in [Removing unused definitions (R111)](#removing-unused-definitions-r111).
+  `component.replace` is unchanged.
 - **Reporting.** A batch response lists the definitions its edit removed in `removedDefinitions`,
   beside `createdDefinitions`.
 - **Measured.** A 60,000-vertex single-instance definition moves one member: the draft counted
@@ -279,6 +280,43 @@ differ, these notes govern.
 - **Contradictions.** None with the counting rule. The bug was that a definition with no
   placement kept counting its members as stored geometry, so the rule's "each definition once"
   counted geometry that no placement uses.
+
+## Removing unused definitions (R111)
+
+A scripted model that places a part several times leaves a definition with no placement after
+each replaced attempt. D-075 removes only the definitions that an explode or a make-unique
+leaves unplaced. R111 adds two scripting commands that remove the rest. Neither is in the
+desktop interface, and the desktop assistant does not run them.
+
+- **`component.delete_definition` `{definition}`** removes exactly the named definition when
+  nothing uses it. Nothing uses it when no placement names it (top-level or nested), no other
+  definition's nested reference names it, and it has no library assembly identity. That is the
+  rule `unreferencedDefinitions` applies. Otherwise the command refuses, changes nothing, and
+  names the blocker: `DEFINITION_PLACED` (the placement count and up to five placement IDs),
+  `DEFINITION_NESTED` (up to five definitions that nest it) or `DEFINITION_ASSEMBLY` (the
+  identity). It does not cascade. Its result lists as `nowUnused` the definitions that the
+  removal released and that nothing else refers to; they are kept. One undo restores the
+  definition with its ID and content.
+- **`document.purge_unused` `{definitions?, materials?, assets?, dryRun?}`** removes, in one
+  edit, every unused definition, then every material that nothing names, then every asset that
+  nothing names. Each category defaults to on, and `dryRun` defaults to off. The definition
+  step applies the rule above to every definition. The material step uses the reference set of
+  `validateMaterialAssignments`, which `material.delete` enforces on commit: a body's two sides,
+  its face overrides and its terrain paint (`addMaterialReferences`). The asset step keeps an
+  asset that a remaining material names, and also one that a reference image or an edge stroke
+  texture names, since validation refuses to drop those. Each step reads what the earlier one
+  left, so removing a definition can free a material, and removing a material can free an asset.
+  With `dryRun` the result is the same and the document does not change. With nothing to remove
+  the command succeeds with empty lists and records no history item.
+- **Results.** Each removed record is reported by ID and name. Names are model data, so they are
+  bounded like limit messages (64 bytes, control characters replaced). The purge reports
+  `uniqueVerticesFreed`, the unique vertices that the removed definitions' members stored.
+- **Rule kept.** Ordinary edits still do not drop definitions. Only D-075's explode and
+  make-unique removals, and these two commands, drop one. A component draft refuses both new
+  commands, because they change the document, not one definition.
+- **Contradictions.** None. The Clean files button in the Materials panel keeps its own rule (an
+  asset no material uses). It is unchanged, and it does not keep an asset that a reference image
+  or an edge stroke names.
 
 ## Implementation notes (D-083)
 

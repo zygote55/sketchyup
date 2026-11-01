@@ -49,6 +49,21 @@ void validateMaterialAssignments(const MaterialRecords &materials,
         }
     }
 }
+void addMaterialReferences(const Body &body, std::set<Id> &materials) {
+    // The same references validateMaterialAssignments checks: both sides, each face override and
+    // each terrain paint region. A material named here is in use, so material.delete refuses it.
+    materials.insert(body.materials.front);
+    materials.insert(body.materials.back);
+    for (const auto &[face, sides] : body.faceMaterials) {
+        materials.insert(sides.front);
+        materials.insert(sides.back);
+    }
+    if (body.terrain)
+        for (const auto &edit : body.terrain->edits)
+            if (edit->data)
+                for (const auto material : edit->data->materials())
+                    materials.insert(material);
+}
 MaterialSides faceMaterials(const Body &body, Id face) {
     return body.faceMaterials.contains(face) ? body.faceMaterials.at(face) : body.materials;
 }

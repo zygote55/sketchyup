@@ -1,6 +1,7 @@
 #pragma once
 #include "core/body.hpp"
 #include <optional>
+#include <set>
 namespace sketchy {
 // The real-world size, in metres, that one repeat of a material's texture covers (ADR 0174
 // section 3, R100.b2). Absent, as SketchUp leaves it, the implicit face mapping uses one metre.
@@ -25,6 +26,10 @@ using MaterialRecords = std::map<Id, MaterialPtr>;
 void validateMaterialRecords(const MaterialRecords &materials, Id next);
 void validateMaterialAssignments(const MaterialRecords &materials,
                                  const std::map<Id, BodyPtr> &bodies);
+// R111: adds every material that `body` names (its sides, face overrides and terrain paint) to
+// `materials`. A material that stays named is in use; it is the rule validateMaterialAssignments
+// enforces on erase.
+void addMaterialReferences(const Body &body, std::set<Id> &materials);
 MaterialSides faceMaterials(const Body &body, Id face);
 struct SurfaceAppearance {
     std::array<float, 3> color;

@@ -63,6 +63,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `document.solar` | Change offline sun study | `solar`, `command` |
 | `document.style` | Change model style | `style`, `command` |
 | `document.units` | Change document units | `units`, `command` |
+| `document.purge_unused` | Remove unused definitions, materials and assets | `command` |
 | `tag.create` | Create tag or folder | `name`, `command` |
 | `tag.edit` | Rename, move or show tag | `tag`, `command` |
 | `tag.delete` | Delete unused tag or empty folder | `tag`, `command` |
@@ -138,6 +139,7 @@ Use the [agent guide](AI_MODELING.md) for targeting and outcome reconciliation.
 | `component.create` | Make component | `body`, `command` |
 | `component.instance` | Place component instance | `definition`, `matrix`, `command` |
 | `component.make_unique` | Make component unique | `body`, `command` |
+| `component.delete_definition` | Delete unused component definition | `definition`, `command` |
 | `component.replace` | Replace component definition | `body`, `definition`, `command` |
 | `component.axes` | Change component local axes | `definition`, `matrix`, `command` |
 | `component.edit_instance` | Make one component instance unique and edit its geometry | `body`, `commands`, `command` |

@@ -972,6 +972,7 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "drawing_item.reattach"}, {"item", "1"}, {"anchors", QJsonArray{}}},
             QJsonObject{{"command", "document.style"}, {"style", encodeModelStyle(wireframeStyle)}},
             QJsonObject{{"command", "document.units"}, {"units", "mm"}},
+            QJsonObject{{"command", "document.purge_unused"}},
             QJsonObject{{"command", "asset.import"},
                         {"name", "Data"},
                         {"mediaType", "application/octet-stream"},
@@ -1038,6 +1039,7 @@ int main(int argc, char **argv) {
             QJsonObject{{"command", "component.create"}, {"body", "1"}, {"name", "Panel"}},
             QJsonObject{{"command", "component.instance"}, {"definition", "1"}, {"matrix", matrix}},
             QJsonObject{{"command", "component.make_unique"}, {"body", "1"}},
+            QJsonObject{{"command", "component.delete_definition"}, {"definition", "1"}},
             QJsonObject{{"command", "component.replace"}, {"body", "1"}, {"definition", "2"}},
             QJsonObject{{"command", "component.axes"}, {"definition", "1"}, {"matrix", matrix}},
             QJsonObject{
@@ -1493,7 +1495,8 @@ int main(int argc, char **argv) {
                 createTag(doc, "Tag");
             if (command["command"].toString().startsWith("component.") &&
                 command["command"] != "component.create" &&
-                command["command"] != "component.selection") {
+                command["command"] != "component.selection" &&
+                command["command"] != "component.delete_definition") {
                 createComponent(doc, 1);
                 if (command["command"] == "component.replace") {
                     const auto raw = doc.addFace({{{0, 0, 0}, {2, 0, 0}, {2, 1, 0}, {0, 1, 0}}});
@@ -1680,6 +1683,19 @@ int main(int argc, char **argv) {
                 body->surface.vertices[duplicate] = body->surface.vertices.begin()->second;
                 doc.apply({"Duplicate fixture", {{1, before, body}}}, doc.revision());
             }
+            // R111: an unplaced definition to delete (its placement is erased; the definition stays).
+            if (command["command"] == "component.delete_definition") {
+                const auto component = createComponent(doc, 1);
+                executeBatch(doc, request(doc, {{"command", "geometry.erase_selection"},
+                                                {"entities", QJsonArray{QJsonObject{
+                                                                 {"body", QString::number(component.instance)},
+                                                                 {"kind", "context"},
+                                                                 {"entity", "0"}}}}}));
+                command["definition"] = QString::number(component.definition);
+            }
+            // R111: a purge needs one unused record to remove.
+            if (command["command"] == "document.purge_unused")
+                createMaterial(doc, "Unused", {.2f, .2f, .2f});
             const auto baseline = doc;
             const auto original = encodeDocument(doc);
             for (auto key : schema["required"].toArray()) {
@@ -1694,6 +1710,15 @@ int main(int argc, char **argv) {
             check(encodeDocument(doc) == original, "Unknown field never mutates document");
             const auto revision = doc.revision();
             const auto response = executeBatch(doc, request(doc, command));
+            if (command["command"] == "component.delete_definition") {
+                const auto definition = command["definition"].toString().toULongLong();
+                check(doc.revision() == revision + 1 && !doc.definitions().contains(definition),
+                      "Deleting an unused definition commits once and removes it");
+                doc.undo();
+                check(doc.definitions().contains(definition),
+                      "Undo restores the deleted definition");
+                continue;
+            }
             if (command["command"] == "terrain.inspect_source") {
                 check(response["status"] == "inspected" && doc.revision() == revision &&
                           encodeDocument(doc) == original,
