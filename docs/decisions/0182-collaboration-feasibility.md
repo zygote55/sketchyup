@@ -92,7 +92,7 @@ So the single-user path already runs a batch against a revision, refuses it when
 
 - The R038 journal writes a complete replacement state per frame, and does not write a command log: "It references a complete replacement state rather than replaying commands" ([ADR 0015](0015-recovery-storage.md)). [ADR 0023](0023-durable-outcomes.md) says the outcome store has "no executable command replay."
 - The outcome store rewrites a complete checkpoint on each transition, with a 64 MiB limit that covers both containers ([ADR 0023](0023-durable-outcomes.md)). R041b measured this on the development host it records (Linux, Qt 6.11.2, Debug build, median of five). A commit on the 1000-face fixture took 88 ms and left a 1,141,500-byte checkpoint. The 8 MiB asset fixture took 108 ms and left a 16,782,380-byte checkpoint ([R041b evidence](../verification/R041b-durable-outcomes.md)).
-- So the durable store cannot be the replication log, and it cannot serve client catch-up. It holds at most 10,000 outcomes and 64 MiB, and a large model fills that in a few commits. The replication feed needs its own change-only log (§3.5).
+- So the durable store cannot be the replication log, and it cannot serve client catch-up. It holds at most 10,000 outcomes and 64 MiB (256.3 MiB since D-086), and a large model fills that in a few commits. The replication feed needs its own change-only log (§3.5).
 - Recovery restores identity, revision, records and allocator floors, but not the undo stack ([ADR 0015](0015-recovery-storage.md)).
 
 ### 2.6 What can be replicated
@@ -283,7 +283,7 @@ The host writes a committed record durably before it acknowledges the commit, an
 ### 7.3 Reconnect
 
 1. Open the session connection. The host returns its current revision.
-2. Replay the committed log from the client's revision. If the gap is outside retention, take a snapshot instead. Retention is 10,000 outcomes or 64 MiB ([ADR 0023](0023-durable-outcomes.md)), matched by the log in §3.5.
+2. Replay the committed log from the client's revision. If the gap is outside retention, take a snapshot instead. Retention is 10,000 outcomes or 64 MiB (256.3 MiB since D-086; [ADR 0023](0023-durable-outcomes.md)), matched by the log in §3.5.
 3. For the in-flight batch, call `status`:
    - committed: apply the committed record, once;
    - aborted: keep the batch and show the reason;
@@ -383,7 +383,7 @@ This ADR was not checked by running code. The code claims are from reading `e51f
 | Handshake deadline | 10 s | Proposed |
 | Invite | 24 h, single use | Proposed |
 | Outbox | At most 1,000 batches or 64 MiB | Proposed |
-| Catch-up retention | 10,000 outcomes or 64 MiB | [ADR 0023](0023-durable-outcomes.md) |
+| Catch-up retention | 10,000 outcomes or 256.3 MiB (64 MiB before D-086) | [ADR 0023](0023-durable-outcomes.md) |
 | Commit latency, host side | No worse than the single-user path, which measured 88 ms at 1000 faces, plus one round trip | R041b; V7 |
 | Host memory above single-user | At most 256 MiB | Proposed |
 | Digest | Per-record hash map every 100 commits; full container digest on reconnect only | Proposed |

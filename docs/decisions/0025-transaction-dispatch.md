@@ -76,7 +76,7 @@ dispatch. Durable outcome retention is independent of volatile draft lifetime.
 Diff pages contain at most 100 direct changed records. Inspection retains its
 16 KiB input, 256 KiB output and page limits. Transaction responses allow 272 KiB,
 including the coordinator's 256 KiB stored result and bounded envelope. Outcome
-storage retains at most 10,000 records/64 MiB and terminal outcomes for at least
+storage retains at most 10,000 records/64 MiB (256.3 MiB since D-086, [ADR 0023](0023-durable-outcomes.md#implementation-notes-d-089-and-d-086)) and terminal outcomes for at least
 30 days under its admission policy. Large tasks may need splitting before commit.
 
 The dispatcher is confined to the coordinator's owner thread and rejects reentry.

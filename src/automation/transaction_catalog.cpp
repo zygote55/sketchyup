@@ -1,5 +1,6 @@
 #include "automation/commands.hpp"
 #include "automation/transactions.hpp"
+#include "io/outcome_store.hpp"
 namespace sketchy {
 namespace {
 QJsonObject text(int maximum, QString pattern = {}) {
@@ -103,7 +104,7 @@ QJsonObject transactionCapabilities() {
                                    {"defaultTtlSeconds", 60},
                                    {"maximumTtlSeconds", 300},
                                    {"maximumDiffPage", 100},
-                                   {"outcomeBytes", 64 * 1024 * 1024},
+                                   {"outcomeBytes", int(outcomeStoreBytes)},
                                    {"outcomes", 10000},
                                    {"minimumOutcomeRetentionDays", 30}}},
             {"identity", "Volatile transactionId until preview seals immutable "

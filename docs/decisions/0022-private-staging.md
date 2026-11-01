@@ -84,7 +84,7 @@ drafts and sealed previews use the same charge, through `TransactionCoordinator`
 transaction drafts; four captures and the 32 MiB snapshot budget per client; 64 KiB requests,
 256 KiB responses and 100 operations; the 64 MiB single-edit history limit (512 MiB for terrain).
 The durable outcome store keeps the before and after containers within its 64 MiB budget
-(`encode` in `src/io/outcome_store.cpp`). That store is not changed here.
+(`encode` in `src/io/outcome_store.cpp`). That store was not changed here; D-089 and D-086 changed it ([ADR 0023](0023-durable-outcomes.md#implementation-notes-d-089-and-d-086)).
 
 **Where this supersedes the text above.** The following describe the pre-D-082 rule:
 
@@ -114,4 +114,4 @@ program was 102.80 MiB, most of it the 52 MiB of payloads the program creates it
 succeeds, and the durable commit fails with `OUTCOME_LIMIT`, because the outcome store holds
 the before and after containers within 64 MiB. Arithmetic, not a measurement: a model whose
 saved container is larger than about 32 MiB cannot commit. D-082 moves the refusal from
-staging to commit for such a model. Raising the durable budget is a decision for the owner.
+staging to commit for such a model. Raising the durable budget is a decision for the owner. D-086 raised it ([ADR 0023](0023-durable-outcomes.md#implementation-notes-d-089-and-d-086)).
