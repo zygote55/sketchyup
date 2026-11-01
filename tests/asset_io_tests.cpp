@@ -1,6 +1,7 @@
 #include "core/materials.hpp"
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
+#include "io/native_limits.hpp"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -147,7 +148,7 @@ int main(int argc, char **argv) {
         });
         malformed([](auto &root) { root["assetStorage"] = "external"; });
         const auto external = encodeDocument(Document{}, AssetStorage::External);
-        rejects([&] { decodeDocument(external + QByteArray(32 * 1024 * 1024, ' ')); },
+        rejects([&] { decodeDocument(external + QByteArray(qsizetype(NativeLimits::modelBytes), ' ')); },
                 "External model budget applies to direct decoding as well as containers");
         for (const auto &invalid : {"", "AA", "AA==\n", "AA=", "%%%%"})
             rejects([&] { decodeAssetPayload(invalid); },
