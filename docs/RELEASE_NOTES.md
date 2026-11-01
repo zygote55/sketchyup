@@ -6,8 +6,8 @@ SketchyUp 1.6.1 is a patch release for 1.6.0. It fixes two defects in the durabl
 assistant commits use, and it changes no format, schema or API ([ADR 0162](decisions/0162-release-versioning.md)).
 The fixes are in [ADR 0023](decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086) and the
 [open-defect triage](verification/R089a-defect-triage.md). The release is gated through its
-[M10 acceptance](M10_ACCEPTANCE.md#the-161-release); its record, `verification/G-1.6.1.md`, is written at the release
-candidate.
+[M10 acceptance](M10_ACCEPTANCE.md#the-161-release); its record is [verification/G-1.6.1.md](verification/G-1.6.1.md),
+written at the release candidate.
 
 ### Fixes
 

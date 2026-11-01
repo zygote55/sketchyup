@@ -8,7 +8,7 @@ Arch/Omarchy is the primary development environment.
 
 ## Current build
 
-**[SketchyUp 1.6.0](https://github.com/zygote55/sketchyup/releases/tag/v1.6.0) is the current release**
+**[SketchyUp 1.6.1](https://github.com/zygote55/sketchyup/releases/tag/v1.6.1) is the current release**
 ([release notes](docs/RELEASE_NOTES.md)). It covers the 1.0 Core scope and adds documentation
 sheets (scope row F01), configurable components (scope row F02), terrain and site tools (scope row F03), the 1.4.0 group (IFC and STEP exchange, batch presentations, custom styles and asset catalogs, quantities and schedules, `.skp` import, offline geographic coordinates and the helper sandbox) and the 1.5.0 additions (elevation from downloaded GeoTIFF files, with source credits in exports, and the STEP, render and catalog follow-ups) and the 1.6.0 additions (a georeferenced orthophoto placed as a viewport reference image, the frame credit for a terrain in the camera's view, and an in-app user guide viewer), not full SketchUp parity; see the [support matrix](docs/SUPPORT_MATRIX.md). Draw lines,
 freehand strokes, rectangles, polygons, circles, arcs and pie sectors on explicit or hovered planes, select

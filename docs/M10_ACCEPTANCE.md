@@ -210,7 +210,7 @@ Every merged head of those entries must have a green CI verdict (the fast tier) 
 ## The 1.6.1 release
 
 SketchyUp 1.6.1 is a patch release of 1.6.0. It is one release with one record, `docs/verification/G-1.6.1.md`, written at
-its release candidate in the form of the 1.1.1 patch record ([F01.a](verification/F01a-1.1.1-patch.md)). It follows the gate
+its release candidate, and it was released on 2026-11-01 from RC1, in the form of the 1.1.1 patch record ([F01.a](verification/F01a-1.1.1-patch.md)). It follows the gate
 above, with the differences below. It carries:
 
 - the durable outcome store's budget for MCP and assistant commits: D-089 (Major, the budget counts the stored containers, not

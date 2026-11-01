@@ -4,7 +4,7 @@
   "procedure": "docs/M10_ACCEPTANCE.md, The 1.6.1 release (the patch form of F01.a); the 1.6.1 table answered row by row",
   "version": "1.6.1",
   "recordComplete": true,
-  "gateStatus": "release candidate recorded; not tagged, not published",
+  "gateStatus": "published",
   "ownerApproval": {
     "date": "2026-10-31",
     "decision": "approved fixing D-089 and D-086 and releasing them as 1.6.1 \"under the same permission and RC process\" as 1.6.0",
@@ -15,9 +15,9 @@
     ],
     "source": "the parent's brief and the freeze record (R086.k); the owner's own message is not in the repository"
   },
-  "tagCreated": false,
-  "releaseCreated": false,
-  "published": false,
+  "tagCreated": true,
+  "releaseCreated": true,
+  "published": true,
   "fixes": [
     {
       "id": "D-089",
@@ -319,14 +319,36 @@
     "carried from G-1.6.0: the 1 s per-frame budget and the view test's cost; the frame credit for stills (no checkbox); the Qt range 6.8.0 to 6.12.0, where the orthophoto dialog and the guide viewer were not run on Qt 6.8"
   ],
   "followUpsForPublicationPr": [
-    "set the CHANGELOG heading '1.6.1 — unreleased' to the tag date",
-    "update the PR_ROADMAP entry '1.6.1 release' from 'In preparation' to released",
-    "fill in the full-tier result of run 41263227770 in this record",
-    "correct the R089.a paragraph that says the D-084 re-run is outstanding",
-    "link G-1.6.1.md and R086k from BUILD_PLAN, M10, PR_ROADMAP, RELEASE_NOTES, SCOPE, SUPPORT_MATRIX and R089.a"
+    "done before the tag, in PR #562: the CI at the RC section carries run 41263227770's CI verdict and ctest totals",
+    "done: the CHANGELOG heading reads '1.6.1 — 2026-11-01'",
+    "done: the PR_ROADMAP entry '1.6.1 release' reads as released",
+    "done: R089.a's 1.6.0 release-candidate paragraph no longer says the D-084 re-run is outstanding, and a line records the 1.6.1 release",
+    "done for BUILD_PLAN, PR_ROADMAP, RELEASE_NOTES, SUPPORT_MATRIX and R089.a; M10 names the record in code form, as at 1.6.0; SCOPE unchanged (no current-release or outcome-budget statement); R086.k not linked from those files"
   ],
   "publishedRelease": {
     "tag": "v1.6.1",
-    "status": "to be filled at publication"
+    "tagType": "annotated",
+    "tagMessage": "SketchyUp 1.6.1",
+    "tagObject": "418a6efe3921e108876f0f6cc26cdae28044bc59",
+    "taggerDate": "2026-11-01T04:22:11Z",
+    "pointsAt": "8947872c41c65090aee11555dada9f87ae8ab880",
+    "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.6.1",
+    "title": "SketchyUp 1.6.1",
+    "publishedAt": "2026-11-01T04:22:17Z",
+    "latest": true,
+    "prerelease": false,
+    "draft": false,
+    "assets": {
+      "sketchyup-1.6.1.tar.gz": "8e2d7365deaaf76833c1c27f58842b640c4b191381b445bbe7f66b01ae79fb80",
+      "sketchyup-1.6.1-1-x86_64.pkg.tar.zst": "414e7851862af157353ccf1066acce94f4008952b86c06eaa1b7e0773fe05dc9",
+      "sketchyup-ifc-1.6.1-1-x86_64.pkg.tar.zst": "c665a849aef6a94a11ac784599d9b922c32a1f49919808483070a474ad3c8594",
+      "PKGBUILD": "1f94cffc4398eed6e4d4e9b4f77e152561467dcc4529da165593a4262f057f05",
+      "SHA256SUMS": "2953f6c0f5bdd101aec959d9dae08021aa388f7db137c85935d1cef3c1281efd",
+      "MANIFEST.json": "839b28f27ecffc58006144a2d58c590efe4afed955bbf294ff3473580bbabd8c",
+      "THIRD_PARTY_NOTICES": "b85ccc48b3b6ef78e5ea2a12ed95c1c8303bc69e9cec924f2a5addb2e26965f1"
+    },
+    "assetsVerified": "the parent downloaded every asset; sha256sum -c SHA256SUMS passes for the four files it lists (the archive, both packages and THIRD_PARTY_NOTICES); each downloaded file is byte-identical to the RC artifact; MANIFEST.json's digests match the files and its gitCommit is the RC commit. The digests of all seven assets are GitHub's asset digest field, read on 2026-11-01; for the four in the artifact manifest they equal its values; PKGBUILD, SHA256SUMS and MANIFEST.json have no value in the record to compare with",
+    "recordPr": "PR #562 (merge commit 0d6858e0) merged before the tag was made",
+    "fullTierRun": {"run": 41272827909, "headBranch": "v1.6.1", "status": "in_progress when written", "conclusion": null}
   }
 }

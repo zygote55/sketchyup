@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.6.1 — unreleased
+## 1.6.1 — 2026-11-01
+
+Tag `v1.6.1`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.6.1).
 
 Patch release of 1.6.0. No format, schema or API change: 1.6.1 reads and writes what 1.6.0 does, and the downgrade window is 1.6.0-1. The release notes are in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md#161).
 
