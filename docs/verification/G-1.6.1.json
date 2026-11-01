@@ -128,30 +128,15 @@
     "headSha": "8947872c41c65090aee11555dada9f87ae8ab880",
     "tier": "full",
     "attempt": 1,
-    "status": "in progress at the time of writing",
-    "checkedAt": "2026-11-01T03:32:47Z",
-    "verdict": null,
+    "status": "completed",
+    "completedAt": "2026-11-01T04:20:32Z",
+    "verdict": "success",
     "workloadJobsTotal": 13,
-    "workloadJobsSucceededAtWriting": 12,
-    "jobsSucceededAtWriting": [
-      "Plan",
-      "Development build and checks",
-      "Native tests: X11 1x",
-      "Native tests: X11 2x",
-      "Native tests: Wayland 1x",
-      "Native tests: Wayland 2x",
-      "Native tests: audit and accessibility",
-      "Native tests: fractional scaling, Blender worker and M5",
-      "Blender interoperability",
-      "IFC library and helper",
-      "SKP parser, helper and import",
-      "Qt 6.8 reference compile",
-      "Arch package acceptance"
-    ],
-    "jobsInProgressAtWriting": [
-      "Sanitized builds"
-    ],
-    "ctestTotals": "not readable until the run completes (gh returns no logs for a run in progress)",
+    "workloadJobsSucceeded": 13,
+    "ctestTotals": {"allPassed": true, "Development build and checks": [282, 1, 2], "Sanitized builds": [74, 145, 7, 1],
+                    "Arch package acceptance": [281], "IFC library and helper": [8, 1, 10, 6],
+                    "SKP parser, helper and import": [11, 5], "Blender interoperability": [2],
+                    "Native tests: fractional scaling, Blender worker and M5": [11]},
     "fastTierJobs": "three matrix entries skipped in the full-tier run"
   },
   "packageAcceptance": {
@@ -285,7 +270,7 @@
     },
     {
       "area": "CI",
-      "answer": "in progress at the time of writing; every finished workload job succeeded (12 of 13); CI verdict not yet concluded"
+      "answer": "yes: the full tier passed at RC1, every job on attempt 1, every ctest run at 100%"
     },
     {
       "area": "Downgrade window",
