@@ -58,7 +58,7 @@ uses the same gate; its record, with the 1.2.0 release-candidate evidence, is
 record, with the 1.3.0 release-candidate evidence, is [verification/F03-1.3.0.md](verification/F03-1.3.0.md).
 The 1.4.0 group uses the same gate; its record, with the 1.4.0 release-candidate evidence, is
 [verification/G-1.4.0.md](verification/G-1.4.0.md). The 1.5.0 release uses the same gate; its record,
-with the 1.5.0 release-candidate evidence, is [verification/G-1.5.0.md](verification/G-1.5.0.md). The 1.6.0 release uses the same gate; its record, with the 1.6.0 release-candidate evidence, is [verification/G-1.6.0.md](verification/G-1.6.0.md). The 1.6.1 patch uses the same gate, and its record, `verification/G-1.6.1.md`, is written at its release candidate. The [release notes](RELEASE_NOTES.md) list
+with the 1.5.0 release-candidate evidence, is [verification/G-1.5.0.md](verification/G-1.5.0.md). The 1.6.0 release uses the same gate; its record, with the 1.6.0 release-candidate evidence, is [verification/G-1.6.0.md](verification/G-1.6.0.md). The 1.6.1 patch uses the same gate; its record, with the 1.6.1 release-candidate evidence, is [verification/G-1.6.1.md](verification/G-1.6.1.md). The [release notes](RELEASE_NOTES.md) list
 versions, upgrade and rollback notes and known limitations. The
 [roadmap](PR_ROADMAP.md) traces each Core row to its work.
 

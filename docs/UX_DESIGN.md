@@ -2564,7 +2564,7 @@ Build order for the owner's approval: 20.7 items 1 to 4 and 6 first, then the di
 
 ## 21. Orthophoto as a georeferenced reference image (desktop)
 
-**Status: Approved by the owner on 2026-10-31 (R107.b2.2); built in R107.b2.2 (ADR 0181, Implementation notes R107.b2.2), with the differences listed there. Amended 2026-10-31 to the built behaviour (R107.b2.2).** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
+**Status: Approved by the owner on 2026-10-31 (R107.b2.2); built in R107.b2.2 (ADR 0181, Implementation notes R107.b2.2), with the differences listed there. Amended 2026-10-31 to the built behaviour (R107.b2.2); the owner accepted the amended text on 2026-11-01.** This section designs the desktop import of an orthophoto that has a map position: a PNG or JPEG with a world file, or an 8-bit RGB or RGBA GeoTIFF in UTM. The engine and its rules are in [ADR 0181](decisions/0181-maps-geolocation-feasibility.md), R107.b2 section. The image is a reference plane, not a modelling input (ADR 0181 §7.1, item 2). Its coordinates come from the file. The dialog makes no network request and downloads nothing.
 
 It extends the reference-images panel. It adds no menu entry, shortcut, rail slot, tool or tray panel. The form follows section 20: the layout, the states, the refusals, the report, and the keyboard.
 

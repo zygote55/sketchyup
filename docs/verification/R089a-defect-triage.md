@@ -1185,7 +1185,7 @@ The RC is `58afe4a6`, the head of `main` and `release/1.6.0`. Since the 1.5.0 RC
 - The order of the orthophoto import's checks (R107.b2.2, item 10). A file with two faults can now report the other fault. Each check still refuses.
 - The UX §21 wording that differed from the built dialog. The R107.e2 guide notes resolve it in favour of the code, and UX §21 now states what the code does.
 
-**Open verification, not a row.** ADR 0165's D-084 note says the peer's named cases (a group member, `0` and a scene ID) placed correctly before the fix, and that the one case that did fail was an ID the edit does not show. It asks the peer to re-run its report against the fix. That re-run is outstanding. D-084 stays fixed on the record's evidence.
+**Open verification, not a row.** ADR 0165's D-084 note says the peer's named cases (a group member, `0` and a scene ID) placed correctly before the fix, and that the one case that did fail was an ID the edit does not show. It asks the peer to re-run its report against the fix. The reporter did so on 1.6.0 on 2026-10-31, and the D-084 row records the result: a scene-ID parent and `"0"` succeed, and an out-of-scope member is refused. D-084 stays fixed.
 
 ## Open acceptance work that is not a known defect
 
@@ -1438,6 +1438,7 @@ After the D-088 fix (2026-10-31, branch `fix/d088-cli-version`): 24 open, unchan
 After the 1.6.0 release (2026-10-31, [G-1.6.0](G-1.6.0.md)): 24 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 16 Limitation). The fixes listed above are in that release; D-088 was never in a release.
 After the D-089 and D-086 fixes (2026-10-31, [PR #560](https://github.com/zygote55/sketchyup/pull/560), branch `fix/d089-outcome-budget`): 23 open (0 release-blocking, 0 Major, 8 Minor, 15 Limitation). D-089 (Major, found on the released 1.6.0) and D-086 (Limitation, found at the RC1) are fixed on that branch. No other row changed status. Both were open in 1.6.0, and the 1.6.1 patch carries the fix.
 At the 1.6.1 RC1 `8947872c` (2026-10-31): 23 open (0 release-blocking, 0 Major, 8 Minor, 15 Limitation). No new defect was found at the RC. D-089 and D-086 stay fixed, D-087 stays open, and the count is unchanged from the line above ([G-1.6.1](G-1.6.1.md)).
+After the 1.6.1 release (2026-11-01, [G-1.6.1](G-1.6.1.md)): 23 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 15 Limitation). D-089 and D-086 are in that release.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
