@@ -1571,7 +1571,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R111 — Remove unused definitions, materials and assets
 
-**Status:** In progress (PR #N). Scripting only; the desktop interface does not change. The rules are in [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111).
+**Status:** In progress (PR #564). Scripting only; the desktop interface does not change. The rules are in [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111).
 
 **Requires:** [ADR 0005](decisions/0005-document-protocol.md#implementation-notes-d-075) (the D-075 removals that these commands extend) and [ADR 0165](decisions/0165-constrained-component-parameters.md) (the library assembly identity).
 
