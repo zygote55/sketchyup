@@ -1,6 +1,11 @@
 #pragma once
+#include "core/component_parameter_records.hpp"
 #include "core/model.hpp"
+#include <optional>
 #include <set>
+#include <stdexcept>
+#include <string>
+#include <vector>
 namespace sketchy {
 struct ComponentRegeneration {
     std::size_t placements{}, variants{};
@@ -32,6 +37,41 @@ ComponentResult makeComponentUnique(Document &doc, Id instance);
 // release the definitions it references, so the test repeats until no candidate drops.
 std::set<Id> unreferencedDefinitions(const ComponentDefinitions &definitions,
                                      const std::set<Id> &placed, std::set<Id> candidates);
+// R111: what keeps one definition in use. A definition with none of these is unused and may be
+// removed with deleteComponentDefinition.
+struct DefinitionUse {
+    std::vector<Id> placements; // top-level and nested placements, ascending by root
+    std::vector<Id> nestedBy;   // other definitions whose nested references name it, ascending
+    std::optional<ComponentAssembly> assembly; // its library assembly identity (ADR 0165)
+};
+DefinitionUse definitionUse(const Document &doc, Id definition);
+// R111: a delete refused because something still uses the definition. `code` is
+// DEFINITION_PLACED, DEFINITION_NESTED or DEFINITION_ASSEMBLY; `use` names the blockers.
+class DefinitionInUseError : public std::runtime_error {
+  public:
+    DefinitionInUseError(std::string code, const std::string &message, Id definition,
+                         DefinitionUse use)
+        : std::runtime_error(message), code_(std::move(code)), definition_(definition),
+          use_(std::move(use)) {}
+    const std::string &code() const { return code_; }
+    Id definition() const { return definition_; }
+    const DefinitionUse &use() const { return use_; }
+
+  private:
+    std::string code_;
+    Id definition_{};
+    DefinitionUse use_;
+};
+struct DefinitionRemoval {
+    Id definition{};
+    // Definitions this removal leaves unused: the ones it released and nothing else refers to.
+    // They are kept; a removal does not cascade.
+    std::vector<Id> nowUnused;
+    ChangeReport changes;
+};
+// R111: removes exactly the named definition, in one edit, when definitionUse finds nothing.
+// Otherwise it throws DefinitionInUseError and changes nothing.
+DefinitionRemoval deleteComponentDefinition(Document &doc, Id definition);
 // The optional parameter step of a template edit (ADR 0165 §4): given the new
 // template and the current record, return the record to store. It may update or
 // remove parameters and drivers, so a template edit that deletes a driver's target

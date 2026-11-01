@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Scripting commands `component.delete_definition` and `document.purge_unused` remove unused component definitions, materials and assets, in one undo step; `dryRun` reports the same lists without a change (R111, [ADR 0005](docs/decisions/0005-document-protocol.md#removing-unused-definitions-r111)).
+
 ## 1.6.1 — 2026-11-01
 
 Tag `v1.6.1`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.6.1).

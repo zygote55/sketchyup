@@ -81,7 +81,7 @@ void checkTerrainLimit(std::size_t triangles, std::string_view operation) {
                grouped(triangles) + " of " + grouped(terrainTriangleLimit);
     throw std::runtime_error(utf8Prefix(message, limitMessageBytes));
 }
-std::string quotedLimitName(std::string_view name) {
+std::string boundedName(std::string_view name) {
     std::string clean;
     clean.reserve(name.size());
     for (const char c : name)
@@ -89,8 +89,9 @@ std::string quotedLimitName(std::string_view name) {
     constexpr std::string_view ellipsis = "\xE2\x80\xA6";
     if (clean.size() > limitNameBytes)
         clean = utf8Prefix(clean, limitNameBytes - ellipsis.size()) + std::string(ellipsis);
-    return "'" + clean + "'";
+    return clean;
 }
+std::string quotedLimitName(std::string_view name) { return "'" + boundedName(name) + "'"; }
 std::string definitionLimitContext(std::string_view name, std::size_t id) {
     return "definition " + quotedLimitName(name) + " #" + std::to_string(id);
 }

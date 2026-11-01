@@ -1569,6 +1569,16 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 **Verify:** Each helper's committed fixtures produce output identical to an unsandboxed run; a sandboxed helper cannot open a socket, exec another program or read outside its directory; an unavailable layer refuses with a named reason; the required `sandbox_available` CI check passes on the runner images.
 
+#### R111 — Remove unused definitions, materials and assets
+
+**Status:** In progress (PR #N). Scripting only; the desktop interface does not change. The rules are in [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111).
+
+**Requires:** [ADR 0005](decisions/0005-document-protocol.md#implementation-notes-d-075) (the D-075 removals that these commands extend) and [ADR 0165](decisions/0165-constrained-component-parameters.md) (the library assembly identity).
+
+**Build:** `component.delete_definition` removes one definition that nothing places, nests or identifies as a library assembly, and refuses any other with a named blocker. `document.purge_unused` removes every unused definition, then every unused material, then every unused asset, in one edit that a dry run reports without changing the document. Both are registered in the catalog, so they reach the session, transactions, MCP and the tool reference. The desktop assistant's allowlist omits them, as it omits `material.delete`. The API contracts are regenerated with the project's generators.
+
+**Verify:** `purge_unused` on a synthetic mixed document (placed, library-assembly, nested and unused definitions; cascading materials and assets), with a dry run that leaves the saved bytes identical, undo and redo, a save and reopen, and a scripted session round trip; the `commands` and `components` suites; the assistant tool-surface baseline and the generator drift checks.
+
 #### 1.5 follow-ups from the 1.4.0 decisions
 
 Recorded 2026-10-28 from the owner's decisions on the 1.4.0 release documents. None of these is in 1.4.0. Each is a row for the 1.5 plan:

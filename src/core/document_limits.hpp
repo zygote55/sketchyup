@@ -59,6 +59,9 @@ inline constexpr std::size_t terrainTriangleLimit = 250000;
 void checkTerrainLimit(std::size_t triangles, std::string_view operation);
 // Locale-independent thousands separators ("250,000").
 std::string groupedCount(std::size_t value);
+// A UTF-8-safe name truncated to limitNameBytes with control characters replaced. Results that
+// carry model names (R111) use it too.
+std::string boundedName(std::string_view name);
 // A single-quoted, UTF-8-safe name truncated to limitNameBytes with control
 // characters replaced; the only user content a limit message may carry.
 std::string quotedLimitName(std::string_view name);
