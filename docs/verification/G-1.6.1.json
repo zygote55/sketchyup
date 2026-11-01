@@ -311,8 +311,8 @@
     "Harness progress lines report each trial 1 to 34 ms longer than the report's elapsedMs and the scorer's elapsedMs. The record uses the report and scorer values.",
     "Open-defect count: G-1.6.0 gave 24 at RC2; R089.a and the facts sheet give 23 now. The difference is D-086 fixed (-1) and D-089 added and fixed (net 0)."
   ],
+  "closedForOwner": ["UX section 21 amendment (PR #552): accepted by the owner on 2026-11-01"],
   "openForOwner": [
-    "UX section 21 amendment (PR #552): the owner has not separately approved the amended text",
     "R107.d (geocoding) stays held; SCOPE C06 stays at Investigate",
     "buildingSMART hosted validation of the IFC export: the owner's own task, not a gate",
     "D-087, retained renders: Minor, open",
