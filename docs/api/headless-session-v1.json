@@ -3565,7 +3565,7 @@
             "maximumDiffPage": 100,
             "maximumTtlSeconds": 300,
             "minimumOutcomeRetentionDays": 30,
-            "outcomeBytes": 268812472,
+            "outcomeBytes": 403030200,
             "outcomes": 10000,
             "requestBytes": 65536,
             "responseBytes": 278528,

@@ -190,7 +190,7 @@ Document decodeContainer(const QByteArray &bytes) {
     // Explicit legacy migration, without rewriting the source file.
     if (!bytes.startsWith(magic)) {
         if (bytes.size() > qsizetype(NativeLimits::fileBytes))
-            throw std::runtime_error("Raw document exceeds 128 MiB");
+            throw std::runtime_error("Raw document exceeds 256 MiB");
         return decodeDocument(bytes);
     }
     if (bytes.size() < 16 || bytes.size() > qsizetype(NativeLimits::containerBytes))

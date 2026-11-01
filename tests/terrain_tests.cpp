@@ -184,7 +184,7 @@ void limits() {
           "Document terrain limit diagnostics");
     check(rejection([] { checkTerrainLimit(250000, "Document load"); }).empty(),
           "Exactly 250,000 is allowed");
-    // Terrain triangles are counted apart from the 100,000-face modelling budget.
+    // Terrain triangles are counted apart from the 300,000-face modelling budget.
     check(doc.materializedTotals().terrainTriangles == 32 &&
               doc.materializedTotals().faces == 0 && doc.materializedTotals().vertices == 0,
           "Tile faces count only as terrain triangles");
@@ -372,8 +372,9 @@ void explode() {
               code == "NOT_FOUND",
           "Explode needs a terrain");
 
-    // Refused when the faces would exceed the modelling limit, with the numbers. A
-    // terrain over 100,000 triangles also shows it does not use the modelling budget.
+    // Explode joins the terrain's triangles to the modelling faces against the unique face limit
+    // (DocumentLimits::unique.faces: 300,000 since 1.7.0, R110). The boundary at that size, with a
+    // 249,218-triangle terrain, is checked in document_limits_tests, because building it is slow.
     const auto start = std::chrono::steady_clock::now();
     Document large;
     const auto big = grid(224, 224); // 100,352 triangles
@@ -383,14 +384,17 @@ void explode() {
                                &large.componentVariants())
                   .faces == 1,
           "A 100,352-triangle terrain leaves the modelling budget free");
-    const auto revision = large.revision();
-    const auto message = rejection([&] { explodeTerrain(large, terrain.terrain); }, &code);
-    check(code == "LIMIT_EXCEEDED" && message.find("100,353") != std::string::npos &&
-              message.find("100,000") != std::string::npos &&
-              message.find("100,352") != std::string::npos,
-          "Explode over the modelling limit names the numbers: " + message);
-    check(large.revision() == revision && isTerrain(large, terrain.terrain),
-          "The refusal changes nothing");
+    const auto budget = terrainExplodeBudget(large, terrain.terrain);
+    check(budget.faceLimit == DocumentLimits::unique.faces && budget.faceLimit == 300000 &&
+              budget.terrainFaces == 100352 && budget.fits(),
+          "Explode checks the terrain's triangles against the unique face limit");
+    TerrainExplodeBudget edge;
+    edge.terrainFaces = 249218;
+    edge.faceLimit = DocumentLimits::unique.faces;
+    edge.modelFaces = 50782;
+    check(edge.fits(), "Exactly 300,000 faces fit the explode budget");
+    edge.modelFaces = 50783;
+    check(!edge.fits(), "One more modelling face does not fit the explode budget");
     std::cout << "large terrain build and refusal: "
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()
               << " s\n";

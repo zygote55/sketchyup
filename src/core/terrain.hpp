@@ -89,8 +89,8 @@ TerrainCreated importTerrain(Document &doc, const TerrainMesh &mesh, TerrainReco
                              std::optional<SiteOrigin> establish, std::string name = "Terrain");
 // The effect of Explode terrain on the two budgets (R095.e1's confirmation shows it): the
 // document's unique modelling faces now and the terrain's triangles that would join them,
-// against the 100,000-face modelling limit, and the document's terrain triangles that the
-// terrain would free, against TerrainLimits::triangles.
+// against DocumentLimits::unique.faces (300,000 since 1.7.0, R110), and the document's terrain
+// triangles that the terrain would free, against TerrainLimits::triangles.
 struct TerrainExplodeBudget {
     std::size_t modelFaces{}, terrainFaces{}, faceLimit{};
     std::size_t documentTerrainTriangles{}, terrainLimit{};

@@ -1144,6 +1144,11 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(outcome_store_tests tests/outcome_store_tests.cpp)
     target_link_libraries(outcome_store_tests PRIVATE sketchyup_io)
     add_test(NAME outcome_store COMMAND outcome_store_tests)
+    # R110 (ADR 0005, 1.7.0): the raised unique limits at their limit, through save, reopen, a scripted
+    # transaction and undo. A slow core test (ci-path-map slow-core): about a minute of build and I/O.
+    add_executable(unique_limits_acceptance_tests tests/unique_limits_acceptance_tests.cpp)
+    target_link_libraries(unique_limits_acceptance_tests PRIVATE sketchyup_io)
+    add_test(NAME unique_limits_acceptance COMMAND unique_limits_acceptance_tests)
     add_executable(staging_tests tests/staging_tests.cpp)
     target_link_libraries(staging_tests PRIVATE sketchyup_io)
     target_compile_definitions(staging_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

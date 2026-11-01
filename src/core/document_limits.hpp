@@ -21,15 +21,17 @@ struct LimitCounts {
 // Materialized totals count every record after expanding all placements, nested
 // placements included; `placements` counts materialized component instances.
 // The materialized values bound the worst-case document's memory
-// (docs/verification/R082w-memory-budget-v2.md).
+// (docs/verification/R082w-memory-budget-v2.md). The unique values were raised in 1.7.0
+// (R110, ADR 0005 "Raised unique geometry limits"); the memory evidence for them is
+// docs/verification/R082w-memory-budget-v3.md. The materialized values did not change.
 struct DocumentLimits {
     static constexpr std::size_t scale = SKETCHYUP_BENCHMARK_LIMIT_SCALE;
     static constexpr LimitCounts unique{0,
                                         10000 * scale,
-                                        100000 * scale,
-                                        100000 * scale,
-                                        100000 * scale,
                                         300000 * scale,
+                                        300000 * scale,
+                                        300000 * scale,
+                                        900000 * scale,
                                         10000 * scale,
                                         10000 * scale};
     static constexpr LimitCounts materialized{20000 * scale,  40000 * scale,
@@ -38,6 +40,16 @@ struct DocumentLimits {
                                               40000 * scale,  40000 * scale};
 };
 static_assert(SKETCHYUP_BENCHMARK_LIMIT_SCALE >= 1);
+// A document's unique geometry never exceeds its materialized totals, so the unique limit can
+// be reached only in a document that also fits the materialized one.
+static_assert(DocumentLimits::unique.placements <= DocumentLimits::materialized.placements);
+static_assert(DocumentLimits::unique.bodies <= DocumentLimits::materialized.bodies);
+static_assert(DocumentLimits::unique.vertices <= DocumentLimits::materialized.vertices);
+static_assert(DocumentLimits::unique.faces <= DocumentLimits::materialized.faces);
+static_assert(DocumentLimits::unique.wires <= DocumentLimits::materialized.wires);
+static_assert(DocumentLimits::unique.edges <= DocumentLimits::materialized.edges);
+static_assert(DocumentLimits::unique.curves <= DocumentLimits::materialized.curves);
+static_assert(DocumentLimits::unique.guides <= DocumentLimits::materialized.guides);
 enum class LimitClass { UniqueGeometry, Placement };
 // D06 diagnostics. Throws std::runtime_error naming the first exceeded quantity
 // (placements, bodies, vertices, faces, wires, edges, curves, guides), its

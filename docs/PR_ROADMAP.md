@@ -131,7 +131,7 @@ manual outcomes, measured budgets and remaining issues. The M0 record exists; la
 | M7 | [R061](#r061)–[R072](#r072) | Presentation, annotations, sections, rendering and scene handoff | Presentation alpha |
 | M8 | [R073](#r073)–[R081](#r081) | Document/exchange formats, extensions, libraries and shipped AI instructions | Feature-complete Core beta candidate |
 | M9 | [R082](#r082)–[R089](#r089) | All Core rows, platform/performance/provider/package evidence and no release-blocking defects | Native editor 1.0; ecosystem gaps disclosed |
-| M10 | [R090](#r090)–[R108](#r108) | Separate Extended releases and conditional compatibility decisions | Expanded parity; no unsupported compatibility claims |
+| M10 | [R090](#r090)–[R110](#r110) | Separate Extended releases and conditional compatibility decisions | Expanded parity; no unsupported compatibility claims |
 
 M5 deliberately uses inner/outer wall loops rather than requiring the M6 Offset
 tool, and a supported recipe rather than the later generic hosted-component
@@ -1568,6 +1568,17 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 **Build:** A shared in-tree sandbox library (no new dependency): `PR_SET_NO_NEW_PRIVS`, a Landlock ruleset confined to the input and a private directory, and a raw seccomp-bpf allow-list with a kill default. Apply it, fail closed, in the SKP, IFC/STEP, text and extension workers and the Blender job (offline, private home, exec of its own binary only), including the developer probe modes. Report a sandbox kill as `sandboxViolation`, never as a crash to restart.
 
 **Verify:** Each helper's committed fixtures produce output identical to an unsandboxed run; a sandboxed helper cannot open a socket, exec another program or read outside its directory; an unavailable layer refuses with a named reason; the required `sandbox_available` CI check passes on the runner images.
+
+<a id="r110"></a>
+#### R110 — Raise the unique geometry limits
+
+**Status:** In progress (PR #N). The owner approved the change and its numbers on 2026-11-01, for the 1.7.0 release: vertices, faces and wires per document go from 100,000 to 300,000, and edges from 300,000 to 900,000. The native file bound rises to 256 MiB and the model chunk to 96 MiB, with no schema or document version change. The materialized limits and the per-body kernel limits are unchanged. The measured rationale that [ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170) requires, [R082w v3](verification/R082w-memory-budget-v3.md), is not measured yet, so the change is not accepted for release until it is.
+
+**Requires:** [R082.gg](verification/R082gg-placement-limits.md) (the split of unique geometry from placements), [R082.w v2](verification/R082w-memory-budget-v2.md) (the calibration the new limits extend).
+
+**Build:** `DocumentLimits::unique` and `NativeLimits` take the new values, with `static_assert`s that keep each unique value at or below its materialized value. The restatements follow the constants or state the new values: the capability output, the published contract (`docs/api/native-format-v1.json`, and the two outcome budgets in `transactions-v1.json` and `headless-session-v1.json`), the terrain explode budget, the copy array, the catalog payload, the automation model read and the documents. Per-body kernel limits and per-import caps are unchanged, and so are the staging, transaction, snapshot and history budgets.
+
+**Verify:** `document_limits_tests` and `document_limits_io_tests` accept exactly 300,000 vertices, faces and wires and 900,000 edges, refuse one more on edit and on load with the D06 message naming the new maximum, and refuse a 96 MiB + 1 document chunk and a 256 MiB + 1 file before decoding. `unique_limits_acceptance` saves, reopens and re-saves a 300,000-vertex model byte for byte (35 MiB document chunk), takes a small scripted transaction, saves, and undoes it. The normal build and the touched suites pass. The sanitized run of the limit suites and the R082w v3 measurements are still to be done.
 
 #### 1.5 follow-ups from the 1.4.0 decisions
 

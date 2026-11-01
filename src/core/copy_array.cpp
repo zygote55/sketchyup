@@ -1,4 +1,5 @@
 #include "core/copy_array.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 namespace sketchy {
 namespace {
@@ -43,7 +44,10 @@ ArrayResult copyArraySelected(Document &doc, const TransformTargets &targets,
     ArrayResult result;
     result.instances.push_back(transformSelected(staged, targets, matrices[0], pivot, space, true));
     const auto before = counts(doc), after = counts(staged);
-    const Counts limits{10000, 100000, 100000, 100000, Topology::edgeLimit, 10000, 10000};
+    const Counts limits{DocumentLimits::unique.bodies, DocumentLimits::unique.vertices,
+                        DocumentLimits::unique.faces,  DocumentLimits::unique.wires,
+                        DocumentLimits::unique.edges,  DocumentLimits::unique.curves,
+                        DocumentLimits::unique.guides};
     for (size_t i = 0; i < before.size(); ++i)
         if (before[i] + (after[i] - before[i]) * array.copies > limits[i])
             throw std::runtime_error("Array exceeds document complexity limits");

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 3,
+  "supersedes": "R082w-memory-budget-v2.json",
+  "status": "not-measured",
+  "frozenAt": null,
+  "sha256": null,
+  "acceptanceStatus": "prospective-only",
+  "priorEvidenceAccepted": false,
+  "publicModelLimitsChanged": true,
+  "releaseAccepted": false,
+  "hardwareAccepted": false,
+  "measured": false,
+  "reason": "The calibration harness (real_model_benchmark and inference_index_benchmark, software rendering in sketchyup-native-fonts-check:20261008, one CPU, 4 GiB) did not run within the 90-minute limit in R110. Its desktop link needs a Release build of the whole desktop tree from source at one CPU. No figure in this file is measured.",
+  "calibrationSource": "Not run. Software llvmpipe, Release, one CPU and 4 GiB in sketchyup-native-fonts-check:20261008 would be the calibration source.",
+  "hardwareRequirement": "Fresh Intel and AMD reruns per docs/M9_HARDWARE_SESSION.md section 1 remain required; the ADR 0161 waiver applies as it did to v2.",
+  "publicLimits": {
+    "uniqueGeometry": {
+      "bodies": 10000,
+      "vertices": 300000,
+      "faces": 300000,
+      "wires": 300000,
+      "edges": 900000,
+      "curves": 10000,
+      "guides": 10000
+    },
+    "placements": 20000,
+    "materialized": {
+      "bodies": 40000,
+      "vertices": 600000,
+      "faces": 600000,
+      "wires": 600000,
+      "edges": 900000,
+      "curves": 40000,
+      "guides": 40000
+    }
+  },
+  "limits": {
+    "modeledWorstCaseCeilingBytes": 3221225472,
+    "modeledWorstCaseAtLimitsPeakRssBytes": 3221225472
+  },
+  "modeledWorstCase": {
+    "method": "v2's table (docs/verification/R082w-memory-budget-v2.json, modeledWorstCaseArithmetic) with the unique-vertex inference term at 300,000 vertices. Arithmetic only: no per-unique-vertex cost was measured.",
+    "terms": [
+      {
+        "name": "Base, including 1,000 shared placements (repeated 1k, five cycles)",
+        "bytes": 288276480
+      },
+      {
+        "name": "19,000 more placements x 36,138 B",
+        "bytes": 686622000
+      },
+      {
+        "name": "600,000 materialized vertices x 2,542 B unshared viewport payload",
+        "bytes": 1525200000
+      },
+      {
+        "name": "Unique vertices x 917 B inference index",
+        "bytes": 275100000
+      },
+      {
+        "name": "Maximum texture fixture (textures 1k - repeated 1k)",
+        "bytes": 273436672
+      }
+    ],
+    "totalBytes": 3048635152,
+    "totalGiB": 2.8393,
+    "v2TotalBytes": 2865235152,
+    "withinCeiling": true
+  },
+  "measurementsRequired": [
+    "Unique-geometry family at about 300,000 unique vertices, no placements: peak RSS, load and save time, frame time if the harness reports it, inference-index build and query time.",
+    "The v2 unique 100k case on the same build, for comparison.",
+    "Any per-unique-vertex cost the measurements show that v2's materialized terms do not cover is added to the modeled worst case. If the total goes over 3 GiB, the numbers are reported and no other limit changes."
+  ],
+  "standInMeasurement": "The smallest stand-in: the same two inference and unique runs (the unique family at 300,000 vertices and the 100k case) built once in sketchyup-native-fonts-check:20261008 as Release with one CPU and 4 GiB, without the frame-time check if the desktop link is too slow.",
+  "hostObservations": {
+    "note": "Not calibration. R110's local normal build (Debug with -g0, shared libraries) measured an at-limit model of 300,000 unique vertices (150 prisms of 1,000 sides, 35.0 MiB document chunk) at 985 MiB peak RSS in unique_limits_acceptance_tests."
+  }
+}

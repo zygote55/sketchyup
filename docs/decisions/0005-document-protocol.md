@@ -188,7 +188,7 @@ dispatch is not enabled in today's CLI.
 ## Budgets and verification
 
 Initial live-model limits remain 10000 bodies and 100000 each of vertices, faces
-and wires. Retained undo history is 64 MiB (terrain edits: a separate 512 MiB, ADR 0168,
+and wires (superseded for the unique values by R110, below). Retained undo history is 64 MiB (terrain edits: a separate 512 MiB, ADR 0168,
 D-043); stage plus validation scratch has a
 separate 128 MiB target. One over-budget operation fails before publication.
 Estimate shared allocations once, then compare RSS and allocator telemetry on
@@ -220,6 +220,8 @@ Component placements no longer count against the unique-geometry limits.
 
 - **Unique geometry** keeps the earlier values: 10,000 bodies, 100,000 each of
   vertices, faces and wires, 300,000 edges, and 10,000 each of curves and guides.
+  R110 (1.7.0) superseded these unique values; see
+  [Raised unique geometry limits](#raised-unique-geometry-limits-r110-170).
   It counts records outside every placement plus each definition's members once.
   Placement roots and projected members do not count.
 - **Placement limits** bound 20,000 materialized component instances (nested ones
@@ -279,6 +281,68 @@ differ, these notes govern.
 - **Contradictions.** None with the counting rule. The bug was that a definition with no
   placement kept counting its members as stored geometry, so the rule's "each definition once"
   counted geometry that no placement uses.
+
+## Raised unique geometry limits (R110, 1.7.0)
+
+The owner approved these limits on 2026-11-01. They supersede the unique values of
+[R082.gg](#unique-geometry-and-placement-limits-r082gg), which stay above as history.
+The materialized values, the placement limit and every per-body kernel limit are unchanged.
+
+- **Unique geometry:** 10,000 bodies; 300,000 each of vertices, faces and wires; 900,000
+  edges; 10,000 each of curves and guides. Before 1.7.0 the vertices, faces and wires were
+  100,000 each and the edges 300,000. Each unique value is at or below its materialized value,
+  as the `static_assert`s in `core/document_limits.hpp` check.
+- **Placement and materialized limits (unchanged):** 20,000 placements; 40,000 bodies; 600,000
+  each of vertices, faces and wires; 900,000 edges; 40,000 each of curves and guides.
+- **Native bounds:** `NativeLimits::fileBytes` 256 MiB (was 128 MiB); `modelBytes`, the document
+  chunk, 96 MiB (was 32 MiB). `containerBytes` follows its formula: 193,126,492 bytes, about
+  184 MiB (was 126,017,628). `legacyModelBytes` (32 MiB), `manifestBytes` (4 MiB), the asset
+  bounds and the terrain-mesh bound are unchanged. `outcomeStoreBytes` follows as 2 × containerBytes
+  + 16 MiB, which is 403,030,200 bytes (was 268,812,472, D-089). Every integer that the capability
+  output derives from these values fits in 32 bits.
+- **Compatibility (decision 5):** no schema or document version changes (document version 35,
+  container version 2). The encoder did not change, only the bounds it checks, so a model within the
+  1.6.1 bounds (a document chunk of at most 32 MiB and a file of at most 128 MiB) is written with
+  the bytes 1.6.1 writes, and 1.6.1 reads it. A larger file is refused by 1.6.1 with that version's
+  own message. `document_limits_io_tests` checks that the 40,000-body model is within those bounds
+  and saves, reloads and re-saves it unchanged.
+- **Budgets that do not change (decision 6):** staging 128 MiB, transactions 128 MiB, the
+  inspection snapshot 32 MiB and the undo history 64 MiB. Since D-082 they charge only the records
+  not shared with the base, so they should not grow with the document. The at-limit acceptance test
+  (`unique_limits_acceptance`) checks a snapshot and a scripted transaction on a 300,000-vertex
+  model. The history budget does charge a whole edit, and it still refuses some edits at this size
+  (see the implementation notes below). Those budgets stay as they are.
+- **Memory evidence:** [R082w v3](../verification/R082w-memory-budget-v3.md) is the measured
+  rationale that this section needs. Its figures are not measured yet, and the file says so.
+
+## Implementation notes (R110)
+
+- **Acceptance (`unique_limits_acceptance`, local normal build, Debug with `-g0` and shared
+  libraries):** 150 prisms of 1,000 sides, so 300,000 unique vertices, 450,000 edges and 150,300
+  faces in 150 bodies. Its document chunk is 35.0 MiB, over the old 32 MiB bound, and its
+  container is 35.0 MiB. It saves, reopens and re-saves byte for byte. A snapshot is taken, then a
+  transaction (begin, apply, preview, commit) moves one body and saves, and undo restores the
+  body. Peak RSS was 985 MiB, and the test took about 77 s. It sits in the `slow-core` group of
+  `.github/ci-path-map.json`, so the fast tier runs it only when that group is selected.
+- **History budget and component edits (finding, not changed):** the 64 MiB undo budget charges
+  every record an edit touches, in full. A component definition that holds more vertices than
+  this allows cannot be edited in one undoable step. In the local probe, a component of 180,000
+  vertices could be created, but moving one of its members was refused with `Edit exceeds the 64 MiB
+  history budget`. The same move in a 160,000-vertex component was accepted, and creating a component
+  of 200,000 vertices was refused. A flat model of 300,000 vertices built from ordinary bodies, one
+  small edit at a time, is accepted. Decision 6 keeps the budget. The owner should decide whether
+  component definitions above this size are a 1.7.0 limit.
+- **Terrain explode:** the budget that Explode terrain checks is the unique face limit, so a terrain
+  can now explode into a document of up to 300,000 faces (it was 100,000). The boundary is exact: a
+  249,218-triangle terrain with 50,782 loose modelling faces explodes, and one more face is refused
+  with the numbers. The per-call overlay cap of 100,000 faces stays. It is the per-body limit, since
+  an overlay is one body.
+- **Copy array:** the aggregate check now uses the unique limits. Its edge count was the per-body
+  edge limit (300,000) and is now the unique edge limit (900,000). Its other counts had the same
+  values before and after.
+- **Unchanged per-body kernel limits:** `Surface::validate` (100,000 vertices or faces per body,
+  `loop` at most 10,000 vertices), `Topology::edgeLimit` (300,000 edges per body) and the terrain
+  and glTF, OBJ, STL, DXF and STEP import bounds keep their values. They are not document limits.
 
 ## Implementation notes (D-083)
 

@@ -1811,8 +1811,8 @@ struct VariantScene {
     Table table;
     Id room{}, roomPlacement{};
 };
-// `ballast` loose faces of 9,700 vertices each bring the document near the 100,000
-// unique-vertex budget while keeping its record count small.
+// `ballast` loose faces of 9,700 vertices each bring the document near the 300,000
+// unique-vertex budget (R110) while keeping its record count small.
 VariantScene variantScene(std::uint32_t maxShelves, int placements = 3, int ballast = 0) {
     VariantScene s;
     auto &t = s.table;
@@ -1859,6 +1859,13 @@ VariantScene variantScene(std::uint32_t maxShelves, int placements = 3, int ball
         for (int k = 0; k < 9700; ++k)
             ring.push_back({100 * std::cos(2 * pi * k / 9700), 100 * std::sin(2 * pi * k / 9700), -5});
         const auto first = doc.addFace({ring}, "Ballast");
+        // R110: a 6,000-vertex face makes the ballast 297,000 vertices, the same headroom below
+        // the unique budget that the 1.6.1 fixture (97,000 of 100,000) had.
+        std::vector<Vec3> partialRing;
+        for (int k = 0; k < 6000; ++k)
+            partialRing.push_back(
+                {100 * std::cos(2 * pi * k / 6000), -1000 + 100 * std::sin(2 * pi * k / 6000), -5});
+        doc.addFace({partialRing}, "Ballast");
         // Copies are loaded rather than drawn, which keeps the fixture fast.
         auto bodies = doc.bodies();
         Id next = doc.nextId();
@@ -2049,12 +2056,12 @@ void uniqueGeometryEquivalence() {
         small.amends += run.amends;
     }
     check(small.amends > 0, "Amendment is exercised");
-    // Near the 100,000-vertex budget: each distinct variant adds its shelf copies once,
+    // Near the 300,000-vertex budget: each distinct variant adds its shelf copies once,
     // so some edits are refused by the unique-geometry limit itself.
     const bool oracle = Document::fullValidationOracle();
     Document::setFullValidationOracle(false);
-    const auto large = randomVariantEdits(variantScene(100, 8, 10), 7, 80,
-                                          {40, 55, 70, 85, 100}, {.5, .7, .9, 1.1, 1.3, 1.5});
+    const auto large = randomVariantEdits(variantScene(100, 8, 30), 7, 80, {40, 55, 70, 85, 100},
+                                          {.5, .7, .9, 1.1, 1.3, 1.5});
     Document::setFullValidationOracle(oracle);
     check(large.refusedUnique > 0 && large.accepted > 20,
           "Edits over the unique-geometry budget are refused identically (" +

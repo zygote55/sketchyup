@@ -460,8 +460,10 @@ std::shared_ptr<Body> triangleBody(Id id) {
     return body;
 }
 
-// `bodies` separate closed pentagonal bipyramids (7 vertices, 10 triangle faces each), one body per record: the unique limits
-// for bodies (10,000), vertices (70,000) and faces (100,000) at once. Each is a solid when exported.
+// `bodies` separate closed pentagonal bipyramids (7 vertices, 10 triangle faces each), one body per
+// record: the 1.6.1 unique limits for bodies (10,000), vertices (70,000) and faces (100,000) at
+// once. Each is a solid when exported. R110 (1.7.0) raised the document's unique vertex and face
+// limits to 300,000; these measurement modes still build the 1.6.1 sizes.
 Document solidsModel(int bodies, int perEdit) {
     Document doc;
     Id next = 1;
@@ -624,8 +626,10 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (argc > 1 && std::string(argv[1]) == "--largest") {
-            // ifc_step_export_tests --largest [PLACEMENTS FACES TAIL RUNS]: the R098.h measurement. The default is the largest model
-            // the document holds in this style: six placements of a definition of 980 102-gons and one 40-gon (600,000 materialized
+            // ifc_step_export_tests --largest [PLACEMENTS FACES TAIL RUNS]: the R098.h measurement.
+            // The default is the largest model the document held in this style at 1.6.1 (R110
+            // raised the unique limits to 300,000, which this mode does not measure): six
+            // placements of a definition of 980 102-gons and one 40-gon (600,000 materialized
             // vertices, 100,000 unique), five exports.
             const int placements = argc > 2 ? std::stoi(argv[2]) : 6;
             const int faces = argc > 3 ? std::stoi(argv[3]) : 980;
@@ -646,8 +650,9 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (argc > 1 && std::string(argv[1]) == "--largest-grid") {
-            // ifc_step_export_tests --largest-grid [PLACEMENTS COLUMNS ROWS RUNS]: the R098.h export worst case within the unique
-            // limits, a grid of 200 x 250 quads (100,000 triangle faces, 50,451 vertices, 150,450 edges), five exports.
+            // ifc_step_export_tests --largest-grid [PLACEMENTS COLUMNS ROWS RUNS]: the R098.h
+            // export worst case within the unique limits of 1.6.1 (a grid of 200 x 250 quads:
+            // 100,000 triangle faces, 50,451 vertices, 150,450 edges), five exports.
             const int placements = argc > 2 ? std::stoi(argv[2]) : 5;
             const int columns = argc > 3 ? std::stoi(argv[3]) : 200;
             const int rows = argc > 4 ? std::stoi(argv[4]) : 250;
@@ -658,8 +663,9 @@ int main(int argc, char **argv) {
             return 0;
         }
         if (argc > 1 && std::string(argv[1]) == "--largest-solids") {
-            // ifc_step_export_tests --largest-solids [BODIES RUNS]: the R098.h body worst case, 10,000 separate closed solids of
-            // 10 triangles each (100,000 unique faces, 70,000 vertices, 10,000 bodies): the unique limits, five exports.
+            // ifc_step_export_tests --largest-solids [BODIES RUNS]: the R098.h body worst case,
+            // 10,000 separate closed solids of 10 triangles each (100,000 unique faces, 70,000
+            // vertices, 10,000 bodies): the 1.6.1 unique limits, five exports.
             const int bodies = argc > 2 ? std::stoi(argv[2]) : 10000;
             largest(directory.path(), [&] { return solidsModel(bodies, 500); },
                     std::to_string(bodies) + " separate closed pentagonal bipyramids (7 vertices and 10 faces each)",

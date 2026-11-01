@@ -160,7 +160,7 @@ Performance results exist for an AMD discrete GPU only
 ([R082.ii](verification/R082ii-amd-hardware-session.md), [R082.jj](verification/R082jj-edit-feedback.md)).
 The 10,000-placement fixture fits the public limits since
 [R082.gg](verification/R082gg-placement-limits.md) stopped counting placements as
-unique geometry. The unique-geometry limits and the performance targets are unchanged. The Intel one-CPU frame miss
+unique geometry. R110 (1.7.0) raised the unique-geometry limits to 300,000 vertices, faces and wires and 900,000 edges ([ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)); the performance targets are unchanged. The Intel one-CPU frame miss
 (D-004) and the Intel/Wayland open-progress gap (D-005) stay recorded and untested
 at 1.0. Follow the [R082 baseline](verification/R082a-real-model-baseline.md) for
 the fixture caveats.

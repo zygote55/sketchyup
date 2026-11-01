@@ -8,8 +8,8 @@ It writes four IFC4 files and times the helper and the command line on them, and
   parse-1m      1,000,000 unreferenced IfcCartesianPoint instances (about 56 MB): the helper's dry run
   parse-2m      2,000,000 instances (about 114 MB): the dry run, and the entity limit with the count named
   ico-5k        5,000 tessellated icosahedra in one storey (100,000 triangles that do not merge, 60,000
-                vertices, 5,004 bodies: the document limits' "100,000-face, 10,000-body" model): the whole
-                import by the command line
+                vertices, 5,004 bodies: the 1.6.1 document limits' "100,000-face, 10,000-body" model; R110 raised
+                the unique face limit to 300,000): the whole import by the command line
   walls-20k     20,000 extruded rectangular walls: the same, which goes past the document limits (10,000
                 bodies) and is imported partially with the rest reported
 """

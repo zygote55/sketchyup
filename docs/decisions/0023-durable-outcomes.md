@@ -115,7 +115,8 @@ checkpoint `OUTCOMES` when it opens, so the folder should hold that file. Not ve
   20.2 MiB terrain mesh = 126,017,628 bytes (120.2 MiB). `decodeContainer` refuses anything
   larger, so this is the largest valid container. The brief named 128 MiB, which is
   `NativeLimits::fileBytes`, the bound on a raw file. The store writes containers, so the
-  container bound is the right one.
+  container bound is the right one. *1.7.0 (R110):* with a 96 MiB model, `containerBytes` is
+  193,126,492 bytes and `outcomeStoreBytes` is 403,030,200; the figures above are 1.6.1's (ADR 0005).
 - 16 MiB holds the outcome records and their results, each result at most 256 KiB. The
   commit's own check decides whether a particular commit fits.
 - `transactionCapabilities()` reports `outcomeBytes` from the same constant, and the

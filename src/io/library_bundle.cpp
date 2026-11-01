@@ -56,7 +56,7 @@ QByteArray encodeBundle(const Document &source, const TemplateMetadata &metadata
     validateMetadata(metadata, source);
     const auto [width, height] = thumbnail(thumbnailPng);
     const auto model = encodeContainer(source);
-    require(model.size() <= modelLimit, "Template native payload exceeds 128 MiB");
+    require(model.size() <= modelLimit, "Template native payload exceeds 256 MiB");
     const auto verified = decodeContainer(model);
     validateMetadata(metadata, verified);
     QJsonArray labels;

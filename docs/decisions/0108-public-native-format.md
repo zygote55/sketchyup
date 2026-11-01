@@ -33,7 +33,9 @@ Paths are logical keys, not filesystem references. Assets remain embedded when a
 file is relocated. Limits: 1 MiB manifest, 32 MiB document chunk, 1,024 asset records,
 16 MiB per present asset and 64 MiB total asset payload. The file reader independently
 caps input at 128 MiB. Inline raw JSON remains a legacy/import representation with
-canonical base64 asset data and a 128 MiB limit.
+canonical base64 asset data and a 128 MiB limit. *1.7.0 (R110):* the limits are now 4 MiB
+manifest, 96 MiB document chunk, 256 MiB file and 256 MiB inline raw JSON; see
+[Implementation notes (R110)](#implementation-notes-r110).
 
 ## Document records
 
@@ -623,3 +625,25 @@ two fields, `width` and `height`, each a finite number in metres from 0.01 to 10
 root refuses `textureSize`. A document with neither feature still writes its lower schema, byte for
 byte. The read range is 1 to 33. SketchyUp 1.3.0 and 1.2.0 refuse a schema-33 file unchanged, as they
 refuse schema 31 and 32.
+
+## Implementation notes (R110)
+
+R110 (1.7.0) raises the reader's bounds. Where this section and the rules above differ, these notes
+govern. The decision and its evidence are in [ADR 0005](0005-document-protocol.md#raised-unique-geometry-limits-r110-170).
+
+- **Bounds.** `NativeLimits::fileBytes` is 256 MiB: a raw file, and inline raw JSON, which
+  refuses a larger document with "Document exceeds the 256 MiB JSON limit". `modelBytes` is 96 MiB:
+  the external model chunk, which refuses a larger one with "Packaged model exceeds the 96 MiB JSON
+  limit". `containerBytes` is 193,126,492 bytes. The manifest bound (4 MiB), the legacy JSON bound
+  for schemas 1 to 10 (32 MiB) and the asset bounds are unchanged. The catalog payload region takes
+  the file bound (256 MiB).
+- **Order of refusal.** `decodeContainer` refuses a raw file over 256 MiB before it parses it, and a
+  container over `containerBytes` before it reads its manifest. It refuses a document chunk whose
+  manifest range exceeds 96 MiB before it reads that chunk's bytes. `document_limits_io_tests`
+  checks each of the three.
+- **Published contract.** `docs/api/native-format-v1.json` reports `fileLimitBytes` "268435456";
+  `docs/api/transactions-v1.json` and `docs/api/headless-session-v1.json` report `outcomeBytes`
+  403030200. The CLI-generated artifacts match `scripts/generate-api-schemas.py` byte for byte.
+- **Compatibility (decision 5).** No schema or container version changes. The encoder is unchanged,
+  so a model within the 1.6.1 bounds is written with the bytes 1.6.1 writes, and 1.6.1 reads it. A
+  1.7.0 file over the 1.6.1 bounds is refused by 1.6.1 with that version's own message.

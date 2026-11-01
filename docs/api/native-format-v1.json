@@ -2,7 +2,7 @@
     "apiVersion": 1,
     "containerVersion": 2,
     "documentVersion": 35,
-    "fileLimitBytes": "134217728",
+    "fileLimitBytes": "268435456",
     "format": "sketchyup",
     "migrationReplacesFiles": false,
     "publicSchema": "sketchyup-document-v35",
