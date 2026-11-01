@@ -68,7 +68,7 @@ What R095 gives us (surveyed at `3645e221`):
   terrain's record. R096 operations therefore always change the record, which they
   must do anyway to stay regenerable.
 - **History** (D-043). Terrain edits are charged to `Document::terrainHistoryLimit`
-  (512 MiB), not the 64 MiB `historyLimit`. The charge counts every changed body in
+  (512 MiB), not `historyLimit` (192 MiB since R110; 64 MiB when this was decided). The charge counts every changed body in
   full, including the whole `TerrainRecord` (`terrainRecordBytes`: every source
   point). With 125,000 stored points the record alone is several MB (R095.f: 6.08 MB as
   JSON). Today every record change, including a display change, charges the whole

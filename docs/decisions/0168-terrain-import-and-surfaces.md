@@ -48,8 +48,8 @@ What the code gives us (surveyed at `327f35a3`):
   `referenceImage`), which is the pattern a terrain record would follow.
 - **Edits.** Every change is one `Edit` applied by `Document::applyEdit` with a
   revision check; bodies are immutable `shared_ptr`s, so undo shares everything an
-  edit does not replace. Retained history is capped at 64 MiB
-  (`Document::historyLimit`).
+  edit does not replace. Retained history is capped at `Document::historyLimit`
+  (192 MiB since R110; 64 MiB when this was decided).
 - **Limits.** `Surface::validate` refuses a body over 100,000 vertices or faces.
   `DocumentLimits` caps unique geometry at 100,000 vertices, 100,000 faces and
   300,000 edges, and materialized geometry at 600,000 faces. The model JSON chunk is
@@ -636,7 +636,7 @@ does not triangulate.
   **History (D-043).** Terrain has its own undo history budget,
   `Document::terrainHistoryLimit` (512 MiB charged). The record, tile and lineage changes of
   an edit that creates, changes or drops a terrain record are charged there
-  (`Edit::terrainBytes`), not against the 64 MiB `historyLimit`. The budget holds a
+  (`Edit::terrainBytes`), not against `historyLimit` (192 MiB since R110; 64 MiB when this was decided). The budget holds a
   250,000-triangle terrain plus one regeneration's before and after. The worst
   250,000-triangle terrain and record charge 190.7 MiB, so every terrain operation within the
   document limit applies as one undoable edit. The oldest entries are dropped while either

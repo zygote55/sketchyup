@@ -187,9 +187,11 @@ dispatch is not enabled in today's CLI.
 
 ## Budgets and verification
 
-Initial live-model limits remain 10000 bodies and 100000 each of vertices, faces
-and wires (superseded for the unique values by R110, below). Retained undo history is 64 MiB (terrain edits: a separate 512 MiB, ADR 0168,
-D-043); stage plus validation scratch has a
+Initial live-model limits were 10000 bodies and 100000 each of vertices, faces
+and wires; R110 (1.7.0) raised the unique values to 300000 (see
+[Raised unique geometry limits](#raised-unique-geometry-limits-r110-170)). Retained
+undo history is 192 MiB since R110 (owner decision, 2026-11-01; 64 MiB before). Terrain
+edits have a separate 512 MiB budget (ADR 0168, D-043). Stage plus validation scratch has a
 separate 128 MiB target. One over-budget operation fails before publication.
 Estimate shared allocations once, then compare RSS and allocator telemetry on
 empty, room, 1000-body, large single-mesh and import fixtures. Track checkpoint,
@@ -300,38 +302,71 @@ The materialized values, the placement limit and every per-body kernel limit are
   bounds and the terrain-mesh bound are unchanged. `outcomeStoreBytes` follows as 2 × containerBytes
   + 16 MiB, which is 403,030,200 bytes (was 268,812,472, D-089). Every integer that the capability
   output derives from these values fits in 32 bits.
+- **Raw JSON (legacy and import, ADR 0108):** a raw JSON file, one with no container magic, is
+  bounded by `NativeLimits::rawJsonBytes`, 128 MiB as before R110, and refused as "Raw document
+  exceeds 128 MiB" before it is parsed. The in-process inline form (`encodeDocument` with inline
+  asset data) keeps `fileBytes`, 256 MiB, because presentation capture (`presentation_batch.cpp`), the
+  text worker and the native round-trip checks in `createNativeFile` and `migrateNativeFile` hold a
+  whole document inline. By the bounds (not measured), a valid at-limit document with its assets
+  inline is about 208 MiB: a 96 MiB model, 64 MiB of assets as base64 (about 85 MiB) and a terrain
+  mesh as base64 (about 27 MiB). A 128 MiB inline bound would refuse those round trips.
 - **Compatibility (decision 5):** no schema or document version changes (document version 35,
   container version 2). The encoder did not change, only the bounds it checks, so a model within the
   1.6.1 bounds (a document chunk of at most 32 MiB and a file of at most 128 MiB) is written with
   the bytes 1.6.1 writes, and 1.6.1 reads it. A larger file is refused by 1.6.1 with that version's
   own message. `document_limits_io_tests` checks that the 40,000-body model is within those bounds
   and saves, reloads and re-saves it unchanged.
-- **Budgets that do not change (decision 6):** staging 128 MiB, transactions 128 MiB, the
-  inspection snapshot 32 MiB and the undo history 64 MiB. Since D-082 they charge only the records
-  not shared with the base, so they should not grow with the document. The at-limit acceptance test
-  (`unique_limits_acceptance`) checks a snapshot and a scripted transaction on a 300,000-vertex
-  model. The history budget does charge a whole edit, and it still refuses some edits at this size
-  (see the implementation notes below). Those budgets stay as they are.
-- **Memory evidence:** [R082w v3](../verification/R082w-memory-budget-v3.md) is the measured
-  rationale that this section needs. Its figures are not measured yet, and the file says so.
+- **Budgets that do not change (decision 6):** staging 128 MiB, transactions 128 MiB and the
+  inspection snapshot 32 MiB. Since D-082 staging and the snapshot charge only the records not shared
+  with the base. A staged proposal also holds its edit's whole history charge, so a whole-document
+  proposal can exceed 128 MiB (see the implementation notes below). The at-limit acceptance test
+  (`unique_limits_acceptance`) checks a snapshot and scripted transactions on a 300,000-vertex model.
+- **Undo history (owner decision, 2026-11-01):** `Document::historyLimit` is 192 MiB, three times
+  the 1.6.1 value of 64 MiB. The refusal message states that number. The history budget charges
+  every record an edit touches, in full, before and after, so it limits the size of one edit, not
+  only the retained total. The measurements are in the implementation notes below.
+- **Memory evidence:** [R082w v3](../verification/R082w-memory-budget-v3.md) measures the raised
+  limits in software. Its modeled worst case, with the retained-history row at the 192 MiB undo
+  budget, is 3.03 GiB, which is over the 3 GiB ceiling by 27.4 MiB. With the per-unique-vertex
+  excess that the loose unique family shows, it is 3.58 GiB. R110 stops there under its brief, so
+  the unique limits are **not accepted** for 1.7.0 until the owner decides how to resolve the ceiling.
 
 ## Implementation notes (R110)
 
-- **Acceptance (`unique_limits_acceptance`, local normal build, Debug with `-g0` and shared
-  libraries):** 150 prisms of 1,000 sides, so 300,000 unique vertices, 450,000 edges and 150,300
-  faces in 150 bodies. Its document chunk is 35.0 MiB, over the old 32 MiB bound, and its
-  container is 35.0 MiB. It saves, reopens and re-saves byte for byte. A snapshot is taken, then a
-  transaction (begin, apply, preview, commit) moves one body and saves, and undo restores the
-  body. Peak RSS was 985 MiB, and the test took about 77 s. It sits in the `slow-core` group of
-  `.github/ci-path-map.json`, so the fast tier runs it only when that group is selected.
-- **History budget and component edits (finding, not changed):** the 64 MiB undo budget charges
-  every record an edit touches, in full. A component definition that holds more vertices than
-  this allows cannot be edited in one undoable step. In the local probe, a component of 180,000
-  vertices could be created, but moving one of its members was refused with `Edit exceeds the 64 MiB
-  history budget`. The same move in a 160,000-vertex component was accepted, and creating a component
-  of 200,000 vertices was refused. A flat model of 300,000 vertices built from ordinary bodies, one
-  small edit at a time, is accepted. Decision 6 keeps the budget. The owner should decide whether
-  component definitions above this size are a 1.7.0 limit.
+- **Acceptance (`unique_limits_acceptance`, local build: Debug with `-g0` and shared libraries,
+  not the Release harness):** 150 prisms of 1,000 sides, so 300,000 unique vertices, 450,000 edges
+  and 150,300 faces in 150 bodies. Its document chunk is 35.0 MiB, over the old 32 MiB bound, and
+  it saves, reopens and re-saves byte for byte. A snapshot is taken, then a transaction (begin,
+  apply, preview, commit) moves one body and saves, and undo restores the body. The R110 checks
+  below follow. Peak RSS was 1,529 MiB, and the whole test took 223 s (77 s before R110; the R110
+  checks take 168 s of it). It sits in the `slow-core` group of `.github/ci-path-map.json`.
+- **History budget (owner decision, 2026-11-01: 192 MiB).** The refusal reads "Edit exceeds the
+  192 MiB history budget". The charge of an edit is its records before and after, in full, for
+  every record it touches. Measured in the test:
+  - one edit that moves all 150 loose bodies (300,000 vertices): charged 174.5 MiB, accepted, and
+    undone exactly;
+  - one member of a component of two closed 100,000-face spheres (200,000 faces, 100,004 vertices):
+    charged 183.1 MiB, accepted, and undo and redo are exact;
+  - the same edit with three spheres (300,000 faces, 150,006 vertices, the unique limit): refused
+    with the message above. Each sphere is the same size, so the charge is linear, and three would
+    charge about 275 MiB (1.5 times the two-sphere figure; not measured, since the edit is refused).
+  **So a component definition at the 300,000-face limit cannot be edited in one undoable step at
+  192 MiB.** This is open: the owner decides whether the budget rises (about 275 MiB or more for
+  that edit) or component definitions are limited below the unique limit.
+- **Whole-document transactions (finding; staging not changed).** A transaction accepts at most 100
+  cumulative commands, so the transaction check moves 100 bodies of 1,500 sides (the same 300,000
+  vertices). The 128 MiB staging budget refuses that proposal: it stages 261.4 MiB, which is the
+  edit's history charge (174.5 MiB) plus the records it adds (86.9 MiB). A proposal of 20 bodies
+  stages 52.3 MiB, is charged 34.9 MiB of history, and commits and undoes. A whole-document
+  transaction at the limit therefore needs a larger staging budget, or it is refused. Staging was
+  not changed, as the brief directs.
+- **Measured memory (R082w v3, software, Release, one CPU and 4 GiB; the full record is in
+  [R082w v3](../verification/R082w-memory-budget-v3.md)):** the loose unique family at 300,000
+  vertices peaks at 1.92 GB; an 89 MiB container loads in 1.5 s from a fresh process and peaks at
+  1.39 GB; the densest shape (three closed 100,000-face spheres) peaks at 974 MiB; and a
+  whole-document edit of 5,700 bodies, 191.0 MiB charged, stays in history at 297 MiB resident.
+  Moving all 5,769 bodies in one edit is refused by the budget. The worst case is over 3 GiB, as the
+  memory-evidence bullet says.
 - **Terrain explode:** the budget that Explode terrain checks is the unique face limit, so a terrain
   can now explode into a document of up to 300,000 faces (it was 100,000). The boundary is exact: a
   249,218-triangle terrain with 50,782 loose modelling faces explodes, and one more face is refused

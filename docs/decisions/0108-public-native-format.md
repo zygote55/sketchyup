@@ -34,7 +34,8 @@ file is relocated. Limits: 1 MiB manifest, 32 MiB document chunk, 1,024 asset re
 16 MiB per present asset and 64 MiB total asset payload. The file reader independently
 caps input at 128 MiB. Inline raw JSON remains a legacy/import representation with
 canonical base64 asset data and a 128 MiB limit. *1.7.0 (R110):* the limits are now 4 MiB
-manifest, 96 MiB document chunk, 256 MiB file and 256 MiB inline raw JSON; see
+manifest, 96 MiB document chunk and 256 MiB file. A raw JSON file keeps its 128 MiB limit, and the
+in-process inline form follows the 256 MiB file bound; see
 [Implementation notes (R110)](#implementation-notes-r110).
 
 ## Document records
@@ -631,8 +632,11 @@ refuse schema 31 and 32.
 R110 (1.7.0) raises the reader's bounds. Where this section and the rules above differ, these notes
 govern. The decision and its evidence are in [ADR 0005](0005-document-protocol.md#raised-unique-geometry-limits-r110-170).
 
-- **Bounds.** `NativeLimits::fileBytes` is 256 MiB: a raw file, and inline raw JSON, which
-  refuses a larger document with "Document exceeds the 256 MiB JSON limit". `modelBytes` is 96 MiB:
+- **Bounds.** `NativeLimits::fileBytes` is 256 MiB: a container file, and the in-process inline form
+  (`encodeDocument` with inline asset data), which refuses a larger document with "Document exceeds
+  the 256 MiB JSON limit". A raw JSON file (no container magic) is bounded by
+  `NativeLimits::rawJsonBytes`, 128 MiB, and refused as "Raw document exceeds 128 MiB" before it is
+  parsed; the reason the inline form keeps 256 MiB is in ADR 0005's R110 section. `modelBytes` is 96 MiB:
   the external model chunk, which refuses a larger one with "Packaged model exceeds the 96 MiB JSON
   limit". `containerBytes` is 193,126,492 bytes. The manifest bound (4 MiB), the legacy JSON bound
   for schemas 1 to 10 (32 MiB) and the asset bounds are unchanged. The catalog payload region takes
