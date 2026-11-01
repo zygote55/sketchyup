@@ -176,10 +176,18 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
             !root->surface.wires.empty() || !root->curves.empty() || !root->guides.empty())
             throw std::runtime_error(
                 "Component root is a placement frame; geometry belongs to members");
-        // Definition members count once toward the unique geometry limits.
-        // Check before restoring them so the definition is named.
+        // The definition's own members, against the component definition limits (R110, 1.7.0).
+        // An edit replaces the whole record, so this bounds the undo charge of any edit to it.
+        // Checked before restoring the members, so the definition is named. Every path that
+        // stores a definition reaches this check: apply, restore, load, and the component
+        // publish, which create, edit, make unique, replace and explode use.
+        ComponentSize own;
         for (const auto &[member, body] : definition->members)
-            add(stored, sizeOf(*body));
+            add(own, sizeOf(*body));
+        checkLimits(limitCounts(own), LimitClass::ComponentDefinition, "Component definition",
+                    definitionLimitContext(definition->name, id));
+        // Definition members count once toward the unique geometry limits.
+        add(stored, own);
         checkLimits(limitCounts(stored), LimitClass::UniqueGeometry, "Component definition",
                     definitionLimitContext(definition->name, id));
         // Reuse authoritative geometry, topology, curve, guide, hierarchy and

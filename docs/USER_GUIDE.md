@@ -433,6 +433,15 @@ without changing the model:
 {"command": "document.purge_unused", "dryRun": true}
 ```
 
+**Large scripted edits (scripting and MCP).** A transaction stages its whole edit in memory, within a
+128 MiB staging budget. An edit that moves or rewrites many dense bodies at once can exceed it, and the
+transaction is refused with "Proposal exceeds the retained staging budget"; nothing changes. In the 1.7.0
+limit tests, a transaction that moves 100 dense bodies (300,000 vertices in all) stages about 261 MiB and is
+refused, while one that moves 20 of them stages about 52 MiB and commits. Split a bulk scripted edit into
+transactions of about 20 dense bodies each, and check each commit before you send the next. A component
+definition is limited to 200,000 faces, vertices or wires and 600,000 edges, so that one edit to it fits
+the undo budget.
+
 ## Exchange and present a model
 
 Use File import/export commands for GLB/glTF, OBJ/MTL, STL or the documented 2D
@@ -633,9 +642,11 @@ does not change the size of the model.
 - The file: 256 MiB at most. A larger file is refused before the helper starts.
 - The helper: 4 GiB of address space, 480 seconds of CPU time, 512 MiB of output, and the time
   allowance above. A helper that goes over one of these limits stops, and nothing is created.
-- The model: a component of up to 100,000 faces, 100,000 vertices and 300,000 edges. A component over
-  these limits is left out and reported, and the rest of the model comes across. The document also
-  takes at most 10,000 distinct geometry records, 600,000 faces after placement and 1,024 materials.
+- The model: one body of up to 100,000 faces or vertices and 300,000 edges, and one component of up to
+  200,000 faces, vertices or wires and 600,000 edges. A body or component over these limits is left out and
+  reported, and the rest of the model comes across. The document also takes at most 10,000 distinct
+  geometry records, 300,000 faces, vertices and wires and 900,000 edges of distinct geometry (a component
+  counts once), 600,000 faces after placement and 1,024 materials.
   Anything beyond them is left out and reported.
 - Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
 - Nesting: components nested more than 64 levels deep are left out and reported.

@@ -5,6 +5,8 @@
 #include "core/components.hpp"
 #include "core/document_limits.hpp"
 #include "core/groups.hpp"
+#include "core/model.hpp"
+#include "geometry/topology.hpp"
 #include "io/document_io.hpp"
 #include "io/native_limits.hpp"
 #include <QCoreApplication>
@@ -42,6 +44,53 @@ Id ring(Document &doc, int level, int sides = 100) {
     }
     return doc.addFace({loop});
 }
+// A closed loop (or open path) of `count` distinct vertices, one wire per side, with `chords` extra
+// wires from the first vertex (see document_limits_tests).
+BodyPtr polyline(Id id, size_t count, bool closed, size_t chords = 0) {
+    auto body = std::make_shared<Body>();
+    body->id = id;
+    body->name = "Polyline " + std::to_string(id);
+    auto &surface = body->surface;
+    std::vector<Id> ringIds;
+    for (size_t i = 0; i < count; ++i) {
+        const double angle = 2 * std::numbers::pi * double(i) / double(count);
+        const Id vertex = surface.nextId++;
+        surface.vertices.emplace(vertex, Vec3{1000 * std::cos(angle), 1000 * std::sin(angle),
+                                              10.0 * double(id)});
+        ringIds.push_back(vertex);
+    }
+    const size_t sides = closed ? count : count - 1;
+    for (size_t i = 0; i < sides; ++i)
+        surface.wires.push_back({ringIds[i], ringIds[(i + 1) % count]});
+    for (size_t k = 0; k < chords; ++k)
+        surface.wires.push_back({ringIds[0], ringIds[k + 2]});
+    body->topology = Topology::rebuild(body->surface, body->topology);
+    return body;
+}
+
+// A copy of the stored document in which the first definition gains one member: a copy of its
+// member with `vertexCount` vertices, under a new member identity.
+QJsonObject withDuplicateMember(QJsonObject json, qsizetype vertexCount) {
+    auto definitions = json["definitions"].toArray();
+    auto definition = definitions.first().toObject();
+    auto members = definition["members"].toArray();
+    QJsonObject copy;
+    for (const auto value : members)
+        if (value.toObject()["vertices"].toArray().size() == vertexCount) {
+            copy = value.toObject();
+            break;
+        }
+    check(!copy.isEmpty(), "The stored definition has a member with the duplicated vertex count");
+    const auto added = definition["nextMemberId"].toString();
+    copy["id"] = added;
+    members.append(copy);
+    definition["members"] = members;
+    definition["nextMemberId"] = QString::number(added.toULongLong() + 1);
+    definitions[0] = definition;
+    json["definitions"] = definitions;
+    return json;
+}
+
 Id emptyGroups(Document &doc, size_t count) {
     const auto first = doc.nextId();
     Edit fill{"Fill", {}};
@@ -169,6 +218,45 @@ int main(int argc, char **argv) {
                       decodeContainer(QByteArray(qsizetype(NativeLimits::rawJsonBytes) + 1, ' '));
                   }) == "Raw document exceeds 128 MiB",
                   "A raw JSON file over the 128 MiB raw bound is refused by name");
+        }
+        // R110: a stored component definition over its vertex or wire limit is refused on load,
+        // naming the definition. Each definition is at its limit (200,000), and a copy of its
+        // two-vertex wire member makes one more vertex count or wire count.
+        {
+            std::map<Id, BodyPtr> bodies{{1, polyline(1, 100000, true)},
+                                         {2, polyline(2, 99998, false)},
+                                         {3, polyline(3, 2, false)}};
+            Document edge;
+            edge.restore("00000000000000000000000000000842", 4, std::move(bodies));
+            (void)createComponent(edge, createGroup(edge, {1, 2, 3}, "Edge"), "Edge");
+            const auto stored = encodeDocument(edge);
+            check(decodeDocument(stored).materializedTotals().vertices == 200000,
+                  "A definition of exactly 200,000 vertices loads");
+            check(rejection([&] {
+                      decodeDocument(QJsonDocument(withDuplicateMember(
+                                                       QJsonDocument::fromJson(stored).object(), 2))
+                                         .toJson());
+                  }) == "Component definition exceeds component definition limits: vertices would "
+                        "be 200,002 of 200,000 (definition 'Edge' #1)",
+                  "A definition over 200,000 vertices is refused on load");
+        }
+        {
+            std::map<Id, BodyPtr> bodies{{1, polyline(1, 100000, true)},
+                                         {2, polyline(2, 99996, false, 4)},
+                                         {3, polyline(3, 2, false)}};
+            Document chord;
+            chord.restore("00000000000000000000000000000843", 4, std::move(bodies));
+            (void)createComponent(chord, createGroup(chord, {1, 2, 3}, "Chord"), "Chord");
+            const auto stored = encodeDocument(chord);
+            check(decodeDocument(stored).materializedTotals().wires == 200000,
+                  "A definition of exactly 200,000 wires loads");
+            check(rejection([&] {
+                      decodeDocument(QJsonDocument(withDuplicateMember(
+                                                       QJsonDocument::fromJson(stored).object(), 2))
+                                         .toJson());
+                  }) == "Component definition exceeds component definition limits: wires would be "
+                        "200,001 of 200,000 (definition 'Chord' #1)",
+                  "A definition over 200,000 wires is refused on load");
         }
         std::cout << "Document limits I/O: 40,000-body save/reload, placement, unique body and "
                      "unique vertex load checks passed\n";

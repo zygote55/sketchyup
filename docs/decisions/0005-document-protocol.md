@@ -326,11 +326,26 @@ The materialized values, the placement limit and every per-body kernel limit are
   the 1.6.1 value of 64 MiB. The refusal message states that number. The history budget charges
   every record an edit touches, in full, before and after, so it limits the size of one edit, not
   only the retained total. The measurements are in the implementation notes below.
-- **Memory evidence:** [R082w v3](../verification/R082w-memory-budget-v3.md) measures the raised
-  limits in software. Its modeled worst case, with the retained-history row at the 192 MiB undo
-  budget, is 3.03 GiB, which is over the 3 GiB ceiling by 27.4 MiB. With the per-unique-vertex
-  excess that the loose unique family shows, it is 3.58 GiB. R110 stops there under its brief, so
-  the unique limits are **not accepted** for 1.7.0 until the owner decides how to resolve the ceiling.
+- **Component definition limit (owner decision, 2026-11-01).** One component definition's own
+  members are limited to 200,000 vertices, 200,000 faces, 200,000 wires and 600,000 edges
+  (`DocumentLimits::definition`, the third limit class, `LimitClass::ComponentDefinition`). Bodies,
+  curves and guides keep the unique values of 10,000 each. The document-wide unique limits stay at
+  300,000 and 900,000. An edit replaces a definition's whole record, so its history charge covers the
+  whole definition. A definition of 200,000 faces is charged 183.1 MiB, under the 192 MiB budget; one
+  of 300,000 faces would need about 275 MiB. A definition over its limit is refused with the D06
+  message, for example "Component definition exceeds component definition limits: vertices would be
+  200,001 of 200,000 (definition 'Chair' #3)". The enforcement, the importers and the tests are in
+  the implementation notes below.
+- **Memory evidence and ceiling (owner decision, 2026-11-01).**
+  [R082w v3](../verification/R082w-memory-budget-v3.md) measures the raised limits in software.
+  Version 2 under-counted the per-unique-vertex cost, which the measurements put at 1,964 B against
+  the 917 B v2 modeled, so its 2.67 GiB worst case was low. Re-costed, 1.6.1's own limits come to
+  about 2.9 GiB. At the 1.7.0 limits, with the 192 MiB undo budget and the measured excess, the worst
+  case is 3.58 GiB, and with the 150 MB hardware delta that v1 measured it is about 3.72 GiB, under the
+  4 GiB operational job cap. The owner raised the modeled worst-case ceiling from 3 GiB to 3.75 GiB, so
+  the unique limits are **accepted** for 1.7.0. The margin is 179 MiB without the hardware delta and
+  36 MiB with it. Hardware acceptance stays under the [ADR 0161](0161-m9-hardware-evidence-waiver.md)
+  waiver.
 
 ## Implementation notes (R110)
 
@@ -349,11 +364,13 @@ The materialized values, the placement limit and every per-body kernel limit are
   - one member of a component of two closed 100,000-face spheres (200,000 faces, 100,004 vertices):
     charged 183.1 MiB, accepted, and undo and redo are exact;
   - the same edit with three spheres (300,000 faces, 150,006 vertices, the unique limit): refused
-    with the message above. Each sphere is the same size, so the charge is linear, and three would
+    with the message above (superseded by R110.a: the component definition limit now refuses a third sphere on create). Each sphere is the same size, so the charge is linear, and three would
     charge about 275 MiB (1.5 times the two-sphere figure; not measured, since the edit is refused).
-  **So a component definition at the 300,000-face limit cannot be edited in one undoable step at
-  192 MiB.** This is open: the owner decides whether the budget rises (about 275 MiB or more for
-  that edit) or component definitions are limited below the unique limit.
+  **So a component definition at the 300,000-face limit could not be edited in one undoable step at
+  192 MiB.** The owner chose the second option: component definitions are limited below the unique
+  limit (the component definition limit above), so every definition's edit fits the budget. The undo
+  budget did not change. The 300,000-face edit is therefore not reachable, and its estimate of about
+  275 MiB no longer applies.
 - **Whole-document transactions (finding; staging not changed).** A transaction accepts at most 100
   cumulative commands, so the transaction check moves 100 bodies of 1,500 sides (the same 300,000
   vertices). The 128 MiB staging budget refuses that proposal: it stages 261.4 MiB, which is the

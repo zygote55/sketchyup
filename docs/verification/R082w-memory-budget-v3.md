@@ -1,15 +1,26 @@
-# R082.w v3: memory budget at the R110 unique limits (measured in software; over the 3 GiB ceiling)
+# R082.w v3: memory budget at the R110 unique limits (measured in software; within the 3.75 GiB ceiling)
 
 Version three of the [memory calibration](R082w-memory-budget-v2.md), for the 1.7.0 unique
 limits of [ADR 0005](../decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170).
 Versions one and two stay as they are. Its machine-readable record is
 [R082w-memory-budget-v3.json](R082w-memory-budget-v3.json).
 
-**Status: measured, in software only. The modeled worst case is over the 3 GiB ceiling.** The
-worst case with the retained-history row at the 192 MiB undo budget is 3.03 GiB. With the
-per-unique-vertex cost that the measurements show, it is 3.58 GiB. Under the R110 stop rule, no other
-limit changed, and the unique-limit change is not accepted for 1.7.0. The owner must decide how to
-resolve the ceiling (see [Decision needed](#decision-needed)).
+**Status: measured in software only. The modeled worst case fits the 3.75 GiB ceiling that the owner
+set on 2026-11-01.** The worst case with the retained-history row at the 192 MiB undo budget is
+3.03 GiB. With the per-unique-vertex cost that the measurements show, it is 3.58 GiB, which is 178.8 MiB
+under the ceiling. With the 150 MB hardware delta that v1 measured, it is about 3.72 GiB, still under the
+ceiling and under the 4 GiB operational job cap. Hardware acceptance stays under the
+[ADR 0161 waiver](../decisions/0161-m9-hardware-evidence-waiver.md).
+
+**Owner decision (2026-11-01):** the modeled worst-case ceiling is raised from 3 GiB to 3.75 GiB, and the
+unique limits are accepted for 1.7.0 on that ceiling. The 4 GiB operational job cap is a separate hard
+constraint and is unchanged. No other limit changed.
+
+**Correction to v2.** v2 under-counted the per-unique-vertex cost. Its inference term used 917 B per
+unique vertex and left out the measured excess of 1,964 B per unique vertex, which v3 adds below. Re-costed
+with that excess, 1.6.1's own limits (100,000 unique vertices, 64 MiB of undo history) come to about
+2.9 GiB (3,128,744,016 bytes), not the 2.67 GiB that v2 modeled. The 1.6.1 limits therefore fit the 3 GiB
+ceiling, but with less room than v2 stated.
 
 ## How it was measured
 
@@ -71,39 +82,41 @@ inference term at 300,000 vertices, and a retained-history row at the 192 MiB un
 | Retained undo history at the 192 MiB budget (new) | — | 201,326,592 |
 | **Total** | **2,865,235,152 (2.67 GiB)** | **3,249,961,744 (3.03 GiB)** |
 
-The ceiling is 3 GiB (3,221,225,472 bytes). **The v3 total is over it by 28,736,272 bytes (27.4 MiB).**
-Without the history row the total is 3,048,635,152 bytes (2.84 GiB), which leaves 164.6 MiB of
-margin. The history row alone uses more than that margin.
+The ceiling is now 3.75 GiB (4,026,531,840 bytes), raised from 3 GiB by the owner decision above. The
+v3 total without the measured excess is under it by 776,570,096 bytes (740.6 MiB).
 
-Adding the measured excess for the unique shape (589,096,032 bytes, from (b)) gives
-3,839,057,776 bytes, or 3.58 GiB, which is 0.58 GiB over the ceiling and still under the 4 GiB
-operational job cap.
+Adding the measured excess for the unique shape (589,096,032 bytes, from (b)) gives 3,839,057,776
+bytes, or 3.58 GiB. That is **under the 3.75 GiB ceiling by 187,474,064 bytes (178.8 MiB)**, and under
+the 4 GiB operational job cap by 455,909,520 bytes.
 
-## Decision needed
+The hardware delta that v1 measured (about 150 MB of RSS above software at 1,000 placements) is not in
+that figure. Adding it gives 3,989,057,776 bytes, or 3.72 GiB, under the 3.75 GiB ceiling by 37,474,064
+bytes (35.7 MiB) and under the 4 GiB cap by 305,909,520 bytes. The brief's estimate was "near 3.73 GiB";
+these inputs give 3.715 GiB (3.72 GiB rounded), so the margin is 36 MiB. The brief's 3.73 GiB would
+leave about 20 MiB.
 
-The brief's stop rule applies, and R110 does not change any other limit. The owner decides how to
-resolve the ceiling. Three options, none chosen here:
+## Owner decision (2026-11-01)
 
-1. Keep the unique limits and raise the 3 GiB modeled ceiling to match the measured worst case (3.03
-   GiB, or 3.58 GiB with the unique-shape excess). The 4 GiB operational job cap still holds.
-2. Lower the unique vertex limit, or the undo budget, until the measured worst case fits 3 GiB. The
-   unique vertex limit sets the inference and viewport terms, and the undo budget sets the history row.
-3. Hold 1.7.0 at the 1.6.1 unique limits, and keep this record as the measured evidence for the
-   change.
+The owner accepted raising the modeled worst-case ceiling to 3.75 GiB, so that the worst case with the
+measured excess fits, and accepted the unique limits for 1.7.0 on that basis. The other options open
+that day were lowering the unique vertex limit or the undo budget, or holding 1.7.0 at 1.6.1's limits.
+The owner chose to raise the ceiling.
 
-The measured figures do not show a failure of the shape. The decision is whether the ceiling is a
-product claim that the new limits must keep.
+The margin is narrow. With the hardware delta, the worst case is 36 MiB under the ceiling. Any new cost in
+the viewport, the inference index or the undo budget must be re-measured against this record.
 
 ## Not measured
 
 - Frame time for (c) and (d), and a viewport frame time for the densest shape (b2). The core-only
   harness has no viewport. A viewport measurement of a file-loaded document would need a file option
   in `real_model_benchmark`.
-- The charged history of the 300,000-face component edit. It is refused at 192 MiB; the figure of
-  about 275 MiB is a linear estimate from the two-sphere edit (183.1 MiB), not a measurement.
+- The charged history of the 300,000-face component edit. It is not reachable: a component definition is
+  limited to 200,000 faces (R110, component definition limit), and the 200,000-face edit is measured at
+  183.1 MiB (ADR 0005, R110 implementation notes). The figure of about 275 MiB for 300,000 faces is a
+  linear estimate, and no longer applies to any accepted component.
 - Hardware. Acceptance stays under the [ADR 0161 waiver](../decisions/0161-m9-hardware-evidence-waiver.md),
   as it did for v2. The fresh Intel and AMD reruns in [M9_HARDWARE_SESSION.md](../M9_HARDWARE_SESSION.md),
-  section 1, remain required before any ceiling is accepted.
+  section 1, remain required for hardware acceptance of the raised ceiling.
 
 ## Relation to earlier versions
 

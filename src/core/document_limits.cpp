@@ -16,8 +16,20 @@ constexpr std::array<std::pair<std::string_view, Field>, 8> fields{{
     {"guides", &LimitCounts::guides},
 }};
 const LimitCounts &maximum(LimitClass limits) {
-    return limits == LimitClass::UniqueGeometry ? DocumentLimits::unique
-                                                : DocumentLimits::materialized;
+    switch (limits) {
+    case LimitClass::UniqueGeometry:
+        return DocumentLimits::unique;
+    case LimitClass::ComponentDefinition:
+        return DocumentLimits::definition;
+    case LimitClass::Placement:
+        break;
+    }
+    return DocumentLimits::materialized;
+}
+
+// Placements are counted by the placement class only.
+bool countedBy(LimitClass limits, Field field) {
+    return !(limits != LimitClass::Placement && field == &LimitCounts::placements);
 }
 // Locale-independent thousands separators.
 std::string grouped(std::size_t value) {
@@ -42,7 +54,7 @@ std::string utf8Prefix(std::string_view text, std::size_t bytes) {
 std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits) {
     const auto &max = maximum(limits);
     for (const auto &[name, field] : fields) {
-        if (limits == LimitClass::UniqueGeometry && field == &LimitCounts::placements)
+        if (!countedBy(limits, field))
             continue;
         if (attempted.*field > max.*field)
             return name;
@@ -60,9 +72,17 @@ void checkLimits(const LimitCounts &attempted, LimitClass limits, std::string_vi
         if (name == exceeded)
             field = candidate;
     std::string message(operation);
-    message += limits == LimitClass::UniqueGeometry
-                   ? " exceeds document unique geometry limits: "
-                   : " exceeds document placement limits: ";
+    switch (limits) {
+    case LimitClass::UniqueGeometry:
+        message += " exceeds document unique geometry limits: ";
+        break;
+    case LimitClass::Placement:
+        message += " exceeds document placement limits: ";
+        break;
+    case LimitClass::ComponentDefinition:
+        message += " exceeds component definition limits: ";
+        break;
+    }
     message += exceeded;
     message += " would be " + grouped(attempted.*field) + " of " + grouped(max.*field);
     if (!context.empty()) {

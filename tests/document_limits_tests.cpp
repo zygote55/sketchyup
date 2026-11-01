@@ -4,7 +4,9 @@
 #include "core/components.hpp"
 #include "core/document_limits.hpp"
 #include "core/groups.hpp"
+#include "core/model.hpp"
 #include "core/terrain.hpp"
+#include "geometry/topology.hpp"
 #include "sanitizer_mode.hpp"
 #include <cmath>
 #include <cstdint>
@@ -118,6 +120,151 @@ void uniqueBoundaries() {
               DocumentLimits::materialized.placements == 20000,
           "The materialized values and the placement limit did not change");
 }
+// R110 (1.7.0): one component definition's own members are bounded by 200,000 vertices, faces
+// and wires and 600,000 edges. Bodies, curves and guides keep the unique values; placements are
+// not part of this class.
+void definitionBoundaries() {
+    check(DocumentLimits::definition.vertices == 200000 && DocumentLimits::definition.faces == 200000 &&
+              DocumentLimits::definition.wires == 200000 && DocumentLimits::definition.edges == 600000 &&
+              DocumentLimits::definition.bodies == DocumentLimits::unique.bodies &&
+              DocumentLimits::definition.curves == DocumentLimits::unique.curves &&
+              DocumentLimits::definition.guides == DocumentLimits::unique.guides,
+          "The component definition values are the R110 values");
+    const LimitCounts atLimit{0, 10000, 200000, 200000, 200000, 600000, 10000, 10000};
+    check(exceededLimit(atLimit, LimitClass::ComponentDefinition).empty() &&
+              rejection([&] { checkLimits(atLimit, LimitClass::ComponentDefinition, "Test", {}); })
+                  .empty(),
+          "Definition values at the limits are accepted");
+    const std::vector<std::pair<LimitCounts, std::string>> over{
+        {{0, 0, 200001}, "vertices would be 200,001 of 200,000"},
+        {{0, 0, 0, 200001}, "faces would be 200,001 of 200,000"},
+        {{0, 0, 0, 0, 200001}, "wires would be 200,001 of 200,000"},
+        {{0, 0, 0, 0, 0, 600001}, "edges would be 600,001 of 600,000"},
+        {{0, 10001}, "bodies would be 10,001 of 10,000"},
+        {{0, 0, 0, 0, 0, 0, 10001}, "curves would be 10,001 of 10,000"},
+        {{0, 0, 0, 0, 0, 0, 0, 10001}, "guides would be 10,001 of 10,000"},
+    };
+    for (const auto &[counts, text] : over)
+        check(rejection([&] { checkLimits(counts, LimitClass::ComponentDefinition, "Test", {}); }) ==
+                  "Test exceeds component definition limits: " + text,
+              "One more than the definition limit is refused: " + text);
+    const LimitCounts placed{20001};
+    check(exceededLimit(placed, LimitClass::ComponentDefinition).empty(),
+          "Placements are not counted by the component definition class");
+    check(rejection([] {
+              checkLimits({0, 0, 200001}, LimitClass::ComponentDefinition, "Component definition",
+                          definitionLimitContext("Chair", 3));
+          }) == "Component definition exceeds component definition limits: vertices would be "
+                "200,001 of 200,000 (definition 'Chair' #3)",
+          "The definition diagnostic names the definition");
+}
+
+// A closed loop (or an open path) of `count` distinct vertices on a circle, one wire per side,
+// with `chords` extra wires from the first vertex. Vertices are added directly, because
+// Surface::vertex scans every vertex it already holds.
+BodyPtr polyline(Id id, size_t count, bool closed, size_t chords = 0) {
+    auto body = std::make_shared<Body>();
+    body->id = id;
+    body->name = "Polyline " + std::to_string(id);
+    auto &surface = body->surface;
+    std::vector<Id> ringIds;
+    ringIds.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        const double angle = 2 * std::numbers::pi * double(i) / double(count);
+        const Id vertex = surface.nextId++;
+        surface.vertices.emplace(vertex, Vec3{1000 * std::cos(angle), 1000 * std::sin(angle),
+                                              10.0 * double(id)});
+        ringIds.push_back(vertex);
+    }
+    const size_t sides = closed ? count : count - 1;
+    for (size_t i = 0; i < sides; ++i)
+        surface.wires.push_back({ringIds[i], ringIds[(i + 1) % count]});
+    for (size_t k = 0; k < chords; ++k)
+        surface.wires.push_back({ringIds[0], ringIds[k + 2]});
+    body->topology = Topology::rebuild(body->surface, body->topology);
+    return body;
+}
+
+Document documentOf(const std::map<Id, BodyPtr> &bodies) {
+    Document doc;
+    doc.restore("00000000000000000000000000000841", bodies.rbegin()->first + 1, bodies);
+    return doc;
+}
+
+// R110: a definition over the vertex or wire limit is refused on create and on edit, and the
+// refusal names the definition. The bodies are wire-only, so they are cheap to build; the face
+// limit is exercised in unique_limits_acceptance, where its geometry is built.
+void definitionGeometry() {
+    // Vertices: 100,000 + 99,999 + 2 = 200,001.
+    {
+        auto doc = documentOf({{1, polyline(1, 100000, true)},
+                               {2, polyline(2, 99999, false)},
+                               {3, polyline(3, 2, false)}});
+        const auto group = createGroup(doc, {1, 2, 3}, "Edge");
+        check(rejection([&] { (void)createComponent(doc, group, "Edge"); }) ==
+                  "Component definition exceeds component definition limits: vertices would be "
+                  "200,001 of 200,000 (definition 'Edge' #1)",
+              "A definition of 200,001 vertices is refused on create");
+        check(doc.definitions().empty(), "A refused create leaves no definition");
+    }
+    // Vertices on edit: a definition of exactly 200,000 is accepted, and an edit that adds a wire
+    // of two vertices is refused, with the document unchanged.
+    {
+        auto doc = documentOf({{1, polyline(1, 100000, true)},
+                               {2, polyline(2, 99998, false)},
+                               {3, polyline(3, 2, false)}});
+        const auto group = createGroup(doc, {1, 2, 3}, "Edge");
+        const auto made = createComponent(doc, group, "Edge");
+        check(doc.materializedTotals().vertices == 200000 && doc.definitions().size() == 1,
+              "A definition of exactly 200,000 vertices is accepted");
+        const auto revision = doc.revision();
+        check(rejection([&] {
+                  (void)editComponentDefinition(doc, made.definition, [&](Document &draft) {
+                      const Id added = draft.nextId();
+                      Edit add{"Add a wire", {}};
+                      add.changes.push_back({added, nullptr, polyline(added, 2, false)});
+                      return draft.apply(std::move(add), draft.revision());
+                  });
+              }) == "Component definition exceeds component definition limits: vertices would be "
+                    "200,002 of 200,000 (definition 'Edge' #1)",
+              "An edit that takes a definition past 200,000 vertices is refused on edit");
+        check(doc.revision() == revision && doc.definitions().size() == 1,
+              "A refused edit changes nothing");
+    }
+    // Wires: 100,000 (closed) + 99,999 (open path with four chords) + 1 = 200,000 at the limit, and
+    // a second wire of two vertices makes 200,001 wires with 200,000 vertices.
+    {
+        auto doc = documentOf({{1, polyline(1, 100000, true)},
+                               {2, polyline(2, 99996, false, 4)},
+                               {3, polyline(3, 2, false)},
+                               {4, polyline(4, 2, false)}});
+        const auto group = createGroup(doc, {1, 2, 3, 4}, "Chord");
+        check(rejection([&] { (void)createComponent(doc, group, "Chord"); }) ==
+                  "Component definition exceeds component definition limits: wires would be "
+                  "200,001 of 200,000 (definition 'Chord' #1)",
+              "A definition of 200,001 wires is refused on create");
+    }
+    {
+        auto doc = documentOf({{1, polyline(1, 100000, true)},
+                               {2, polyline(2, 99996, false, 4)},
+                               {3, polyline(3, 2, false)}});
+        const auto group = createGroup(doc, {1, 2, 3}, "Chord");
+        const auto made = createComponent(doc, group, "Chord");
+        check(doc.materializedTotals().wires == 200000,
+              "A definition of exactly 200,000 wires is accepted");
+        check(rejection([&] {
+                  (void)editComponentDefinition(doc, made.definition, [&](Document &draft) {
+                      const Id added = draft.nextId();
+                      Edit add{"Add a wire", {}};
+                      add.changes.push_back({added, nullptr, polyline(added, 2, false)});
+                      return draft.apply(std::move(add), draft.revision());
+                  });
+              }) == "Component definition exceeds component definition limits: wires would be "
+                    "200,001 of 200,000 (definition 'Chord' #1)",
+              "An edit that takes a definition past 200,000 wires is refused on edit");
+    }
+}
+
 void publicPlacements(size_t count) {
     // The R082.a/ADR 0141 fixture shape: a 26-sided prism placed 10,000 times.
     // It was rejected at placement 1,924 before R082.gg.
@@ -354,6 +501,8 @@ int main() {
     try {
         diagnostics();
         uniqueBoundaries();
+        definitionBoundaries();
+        definitionGeometry();
         placementCount();
         uniqueGeometry();
         draftCountsEditedDefinitionOnce();

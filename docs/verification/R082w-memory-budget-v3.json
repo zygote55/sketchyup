@@ -1,10 +1,10 @@
 {
   "schemaVersion": 3,
   "supersedes": "R082w-memory-budget-v2.json",
-  "status": "measured-over-ceiling",
+  "status": "measured-within-raised-ceiling",
   "frozenAt": null,
   "sha256": null,
-  "acceptanceStatus": "not-accepted",
+  "acceptanceStatus": "accepted-software-under-3.75-GiB-ceiling (owner decision, 2026-11-01)",
   "priorEvidenceAccepted": false,
   "publicModelLimitsChanged": true,
   "releaseAccepted": false,
@@ -21,7 +21,7 @@
     "configuration": "CMAKE_BUILD_TYPE=Release, SKETCHYUP_BUILD_DESKTOP=ON, SKETCHYUP_BUILD_CLI=OFF, SKETCHYUP_BUILD_IFC=OFF, SKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF, SKETCHYUP_SHARED_LIBS=OFF",
     "v2Differences": "v2 records its calibration source as Release, llvmpipe, xcb, one CPU and 4 GiB in the same image, but not its Mesa or LLVM version, so the graphics stack may differ. The source revision differs by the R082 to R110 changes."
   },
-  "reason": "R110 measured the raised unique limits (ADR 0005, 1.7.0). The modeled worst case, with the retained-history row at the 192 MiB undo budget, is 3,249,961,744 bytes (3.03 GiB), which is over the 3 GiB ceiling. With the per-unique-vertex excess that the measurements show, it is 3.58 GiB. R110 stops here, as its brief directs: no other limit is changed, and the unique limit change is not accepted for 1.7.0.",
+  "reason": "R110 measured the raised unique limits (ADR 0005, 1.7.0). The modeled worst case, with the retained-history row at the 192 MiB undo budget, is 3,249,961,744 bytes (3.03 GiB). With the per-unique-vertex excess that the measurements show, it is 3,839,057,776 bytes (3.58 GiB). The owner decided on 2026-11-01 to raise the modeled worst-case ceiling to 3.75 GiB, under which the worst case fits by 187,474,064 bytes (178.8 MiB). With the 150 MB hardware delta that v1 measured it is 3.72 GiB, still under the ceiling and the 4 GiB operational job cap. Hardware acceptance stays under the ADR 0161 waiver. Version 2 under-counted the per-unique-vertex cost; see correctionToV2.",
   "hardwareRequirement": "Fresh Intel and AMD reruns per docs/M9_HARDWARE_SESSION.md section 1 remain required; the ADR 0161 waiver applies as it did to v2.",
   "publicLimits": {
     "uniqueGeometry": {
@@ -47,8 +47,8 @@
     "undoHistoryBytesBefore": 67108864
   },
   "limits": {
-    "modeledWorstCaseCeilingBytes": 3221225472,
-    "modeledWorstCaseAtLimitsPeakRssBytes": 3221225472
+    "modeledWorstCaseCeilingBytes": 4026531840,
+    "modeledWorstCaseAtLimitsPeakRssBytes": 4026531840
   },
   "measurements": {
     "a_realModel_unique_1000": {
@@ -168,9 +168,10 @@
     "totalWithoutHistoryBytes": 3048635152,
     "totalWithoutHistoryGiB": 2.8393,
     "v2TotalBytes": 2865235152,
-    "withinCeiling": false,
-    "overCeilingBytes": 28736272,
-    "overCeilingMiB": 27.4,
+    "withinCeiling": true,
+    "ceilingBytes": 4026531840,
+    "underCeilingBytes": 776570096,
+    "underCeilingMiB": 740.6,
     "measuredUniqueExcess": {
       "method": "Measured peak RSS of the loose unique family at 300,000 vertices (b, 1,915,072,512 bytes), minus the v2 terms for the same shape (base 288,276,480 + 300,000 x 2,542 + 300,000 x 917 = 1,325,976,480 bytes). The shape has no placements, so the excess is attributed to unique geometry; the per-vertex cost is 1,964 bytes.",
       "bytes": 589096032,
@@ -179,9 +180,21 @@
     },
     "totalWithMeasuredExcessBytes": 3839057776,
     "totalWithMeasuredExcessGiB": 3.5754,
+    "totalWithMeasuredExcessUnderCeilingBytes": 187474064,
+    "hardwareDeltaBytes": 150000000,
+    "totalWithHardwareDeltaBytes": 3989057776,
+    "totalWithHardwareDeltaGiB": 3.7151,
+    "totalWithHardwareDeltaUnderCeilingBytes": 37474064,
     "operationalJobCapBytes": 4294967296
   },
-  "stopRule": "The modeled worst case is over the 3 GiB ceiling. Per the R110 brief, R110 stops: no other limit is changed, and the unique-limit change is not accepted for 1.7.0 until the owner decides how to resolve the ceiling.",
+  "decision": "Owner, 2026-11-01: the modeled worst-case ceiling is raised from 3 GiB (3,221,225,472 bytes) to 3.75 GiB (4,026,531,840 bytes), and the unique limits are accepted for 1.7.0 on that ceiling. The 4 GiB operational job cap is unchanged. No other limit changed.",
+  "correctionToV2": {
+    "finding": "v2 under-counted the per-unique-vertex cost (917 B modeled; 1,964 B measured excess).",
+    "unitExcessBytes": 1964,
+    "reCostedOneSixOneLimitsBytes": 3128744016,
+    "reCostedOneSixOneLimitsGiB": 2.9138,
+    "reCostedOneSixOneLimitsBasis": "v2 terms with 100,000 unique vertices, a 64 MiB undo history (1.6.1), plus 100,000 x 1,964 B"
+  },
   "measurementsRequired": [
     "Done: the unique-geometry family at about 300,000 unique vertices, no placements: peak RSS, load and save time, inference-index build and query time (b, b2, family 5769). Frame time is measured for the viewport (b).",
     "Done: the v2 unique 100k case on this build (a), for comparison: 607,469,568 bytes against v2's 560,132,096 bytes.",
@@ -190,8 +203,8 @@
   "notMeasured": [
     "Frame time for (c) and (d): the core-only harness has no viewport. A viewport measurement of a file-loaded document would need a file option in real_model_benchmark.",
     "A viewport frame time for the densest component (b2): core only.",
-    "The charged history of the 300,000-face component edit (refused at 192 MiB); the figure of about 275 MiB is linear, not measured.",
-    "Intel and AMD hardware: the ADR 0161 waiver applies."
+    "The charged history of a 300,000-face component edit: not reachable now, since a component definition is limited to 200,000 faces (R110). The 200,000-face edit is measured at 183.1 MiB (ADR 0005).",
+    "Intel and AMD hardware: the ADR 0161 waiver applies; fresh reruns remain required for hardware acceptance of the raised ceiling."
   ],
   "hostObservations": {
     "note": "Not calibration. R110's local build (Debug with -g0, shared libraries) gave the same charged history bytes (accounting is structural) and a 300,000-vertex file load of 6.8 s and inference build of 9.4 s, against 1.5 s and 1.0 s in this Release run. Its unique_limits_acceptance_tests peak RSS was 1,529 MiB."

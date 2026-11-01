@@ -1063,7 +1063,15 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
         note("definitionsOverLimit");
 
     Counters counters;
-    const auto tryAdd = [&](const LimitCounts &addUnique, const LimitCounts &addMaterialized, std::string &exceeded) {
+    // addDefinition is the new component definition's own members, when this node creates one
+    // (R110): the component definition limits bound it as the unique limits bound the model.
+    const auto tryAdd = [&](const LimitCounts &addUnique, const LimitCounts &addMaterialized,
+                            const LimitCounts &addDefinition, std::string &exceeded) {
+        if (const auto bad = exceededLimit(addDefinition, LimitClass::ComponentDefinition);
+            !bad.empty()) {
+            exceeded = std::string(bad);
+            return false;
+        }
         LimitCounts u = counters.unique, m = counters.materialized;
         const auto plus = [](LimitCounts &a, const LimitCounts &b) {
             a.placements += b.placements;
@@ -1172,7 +1180,7 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
         const bool hasKids = holdsNodes[i];
         const bool shared = geometric && sharedMeshes.contains(meshIndex);
         const auto &stats = geometric ? mesh->stats : GeometryStats{};
-        LimitCounts addUnique{}, addMaterialized{};
+        LimitCounts addUnique{}, addMaterialized{}, addDefinition{};
         addUnique.bodies = 1;
         addMaterialized.bodies = 1;
         const bool separateGeometry = geometric && (hasKids || shared);
@@ -1184,6 +1192,11 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
                     addUnique.vertices += stats.vertices;
                     addUnique.faces += stats.faces;
                     addUnique.edges += stats.edges;
+                    // The shared geometry is the definition's one member body (R110).
+                    addDefinition.bodies = 1;
+                    addDefinition.vertices = stats.vertices;
+                    addDefinition.faces = stats.faces;
+                    addDefinition.edges = stats.edges;
                 }
                 addMaterialized.bodies += 2;
                 addMaterialized.placements = 1;
@@ -1204,7 +1217,7 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
             }
         }
         std::string exceeded;
-        if (!tryAdd(addUnique, addMaterialized, exceeded)) {
+        if (!tryAdd(addUnique, addMaterialized, addDefinition, exceeded)) {
             skipNode(i, "documentLimit:" + exceeded);
             continue;
         }

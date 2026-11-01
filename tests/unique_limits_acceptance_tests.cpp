@@ -6,7 +6,8 @@
 // and undo restores the document byte for byte. R110 (history budget 192 MiB, owner decision of
 // 2026-11-01) adds: one edit that moves every loose body, accepted and undone; the same move
 // through a transaction, which the 128 MiB staging budget refuses at 100 bodies and accepts at 20;
-// and a component of two closed 100,000-face spheres, accepted, against three, refused. The test
+// and a component of two closed 100,000-face spheres, accepted, against a 200,001-face one, refused
+// on create, on edit and on load (R110, the component definition limit of 200,000). The test
 // prints its peak RSS, the charged history bytes and its times. It is a slow core test (ADR 0170):
 // the fast tier runs it only when the core group is selected.
 #include "automation/inspection_session.hpp"
@@ -20,12 +21,16 @@
 #include "geometry/topology.hpp"
 #include "io/document_io.hpp"
 #include "io/native_limits.hpp"
+#include "io/skp_import.hpp"
+#include "io/skp_package.hpp"
 #include <QCoreApplication>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
 #include <QTemporaryDir>
 #include <chrono>
+#include <cstdint>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
@@ -43,6 +48,15 @@ using Clock = std::chrono::steady_clock;
 void check(bool ok, const std::string &message) {
     if (!ok)
         throw std::runtime_error(message);
+}
+
+template <class F> std::string rejection(F operation) {
+    try {
+        operation();
+    } catch (const std::exception &error) {
+        return error.what();
+    }
+    return {};
 }
 // A prism of `sides` sides centred at (x, 400): 2 * sides vertices, 3 * sides edges, sides + 2
 // faces.
@@ -267,9 +281,9 @@ size_t transactionWholeDocument(const QString &outcomes) {
 }
 // R110: a component of `count` closed 100,000-face spheres (50,002 vertices, 100,000 faces and
 // 150,000 edges each). Moving one member is one undoable edit, and the edit charges the whole
-// definition, before and after. Two spheres (200,000 faces) must be accepted by the 192 MiB
-// budget, with undo and redo exact. Three (300,000 faces, the unique limit) are refused: the
-// finding of R110, reported and not worked around. Returns the charge, or the refusal.
+// definition, before and after. Two spheres (200,000 faces, the component definition limit) must
+// be accepted by the 192 MiB budget, with undo and redo exact. A third sphere is over the
+// definition limit and is refused on create (denseRefusals). Returns the charge, or a refusal.
 struct DenseEdit {
     size_t charged{};
     std::string refusal;
@@ -339,6 +353,172 @@ DenseEdit denseComponentEdit(int count) {
                 double(result.charged) / (1024 * 1024), seconds(started, built),
                 seconds(built, Clock::now()));
     return result;
+}
+// R110: the two-sphere component (200,000 faces, the component definition limit) is refused on
+// create when a triangle joins it (200,001 faces), and refused on edit when a triangle is added to
+// it. Its stored record, saved with a copy of one sphere, is refused on load: three spheres are
+// 150,006 vertices and 300,000 faces, so the faces are the first quantity over the limit. Each
+// refusal names the definition, and changes nothing.
+const char *denseDefinition = "Component definition exceeds component definition limits";
+void denseRefusals() {
+    const auto started = Clock::now();
+    // Create: two spheres and a triangle.
+    {
+        std::map<Id, BodyPtr> bodies;
+        for (Id id = 1; id <= 2; ++id)
+            bodies.emplace(id, sphere(id, {60.0 * double(id - 1), 0, 0}, 200, 250));
+        Document doc;
+        doc.restore("00000000000000000000000000000834", 3, std::move(bodies));
+        const auto triangle = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+        std::set<Id> parts{1, 2, triangle};
+        const auto group = createGroup(doc, parts, "Dense mesh");
+        const auto revision = doc.revision();
+        const auto message = rejection([&] { (void)createComponent(doc, group, "Dense mesh"); });
+        check(message == std::string(denseDefinition) +
+                             ": faces would be 200,001 of 200,000 (definition 'Dense mesh' #1)",
+              "A definition of 200,001 faces is refused on create: " + message);
+        check(doc.definitions().empty() && doc.revision() == revision,
+              "A refused create leaves no definition");
+        std::printf("create refused, 200,001 faces: %s\n", message.c_str());
+    }
+    // Edit and load: two spheres, accepted; a triangle added on edit is refused; a copy of a
+    // sphere in the saved record is refused on load.
+    {
+        std::map<Id, BodyPtr> bodies;
+        for (Id id = 1; id <= 2; ++id)
+            bodies.emplace(id, sphere(id, {60.0 * double(id - 1), 0, 0}, 200, 250));
+        Document built;
+        built.restore("00000000000000000000000000000835", 3, std::move(bodies));
+        std::set<Id> parts{1, 2};
+        const auto component = createComponent(built, createGroup(built, parts, "Dense mesh"),
+                                               "Dense mesh");
+        // Reload, so the refusals start from a document as a file opens it.
+        Document doc = decodeContainer(encodeContainer(built));
+        const auto revision = doc.revision();
+        const auto definition = component.definition;
+        const auto edited = rejection([&] {
+            (void)editComponentDefinition(doc, definition, [&](Document &draft) {
+                draft.addFace({{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}});
+                return ChangeReport{};
+            });
+        });
+        check(edited == std::string(denseDefinition) +
+                            ": faces would be 200,001 of 200,000 (definition 'Dense mesh' #1)",
+              "A triangle added to a two-sphere component is refused on edit: " + edited);
+        check(doc.revision() == revision && doc.definitions().size() == 1,
+              "A refused component edit changes nothing");
+        const auto stored = encodeDocument(doc);
+        auto json = QJsonDocument::fromJson(stored).object();
+        auto definitions = json["definitions"].toArray();
+        auto record = definitions.first().toObject();
+        auto members = record["members"].toArray();
+        QJsonObject copy;
+        for (const auto value : members)
+            if (value.toObject()["faces"].toArray().size() == 100000) {
+                copy = value.toObject();
+                break;
+            }
+        check(!copy.isEmpty(), "The stored definition has a sphere to copy");
+        const auto added = record["nextMemberId"].toString();
+        copy["id"] = added;
+        members.append(copy);
+        record["members"] = members;
+        record["nextMemberId"] = QString::number(added.toULongLong() + 1);
+        definitions[0] = record;
+        json["definitions"] = definitions;
+        const auto loaded = rejection([&] {
+            (void)decodeDocument(QJsonDocument(json).toJson());
+        });
+        check(loaded == std::string(denseDefinition) +
+                            ": faces would be 300,000 of 200,000 (definition 'Dense mesh' #1)",
+              "A stored definition of 300,000 faces is refused on load: " + loaded);
+        std::printf("edit and load refused: %s; %s (%.1f s)\n", edited.c_str(), loaded.c_str(),
+                    seconds(started, Clock::now()));
+    }
+}
+
+// R110: the whole document holds 300,000 unique vertices across two definitions and loose bodies:
+// 150 prisms of 1,000 sides, 50 in each definition and 50 loose. Each definition is 100,000
+// vertices, within its 200,000 limit. The document saves, reopens and re-saves byte for byte.
+void severalDefinitionsAtLimit() {
+    const auto started = Clock::now();
+    Document doc;
+    std::set<Id> first, second;
+    for (int i = 0; i < 100; ++i) {
+        const auto body = prism(doc, 1000, 3.0 * i);
+        (i < 50 ? first : second).insert(body);
+    }
+    for (int i = 100; i < 150; ++i)
+        (void)prism(doc, 1000, 3.0 * i);
+    (void)createComponent(doc, createGroup(doc, first, "Prism A"), "Prism A");
+    (void)createComponent(doc, createGroup(doc, second, "Prism B"), "Prism B");
+    const auto totals = doc.materializedTotals();
+    check(doc.definitions().size() == 2 && totals.vertices == DocumentLimits::unique.vertices &&
+              exceededLimit(LimitCounts{0, totals.records, totals.vertices, totals.faces,
+                                        totals.wires, totals.edges, totals.curves, totals.guides},
+                            LimitClass::UniqueGeometry)
+                  .empty(),
+          "Two definitions and 50 loose bodies hold 300,000 unique vertices within the limits");
+    const auto container = encodeContainer(doc);
+    auto reopened = decodeContainer(container);
+    check(reopened.definitions().size() == 2 && reopened.materializedTotals() == totals,
+          "The two-definition model reopens unchanged");
+    check(encodeContainer(reopened) == container,
+          "The two-definition model re-saves byte for byte");
+    std::printf("several definitions: 2 definitions of 100,000 vertices and 50 loose prisms, "
+                "%zu unique vertices, container %.1f MiB; %.1f s\n",
+                size_t(totals.vertices), double(container.size()) / (1024 * 1024),
+                seconds(started, Clock::now()));
+}
+// R110: the SKP importer applies the component definition limit to a definition's own geometry. The
+// definition has two face bodies, zigzag strips of 99,998 triangles, which use 100,000 vertices each
+// (200,000 in all, the limit). Each strip is within its per-body limit. A loose edge between two more
+// vertices makes a third body, the wires, which would take the definition to 200,002 vertices: it is
+// left out and reported as an oversize model is (the documentLimit notice). The faces all import.
+void skpDefinitionLimit() {
+    const auto started = Clock::now();
+    SkpPackage package;
+    package.sourceName = "definition-limit.skp";
+    package.definitions.resize(2);
+    package.definitions[0].name = "ROOT";
+    SkpPackageInstance placement;
+    placement.definition = 1;
+    package.definitions[0].instances.push_back(placement);
+    auto &strip = package.definitions[1];
+    strip.name = "Strip";
+    const std::size_t triangles = 99998, vertices = triangles + 2;
+    for (std::size_t i = 0; i < 2 * vertices; ++i) {
+        const auto k = double(i % vertices);
+        strip.vertices.push_back({0.001 * k + (i >= vertices ? 500.0 : 0.0), (i % 2) * 0.001, 0.0});
+    }
+    // Two vertices of their own, joined by one loose edge (no face uses it).
+    strip.vertices.push_back({600.0, 0.0, 0.0});
+    strip.vertices.push_back({600.0, 0.001, 0.0});
+    SkpPackageEdge loose;
+    loose.v1 = std::uint32_t(2 * vertices);
+    loose.v2 = std::uint32_t(2 * vertices + 1);
+    strip.edges.push_back(loose);
+    for (std::size_t body = 0; body < 2; ++body)
+        for (std::size_t i = 0; i < triangles; ++i) {
+            SkpPackageFace face;
+            const auto first = std::uint32_t(body * vertices + i);
+            face.loops = {{first, first + 1, first + 2}};
+            face.hidden = body == 1;
+            strip.faces.push_back(face);
+        }
+    const auto result = importSkpPackage(package);
+    const auto notices = result.report["notices"].toObject();
+    const auto counts = result.report["counts"].toObject();
+    check(notices["documentLimit"].toInt() >= 1,
+          "The wires that would take the definition past 200,000 vertices are reported with the documentLimit notice");
+    check(counts["faces"].toInt() == 2 * int(triangles),
+          "All faces of the definition import: " + std::to_string(counts["faces"].toInt()));
+    check(counts["wires"].toInt() == 0, "The loose edge is left out");
+    check(result.document.materializedTotals().vertices == 200000,
+          "The imported definition holds exactly 200,000 vertices");
+    std::printf("SKP definition at 200,000 vertices with a loose edge: %d faces imported, the edge "
+                "left out with documentLimit; %.1f s\n",
+                counts["faces"].toInt(), seconds(started, Clock::now()));
 }
 } // namespace
 int main(int argc, char **argv) {
@@ -447,10 +627,9 @@ int main(int argc, char **argv) {
         check(twoSpheres.refusal.empty(),
               "Two spheres (200,000 faces) are edited within the 192 MiB budget: " +
                   twoSpheres.refusal);
-        const auto threeSpheres = denseComponentEdit(3);
-        check(threeSpheres.refusal == "Edit exceeds the 192 MiB history budget",
-              "Three spheres (300,000 faces) are refused by the 192 MiB budget: " +
-                  threeSpheres.refusal);
+        denseRefusals();
+        severalDefinitionsAtLimit();
+        skpDefinitionLimit();
         std::printf("history charges: whole-document move %.1f MiB, transaction of 20 bodies %.1f "
                     "MiB, two-sphere component member %.1f MiB; budget %.0f MiB\n",
                     double(moveAll) / (1024 * 1024), double(moveTransaction) / (1024 * 1024),

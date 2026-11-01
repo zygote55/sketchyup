@@ -38,6 +38,19 @@ struct DocumentLimits {
                                               600000 * scale, 600000 * scale,
                                               600000 * scale, 900000 * scale,
                                               40000 * scale,  40000 * scale};
+    // One component definition's own members (R110, 1.7.0, owner decision 2026-11-01). Editing a
+    // component replaces its whole record, so the undo charge of one edit is at least the
+    // definition's size, before and after. Vertices, faces, wires and edges are two thirds of the
+    // document's unique values (200,000 and 600,000). Bodies, curves and guides keep the unique
+    // values. The placement count is not checked here.
+    static constexpr LimitCounts definition{0,
+                                            10000 * scale,
+                                            200000 * scale,
+                                            200000 * scale,
+                                            200000 * scale,
+                                            600000 * scale,
+                                            10000 * scale,
+                                            10000 * scale};
 };
 static_assert(SKETCHYUP_BENCHMARK_LIMIT_SCALE >= 1);
 // A document's unique geometry never exceeds its materialized totals, so the unique limit can
@@ -50,12 +63,25 @@ static_assert(DocumentLimits::unique.wires <= DocumentLimits::materialized.wires
 static_assert(DocumentLimits::unique.edges <= DocumentLimits::materialized.edges);
 static_assert(DocumentLimits::unique.curves <= DocumentLimits::materialized.curves);
 static_assert(DocumentLimits::unique.guides <= DocumentLimits::materialized.guides);
-enum class LimitClass { UniqueGeometry, Placement };
+// A definition's own members are part of the unique geometry, so no definition limit exceeds the
+// unique limit it sits under.
+static_assert(DocumentLimits::definition.bodies <= DocumentLimits::unique.bodies);
+static_assert(DocumentLimits::definition.vertices <= DocumentLimits::unique.vertices);
+static_assert(DocumentLimits::definition.faces <= DocumentLimits::unique.faces);
+static_assert(DocumentLimits::definition.wires <= DocumentLimits::unique.wires);
+static_assert(DocumentLimits::definition.edges <= DocumentLimits::unique.edges);
+static_assert(DocumentLimits::definition.curves <= DocumentLimits::unique.curves);
+static_assert(DocumentLimits::definition.guides <= DocumentLimits::unique.guides);
+// Placement and unique geometry are document-wide classes; ComponentDefinition bounds one
+// definition's own members (see DocumentLimits::definition).
+enum class LimitClass { UniqueGeometry, Placement, ComponentDefinition };
 // D06 diagnostics. Throws std::runtime_error naming the first exceeded quantity
 // (placements, bodies, vertices, faces, wires, edges, curves, guides), its
 // attempted and maximum values and the bounded context, e.g.
 // "Component placement exceeds document placement limits: vertices would be
-// 600,052 of 600,000 (placing definition 'Chair' #12 into group #3)".
+// 600,052 of 600,000 (placing definition 'Chair' #12 into group #3)". The component definition
+// class reads the same way: "Component definition exceeds component definition limits: vertices
+// would be 200,001 of 200,000 (definition 'Chair' #3)".
 // Messages never exceed limitMessageBytes.
 inline constexpr std::size_t limitMessageBytes = 256;
 inline constexpr std::size_t limitNameBytes = 64;

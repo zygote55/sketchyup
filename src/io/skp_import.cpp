@@ -738,6 +738,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
 
     std::map<std::pair<Id, bool>, Bucket> buckets;
     std::set<PairKey> faceEdges;
+    LimitCounts definitionCounts; // this definition's own members, as the faces are accepted
     std::size_t count = 0;
     for (const auto &face : definition.faces) {
         if (++count % 256 == 0)
@@ -798,7 +799,21 @@ Canonical Converter::buildDefinition(std::size_t d) {
             omit("face");
             continue;
         }
+        // The definition's own geometry (R110): the root's geometry is the top-level group, not a
+        // definition, so only d > 0 is checked. An oversize definition is reported as an oversize
+        // model is, by the same notice.
+        LimitCounts definitionTrial = definitionCounts;
+        definitionTrial.bodies += bucket.body.surface.faces.empty() ? 1 : 0;
+        definitionTrial.faces += 1;
+        definitionTrial.vertices += newVertices.size();
+        definitionTrial.edges += newEdges.size();
+        if (d != 0 && !exceededLimit(definitionTrial, LimitClass::ComponentDefinition).empty()) {
+            note("documentLimit");
+            omit("face");
+            continue;
+        }
         unique = trial;
+        definitionCounts = definitionTrial;
         std::vector<std::vector<Id>> ringIds;
         for (const auto &loop : loops) {
             ringIds.emplace_back();
@@ -898,10 +913,22 @@ Canonical Converter::buildDefinition(std::size_t d) {
         auto body = std::make_shared<Body>(std::move(wire.body));
         body->id = canon.nextMember++;
         body->parent = 1;
-        canon.own.bodies += 1;
-        canon.own.wires += body->topology.edges.size();
-        canon.members[body->id] = body;
-        importedWires += static_cast<long long>(wires.size());
+        // The wire body is part of the definition too (R110): refused as an oversize face is.
+        LimitCounts wireTrial = definitionCounts;
+        wireTrial.bodies += 1;
+        wireTrial.vertices += body->surface.vertices.size();
+        wireTrial.wires += body->surface.wires.size();
+        wireTrial.edges += body->topology.edges.size();
+        if (d != 0 && !exceededLimit(wireTrial, LimitClass::ComponentDefinition).empty()) {
+            note("documentLimit");
+            omit("wire", static_cast<long long>(wires.size()));
+        } else {
+            definitionCounts = wireTrial;
+            canon.own.bodies += 1;
+            canon.own.wires += body->topology.edges.size();
+            canon.members[body->id] = body;
+            importedWires += static_cast<long long>(wires.size());
+        }
     }
     importedEdges += static_cast<long long>(edgeOf.size());
 
