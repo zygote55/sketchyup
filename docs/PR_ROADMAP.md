@@ -1572,7 +1572,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 <a id="r110"></a>
 #### R110 — Raise the unique geometry limits
 
-**Status:** In progress (PR #N). The owner approved the change and its numbers on 2026-11-01, for the 1.7.0 release: vertices, faces and wires per document go from 100,000 to 300,000, and edges from 300,000 to 900,000. The native file bound rises to 256 MiB and the model chunk to 96 MiB, with no schema or document version change. The materialized limits and the per-body kernel limits are unchanged. The measured rationale that [ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170) requires, [R082w v3](verification/R082w-memory-budget-v3.md), is not measured yet, so the change is not accepted for release until it is.
+**Status:** In progress (PR #565). The owner approved the change and its numbers on 2026-11-01, for the 1.7.0 release: vertices, faces and wires per document go from 100,000 to 300,000, and edges from 300,000 to 900,000. The native file bound rises to 256 MiB and the model chunk to 96 MiB, with no schema or document version change. The materialized limits and the per-body kernel limits are unchanged. The measured rationale that [ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170) requires, [R082w v3](verification/R082w-memory-budget-v3.md), is not measured yet, so the change is not accepted for release until it is.
 
 **Requires:** [R082.gg](verification/R082gg-placement-limits.md) (the split of unique geometry from placements), [R082.w v2](verification/R082w-memory-budget-v2.md) (the calibration the new limits extend).
 
