@@ -3,6 +3,7 @@
 #include "core/material_records.hpp"
 #include "core/model_style.hpp"
 #include "io/document_io.hpp"
+#include "io/native_limits.hpp"
 #include <QJsonObject>
 #include <QStringList>
 #include <array>
@@ -19,7 +20,10 @@ namespace sketchy {
 // offset. Nothing is stored by absolute path, so a moved catalog still resolves.
 struct CatalogLimits {
     static constexpr std::size_t manifestBytes = 32768;            // the envelope manifest limit
-    static constexpr std::size_t payloadBytes = 128 * 1024 * 1024; // the envelope model limit
+    // The whole payload region (shared assets, then every entry) takes the native file bound, so
+    // that one largest native container (containerBytes, with at most 64 MiB of assets) fits beside
+    // the catalog's full 64 MiB of shared assets. R110 (1.7.0) raised the bound from 128 to 256 MiB.
+    static constexpr std::size_t payloadBytes = NativeLimits::fileBytes;
     static constexpr std::size_t recordBytes = 16 * 1024;          // one style or material payload
     static constexpr std::size_t entries = 128;
     static constexpr std::size_t assets = 256;

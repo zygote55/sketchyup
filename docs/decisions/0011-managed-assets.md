@@ -44,7 +44,7 @@ it is never converted into a fabricated missing record.
 
 The manifest remains bounded to 1 MiB; a native file can contain up to 97 MiB plus
 its 16-byte header. Standalone schema-11 JSON uses canonical base64 inline payloads
-and a 128 MiB bound. Native model JSON declares external payload storage and can
+and a 128 MiB bound (256 MiB from 1.7.0, R110; ADR 0005). Native model JSON declares external payload storage and can
 only decode present resources when the corresponding verified chunks are supplied.
 Legacy schemas 1–10 remain bounded to 32 MiB and acquire no invented assets.
 A historical schema-10 material fixture verifies migration.

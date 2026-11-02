@@ -1941,7 +1941,8 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     if (edit.site)
         edit.bytes += 2 * (sizeof(SiteOrigin) + siteCrsBytes + siteSourceBytes + 64);
     if (edit.bytes > historyLimit)
-        throw std::runtime_error("Edit exceeds the 64 MiB history budget");
+        throw std::runtime_error("Edit exceeds the " + std::to_string(historyLimit / (1024 * 1024)) +
+                                 " MiB history budget");
     if (edit.terrainBytes > terrainHistoryLimit)
         throw TerrainError("LIMIT_EXCEEDED", terrainHistoryMessage);
     if (!edit.sections.empty() || !activeSections.empty()) {

@@ -40,7 +40,8 @@
       "incremental_validation",
       "document_limits",
       "variant_edit_cost",
-      "component_parameters"
+      "component_parameters",
+      "unique_limits_acceptance"
     ],
     "slow-assistant": [
       "provider_release_corpus"
@@ -823,6 +824,7 @@
   "test_seconds": {
     "comment": "Serial seconds in the development build on a CI runner (run 39664036473, 2026-10-21). scripts/ci-ctest-shard.py balances the fast tier's CTest shards with them; an unlisted test counts as 1 s. Approximate is fine: it only affects balance.",
     "document_limits": 29,
+    "unique_limits_acceptance": 224,
     "component_parameters": 15,
     "incremental_validation": 78,
     "inference_equivalence": 7,

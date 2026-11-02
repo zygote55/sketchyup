@@ -837,7 +837,7 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
 }
 Document decodeDocument(const QByteArray &bytes, const AssetPayloads &payloads) {
     if (bytes.size() > fileLimit)
-        throw std::runtime_error("Document exceeds the 128 MiB JSON limit");
+        throw std::runtime_error("Document exceeds the 256 MiB JSON limit");
     QJsonParseError error;
     auto json = QJsonDocument::fromJson(bytes, &error);
     if (error.error != QJsonParseError::NoError || !json.isObject())
@@ -956,7 +956,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
                                                   const AssetPayloads &payloads,
                                                   const QByteArray *terrainMesh) {
     if (inputBytes < 0 || inputBytes > fileLimit)
-        throw std::runtime_error("Document exceeds the 128 MiB JSON limit");
+        throw std::runtime_error("Document exceeds the 256 MiB JSON limit");
     if (root["format"] != "sketchyup" || !root["version"].isDouble() ||
         (root["version"].toDouble() < 1 || root["version"].toDouble() > nativeDocumentVersion ||
          root["version"].toDouble() != std::floor(root["version"].toDouble())) ||
@@ -1016,7 +1016,7 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         throw std::runtime_error("Unexpected terrain-mesh chunk");
     if (root["version"].toInt() >= 11 && root["assetStorage"] == "external" &&
         inputBytes > modelLimit)
-        throw std::runtime_error("Packaged model exceeds the 32 MiB JSON limit");
+        throw std::runtime_error("Packaged model exceeds the 96 MiB JSON limit");
     std::set<Id> legacyTerrain;
     auto bodies = decodeBodies(root["bodies"], root["version"].toInt(), &legacyTerrain);
     ComponentDefinitions definitions;

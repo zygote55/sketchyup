@@ -187,9 +187,11 @@ dispatch is not enabled in today's CLI.
 
 ## Budgets and verification
 
-Initial live-model limits remain 10000 bodies and 100000 each of vertices, faces
-and wires. Retained undo history is 64 MiB (terrain edits: a separate 512 MiB, ADR 0168,
-D-043); stage plus validation scratch has a
+Initial live-model limits were 10000 bodies and 100000 each of vertices, faces
+and wires; R110 (1.7.0) raised the unique values to 300000 (see
+[Raised unique geometry limits](#raised-unique-geometry-limits-r110-170)). Retained
+undo history is 192 MiB since R110 (owner decision, 2026-11-01; 64 MiB before). Terrain
+edits have a separate 512 MiB budget (ADR 0168, D-043). Stage plus validation scratch has a
 separate 128 MiB target. One over-budget operation fails before publication.
 Estimate shared allocations once, then compare RSS and allocator telemetry on
 empty, room, 1000-body, large single-mesh and import fixtures. Track checkpoint,
@@ -220,6 +222,8 @@ Component placements no longer count against the unique-geometry limits.
 
 - **Unique geometry** keeps the earlier values: 10,000 bodies, 100,000 each of
   vertices, faces and wires, 300,000 edges, and 10,000 each of curves and guides.
+  R110 (1.7.0) superseded these unique values; see
+  [Raised unique geometry limits](#raised-unique-geometry-limits-r110-170).
   It counts records outside every placement plus each definition's members once.
   Placement roots and projected members do not count.
 - **Placement limits** bound 20,000 materialized component instances (nested ones
@@ -280,6 +284,186 @@ differ, these notes govern.
 - **Contradictions.** None with the counting rule. The bug was that a definition with no
   placement kept counting its members as stored geometry, so the rule's "each definition once"
   counted geometry that no placement uses.
+
+## Raised unique geometry limits (R110, 1.7.0)
+
+The owner approved these limits on 2026-11-01. They supersede the unique values of
+[R082.gg](#unique-geometry-and-placement-limits-r082gg), which stay above as history.
+The materialized values, the placement limit and every per-body kernel limit are unchanged.
+
+- **Unique geometry:** 10,000 bodies; 300,000 each of vertices, faces and wires; 900,000
+  edges; 10,000 each of curves and guides. Before 1.7.0 the vertices, faces and wires were
+  100,000 each and the edges 300,000. Each unique value is at or below its materialized value,
+  as the `static_assert`s in `core/document_limits.hpp` check.
+- **Placement and materialized limits (unchanged):** 20,000 placements; 40,000 bodies; 600,000
+  each of vertices, faces and wires; 900,000 edges; 40,000 each of curves and guides.
+- **Native bounds:** `NativeLimits::fileBytes` 256 MiB (was 128 MiB); `modelBytes`, the document
+  chunk, 96 MiB (was 32 MiB). `containerBytes` follows its formula: 193,126,492 bytes, about
+  184 MiB (was 126,017,628). `legacyModelBytes` (32 MiB), `manifestBytes` (4 MiB), the asset
+  bounds and the terrain-mesh bound are unchanged. `outcomeStoreBytes` follows as 2 × containerBytes
+  + 16 MiB, which is 403,030,200 bytes (was 268,812,472, D-089). Every integer that the capability
+  output derives from these values fits in 32 bits.
+- **Raw JSON (legacy and import, ADR 0108):** a raw JSON file, one with no container magic, is
+  bounded by `NativeLimits::rawJsonBytes`, 128 MiB as before R110, and refused as "Raw document
+  exceeds 128 MiB" before it is parsed. The in-process inline form (`encodeDocument` with inline
+  asset data) keeps `fileBytes`, 256 MiB, because presentation capture (`presentation_batch.cpp`), the
+  text worker and the native round-trip checks in `createNativeFile` and `migrateNativeFile` hold a
+  whole document inline. By the bounds (not measured), a valid at-limit document with its assets
+  inline is about 208 MiB: a 96 MiB model, 64 MiB of assets as base64 (about 85 MiB) and a terrain
+  mesh as base64 (about 27 MiB). A 128 MiB inline bound would refuse those round trips.
+- **Compatibility (decision 5):** no schema or document version changes (document version 35,
+  container version 2). The encoder did not change, only the bounds it checks, so a model within the
+  1.6.1 bounds (a document chunk of at most 32 MiB and a file of at most 128 MiB) is written with
+  the bytes 1.6.1 writes, and 1.6.1 reads it. A larger file is refused by 1.6.1 with that version's
+  own message. `document_limits_io_tests` checks that the 40,000-body model is within those bounds
+  and saves, reloads and re-saves it unchanged.
+- **Budgets that do not change (decision 6):** staging 128 MiB, transactions 128 MiB and the
+  inspection snapshot 32 MiB. Since D-082 staging and the snapshot charge only the records not shared
+  with the base. A staged proposal also holds its edit's whole history charge, so a whole-document
+  proposal can exceed 128 MiB (see the implementation notes below). The at-limit acceptance test
+  (`unique_limits_acceptance`) checks a snapshot and scripted transactions on a 300,000-vertex model.
+- **Undo history (owner decision, 2026-11-01):** `Document::historyLimit` is 192 MiB, three times
+  the 1.6.1 value of 64 MiB. The refusal message states that number. The history budget charges
+  every record an edit touches, in full, before and after, so it limits the size of one edit, not
+  only the retained total. The measurements are in the implementation notes below.
+- **Component definition limit (owner decision, 2026-11-01).** One component definition's own
+  members are limited to 200,000 vertices, 200,000 faces, 200,000 wires and 600,000 edges
+  (`DocumentLimits::definition`, the third limit class, `LimitClass::ComponentDefinition`). Bodies,
+  curves and guides keep the unique values of 10,000 each. The document-wide unique limits stay at
+  300,000 and 900,000. An edit replaces a definition's whole record, so its history charge covers the
+  whole definition. A definition of 200,000 faces is charged 183.1 MiB, under the 192 MiB budget; one
+  of 300,000 faces would need about 275 MiB. A definition over its limit is refused with the D06
+  message, for example "Component definition exceeds component definition limits: vertices would be
+  200,001 of 200,000 (definition 'Chair' #3)". The enforcement, the importers and the tests are in
+  the implementation notes below.
+- **Memory evidence and ceiling (owner decision, 2026-11-01).**
+  [R082w v3](../verification/R082w-memory-budget-v3.md) measures the raised limits in software.
+  Version 2 under-counted the per-unique-vertex cost, which the measurements put at 1,964 B against
+  the 917 B v2 modeled, so its 2.67 GiB worst case was low. Re-costed, 1.6.1's own limits come to
+  about 2.9 GiB. At the 1.7.0 limits, with the 192 MiB undo budget and the measured excess, the worst
+  case is 3.58 GiB, and with the 150 MB hardware delta that v1 measured it is about 3.72 GiB, under the
+  4 GiB operational job cap. The owner raised the modeled worst-case ceiling from 3 GiB to 3.75 GiB, so
+  the unique limits are **accepted** for 1.7.0. The margin is 179 MiB without the hardware delta and
+  36 MiB with it. Hardware acceptance stays under the [ADR 0161](0161-m9-hardware-evidence-waiver.md)
+  waiver.
+
+## Implementation notes (R110)
+
+- **Acceptance (`unique_limits_acceptance`, local build: Debug with `-g0` and shared libraries,
+  not the Release harness):** 150 prisms of 1,000 sides, so 300,000 unique vertices, 450,000 edges
+  and 150,300 faces in 150 bodies. Its document chunk is 35.0 MiB, over the old 32 MiB bound, and
+  it saves, reopens and re-saves byte for byte. A snapshot is taken, then a transaction (begin,
+  apply, preview, commit) moves one body and saves, and undo restores the body. The R110 checks
+  below follow. Peak RSS was 1,529 MiB, and the whole test took 223 s (77 s before R110; the R110
+  checks take 168 s of it). It sits in the `slow-core` group of `.github/ci-path-map.json`.
+- **History budget (owner decision, 2026-11-01: 192 MiB).** The refusal reads "Edit exceeds the
+  192 MiB history budget". The charge of an edit is its records before and after, in full, for
+  every record it touches. Measured in the test:
+  - one edit that moves all 150 loose bodies (300,000 vertices): charged 174.5 MiB, accepted, and
+    undone exactly;
+  - one member of a component of two closed 100,000-face spheres (200,000 faces, 100,004 vertices):
+    charged 183.1 MiB, accepted, and undo and redo are exact;
+  - the same edit with three spheres (300,000 faces, 150,006 vertices, the unique limit): refused
+    with the message above (superseded by R110.a: the component definition limit now refuses a third sphere on create). Each sphere is the same size, so the charge is linear, and three would
+    charge about 275 MiB (1.5 times the two-sphere figure; not measured, since the edit is refused).
+  **So a component definition at the 300,000-face limit could not be edited in one undoable step at
+  192 MiB.** The owner chose the second option: component definitions are limited below the unique
+  limit (the component definition limit above), so every definition's edit fits the budget. The undo
+  budget did not change. The 300,000-face edit is therefore not reachable, and its estimate of about
+  275 MiB no longer applies.
+- **Whole-document transactions (finding; staging not changed).** A transaction accepts at most 100
+  cumulative commands, so the transaction check moves 100 bodies of 1,500 sides (the same 300,000
+  vertices). The 128 MiB staging budget refuses that proposal: it stages 261.4 MiB, which is the
+  edit's history charge (174.5 MiB) plus the records it adds (86.9 MiB). A proposal of 20 bodies
+  stages 52.3 MiB, is charged 34.9 MiB of history, and commits and undoes. A whole-document
+  transaction at the limit therefore needs a larger staging budget, or it is refused. Staging was
+  not changed, as the brief directs.
+- **Measured memory (R082w v3, software, Release, one CPU and 4 GiB; the full record is in
+  [R082w v3](../verification/R082w-memory-budget-v3.md)):** the loose unique family at 300,000
+  vertices peaks at 1.92 GB; an 89 MiB container loads in 1.5 s from a fresh process and peaks at
+  1.39 GB; the densest shape (three closed 100,000-face spheres) peaks at 974 MiB; and a
+  whole-document edit of 5,700 bodies, 191.0 MiB charged, stays in history at 297 MiB resident.
+  Moving all 5,769 bodies in one edit is refused by the budget. The worst case is over the old 3 GiB ceiling and within the 3.75 GiB ceiling of 2026-11-01, as the
+  memory-evidence bullet says.
+- **Terrain explode:** the budget that Explode terrain checks is the unique face limit, so a terrain
+  can now explode into a document of up to 300,000 faces (it was 100,000). The boundary is exact: a
+  249,218-triangle terrain with 50,782 loose modelling faces explodes, and one more face is refused
+  with the numbers. The per-call overlay cap of 100,000 faces stays. It is the per-body limit, since
+  an overlay is one body.
+- **Copy array:** the aggregate check now uses the unique limits. Its edge count was the per-body
+  edge limit (300,000) and is now the unique edge limit (900,000). Its other counts had the same
+  values before and after.
+- **Unchanged per-body kernel limits:** `Surface::validate` (100,000 vertices or faces per body,
+  `loop` at most 10,000 vertices), `Topology::edgeLimit` (300,000 edges per body) and the terrain
+  and glTF, OBJ, STL, DXF and STEP import bounds keep their values. They are not document limits.
+
+## Implementation notes (R110.a: component definition limit)
+
+Owner decisions of 2026-11-01, implemented in the second round of R110: a component definition is
+limited below the unique limit, and the modeled memory ceiling is 3.75 GiB. The memory record is
+[R082w v3](../verification/R082w-memory-budget-v3.md).
+
+- **Enforcement.** `validateComponentDefinitions` (`src/core/component_records.cpp`) checks each
+  definition's own members against `DocumentLimits::definition` before it restores them, and names
+  the definition. Every path that stores a definition runs it: `Document::apply` (each edit, so create,
+  edit, make unique, replace, repeat, explode and the catalog and library inserts), `Document::restore`,
+  the file load (`src/io/document_io.cpp`), the component publish (`src/core/components.cpp`) and the
+  component parameter commands. The D-075 component edit draft is checked when its edit is published:
+  the draft's own unique check runs during the edit, and a refused publish commits nothing. The
+  document-wide check of stored members against the unique limit is unchanged.
+- **SKP import** (`src/io/skp_import.cpp`, `buildDefinition`). The importer counts a definition's own
+  faces, vertices, edges and wires as it accepts them. A face that would take the definition past a
+  limit is left out with the `documentLimit` notice, as an oversize model's face is. A loose-edge wire
+  body that would is left out too, under the `wire` kind. The root's geometry is the top-level group,
+  not a definition, so it is not checked. Two strips of 99,998 triangles use 200,000 vertices; the
+  loose edge after them, two more vertices, is the case that reaches the limit, because each strip
+  alone stops at the per-body limit of 100,000 vertices.
+- **IFC import** (`src/io/ifc_import.cpp`). A shared geometry that would create a definition is checked
+  against the definition limit in `tryAdd`, with the same reason form as the unique check
+  (`documentLimit:<quantity>`). It cannot refuse today: a shared mesh is one body of at most 100,000
+  faces and vertices, below the definition limit.
+- **glTF, OBJ, STL and DXF.** glTF's scene budget is 100,000 vertices and faces for the whole import
+  (`Importer::budget`), so it cannot reach the definition limit. OBJ, STL and DXF create no definitions.
+- **Edges.** The edge class (600,000) is tested at the count level, with the same comparison the
+  validator makes. I did not find real geometry that reaches 600,001 edges while the faces, vertices and
+  wires stay within their limits and every body within its per-body limits, so there is no geometric
+  test of that refusal.
+- **Capability output.** `commands.cpp` reports `componentDefinitionVertices`, `componentDefinitionFaces`,
+  `componentDefinitionWires` and `componentDefinitionEdges` in `limits`; the unique and materialized keys
+  are unchanged. No generated contract carries the capability limits, so none changed. Both generator
+  checks pass on the merged tree (`generate-tool-reference.py --check`, `generate-api-schemas.py --check`).
+- **Tests** (local Debug build with shared libraries, and the sanitized build in the pinned image):
+  - `document_limits_tests`: the definition values and the D06 messages at each boundary (vertices,
+    faces, wires, edges, bodies, curves, guides); a create refusal for 200,001 vertices and for 200,001
+    wires; an edit that takes a 200,000-vertex definition to 200,002 vertices, and to 200,001 wires,
+    refused with the document unchanged.
+  - `document_limits_io_tests`: a stored definition at 200,000 vertices or wires loads, and a copy of
+    its two-vertex wire member makes it one more, refused on load with the definition named.
+  - `unique_limits_acceptance` (slow core): two closed 100,000-face spheres are accepted, moved, undone
+    and redone, and charged 183.1 MiB of history. A two-sphere component with a triangle added is refused
+    on create (200,001 faces) and on edit. A stored copy of a sphere is refused on load (300,000 faces;
+    150,006 vertices is within its limit). Two definitions of 100,000 vertices and 50 loose prisms hold
+    300,000 unique vertices and save, reopen and re-save byte for byte. The SKP case above.
+  - `ifc_convert`: two cases were written for the 1.6.1 bounds and failed after R110, and are updated
+    (see below).
+- **Sanitized (pinned image, ASan and UBSan, 4 GiB, two CPUs):** The sanitized run in the pinned image (`sketchyup-ci-pinned:r097a-ifc`, ASan and UBSan, 4 GiB, two CPUs) passes: `document_limits`, `document_limits_io`, `incremental_validation` and `purge_unused` (536 s, 187 s, 85 s and 3 s), and `unique_limits_acceptance` in 1,667 s, with a peak RSS of 3,977 MiB, which is 119 MiB under the container's 4 GiB cap. The acceptance suite is close to the container cap under the sanitizer, so the 4 GiB job cap is the limit to watch.
+- **Other changes in the touched suites.** `ifc_convert_tests` had two cases written for the 1.6.1 model
+  bound (32 MiB) and the 100,000-face unique limit. The model-chunk case now uses 6,600 nodes of 16 KB of
+  provenance (about 105 MB); the import trims the provenance to fit the 96 MiB bound (less a 2 MiB margin),
+  so the case checks that the document fits, not that it is refused. The refusal `modelTooLarge` for
+  geometry and provenance that cannot be trimmed is no longer reached by this fixture and is not covered
+  by any suite now; a fixture that makes non-droppable geometry over 94 MiB would restore the check.
+  The R098.j rough case now has 31 bodies of 9,800 faces: thirty fit under the 300,000-face unique limit
+  and the thirty-first is refused with `documentLimit:faces`. Its pinned encoding changed with the
+  thirty-body document, and the pin is updated; the sample package's pin is unchanged.
+- **Scripting (no code change).** A transaction stages its whole edit within the 128 MiB staging budget,
+  which is unchanged. In the acceptance test, a transaction that moves 100 dense bodies (300,000 vertices
+  in all) stages 261.4 MiB and is refused; 20 bodies stage 52.3 MiB, commit and undo. MCP and scripted
+  bulk edits should therefore be split into transactions of about 20 dense bodies. The user guide's
+  scripting section says the same.
+- **Contradictions.** None with the rules above. The earlier R110 text that a 300,000-face component
+  could not be edited within the budget is resolved by the definition limit: the 200,000-face edit is
+  measured and fits, and a larger definition is refused on create.
 
 ## Removing unused definitions (R111)
 

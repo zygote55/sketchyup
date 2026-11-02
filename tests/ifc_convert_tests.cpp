@@ -480,20 +480,22 @@ int main(int argc, char **argv) {
             check(fingerprint(again.document) == fingerprint(result.document), "the same package converts to the same bodies and properties");
         }
         {
-            // The model chunk: provenance alone over the chunk refuses; provenance that leaves little room
-            // makes properties give way.
+            // The model chunk (96 MiB less a 2 MiB margin since R110, which raised it from 32 MiB): provenance
+            // over the chunk gives way, as properties do, so the document fits. 6,600 nodes of 16 KB of
+            // provenance are about 105 MB, and the import keeps the chunk within its bound.
             IfcPackage p;
             p.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
-            for (int i = 0; i < 2600; ++i) {
+            for (int i = 0; i < 6600; ++i) {
                 auto n = node(10 + i, "IfcGroup", "g", 0, IfcNodeRole::Spatial);
                 for (int k = 0; k < 16; ++k)
                     n.provenance.emplace_back("ifc.X" + std::to_string(k), std::string(1000, 'p'));
                 p.nodes.push_back(std::move(n));
             }
-            refused("modelTooLarge", [&] { import(p); });
+            const auto trimmed = import(p);
+            check(encodeDocument(trimmed.document).size() <= qsizetype(NativeLimits::modelBytes), "the provenance-heavy model fits the model chunk");
             IfcPackage q;
             q.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
-            for (int i = 0; i < 1900; ++i) {
+            for (int i = 0; i < 6000; ++i) {
                 auto n = node(10 + i, "IfcGroup", "g", 0, IfcNodeRole::Spatial);
                 for (int k = 0; k < 16; ++k)
                     n.provenance.emplace_back("ifc.X" + std::to_string(k), std::string(1000, 'p'));
@@ -587,26 +589,26 @@ int main(int argc, char **argv) {
         }
 
         {
-            // R098.j: the output of the conversion is pinned. Twelve curved bodies of 9,800 faces: the document takes the
-            // first ones up to its 100,000 faces, and the rest are refused with the limit named. The sample package (merged
+            // R098.j: the output of the conversion is pinned. Thirty-one curved bodies of 9,800 faces: the document takes
+            // the first ones up to its 300,000 unique faces (R110), and the rest are refused with the limit named. The sample package (merged
             // faces, edges, materials, colours and a shared mesh) must come out the same too.
             IfcPackage rough;
             rough.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
-            for (std::uint32_t m = 0; m < 12; ++m) {
+            for (std::uint32_t m = 0; m < 31; ++m) {
                 rough.meshes.push_back(roughGrid(70, m));
                 rough.nodes.push_back(node(2 + m, "IfcBuildingElementProxy", "rough", 0, IfcNodeRole::Element, m));
             }
             const auto roughResult = import(rough);
             std::int64_t accepted = 0;
-            for (std::uint32_t m = 0; m < 12; ++m)
+            for (std::uint32_t m = 0; m < 31; ++m)
                 accepted += byStep(roughResult.document, 2 + m) != nullptr;
             const auto refusals = roughResult.report["elements"].toObject()["notImported"].toArray();
-            check(accepted == 10 && refusals.size() == 1 && refusals[0].toObject()["reason"].toString() == "documentLimit:faces" &&
-                      refusals[0].toObject()["count"].toInteger() == 2,
-                  "ten bodies (98,000 faces) fit, and the two after them are refused with the face limit named");
+            check(accepted == 30 && refusals.size() == 1 && refusals[0].toObject()["reason"].toString() == "documentLimit:faces" &&
+                      refusals[0].toObject()["count"].toInteger() == 1,
+                  "thirty bodies (294,000 faces) fit, and the one after them is refused with the face limit named");
             const std::string roughHash = encodingHash(roughResult.document);
             const std::string sampleHash = encodingHash(import(samplePackage()).document);
-            const std::string pinnedRough = "58867f7f04b3094bbad588ff9be75d26aeeed6f9cbc24a46ca014443e2961135",
+            const std::string pinnedRough = "db291571713ba7ed1aaf345d9c45c41902d87dfb186ca20f61cc4080a337bb46",
                               pinnedSample = "5b7ea80f1a6205a09e04013afa5bacb3d491fedc26173e3566916b5648df7f8c";
             if (pinnedRough != roughHash || pinnedSample != sampleHash)
                 throw std::runtime_error("pinned encodings differ: rough " + roughHash + ", sample " + sampleHash);

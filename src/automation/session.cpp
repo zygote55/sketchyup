@@ -6,6 +6,7 @@
 #include "geometry/offset.hpp"
 #include "geometry/orientation.hpp"
 #include "geometry/sweep.hpp"
+#include "io/native_limits.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -23,11 +24,11 @@ QByteArray read(const QString &path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         fail("INPUT_ERROR", "Cannot read the explicitly selected model");
-    const auto bytes = file.read(128 * 1024 * 1024 + 1);
+    const auto bytes = file.read(qint64(NativeLimits::fileBytes) + 1);
     if (file.error() != QFileDevice::NoError)
         fail("INPUT_ERROR", "Could not read model bytes");
-    if (bytes.size() > 128 * 1024 * 1024)
-        fail("LIMIT_EXCEEDED", "Model exceeds 128 MiB");
+    if (bytes.size() > qsizetype(NativeLimits::fileBytes))
+        fail("LIMIT_EXCEEDED", "Model exceeds 256 MiB");
     return bytes;
 }
 QString path(const QString &value) {

@@ -433,6 +433,15 @@ without changing the model:
 {"command": "document.purge_unused", "dryRun": true}
 ```
 
+**Large scripted edits (scripting and MCP).** A transaction stages its whole edit in memory, within a
+128 MiB staging budget. An edit that moves or rewrites many dense bodies at once can exceed it, and the
+transaction is refused with "Proposal exceeds the retained staging budget"; nothing changes. In the 1.7.0
+limit tests, a transaction that moves 100 dense bodies (300,000 vertices in all) stages about 261 MiB and is
+refused, while one that moves 20 of them stages about 52 MiB and commits. Split a bulk scripted edit into
+transactions of about 20 dense bodies each, and check each commit before you send the next. A component
+definition is limited to 200,000 faces, vertices or wires and 600,000 edges, so that one edit to it fits
+the undo budget.
+
 ## Exchange and present a model
 
 Use File import/export commands for GLB/glTF, OBJ/MTL, STL or the documented 2D
@@ -476,7 +485,7 @@ unit, the spaces choice, the georeference choice and the maximum deviation.
   reported and not georeferenced.
   A world coordinate system that is not the identity refuses the file.
 - **Limits.** A file over 128 MiB, or with more than 2,000,000 entities, is refused with the limit
-  named. A model over the document limits (100,000 unique vertices or faces, 10,000 bodies) imports
+  named. A model over the document limits (300,000 unique vertices or faces, 10,000 bodies, from 1.7.0) imports
   partly, and the report names the elements left out. A model of about 10,000 bodies imports in about 12 s; that is an accepted limit (2026-10-28), unchanged in 1.5.0. Geometry more than 1,000,000 m from the
   origin is refused.
 - **Not imported.** Advanced breps, NURBS, CSG, swept solids, revolutions and parametric profiles may
@@ -554,10 +563,10 @@ trip. The import dialog and the import report say the same.
 
 **Limits.** Import refuses a file over 128 MiB before the helper starts. The helper may run for 120
 seconds by default (`--step-deadline` changes that, up to an hour). Import converts at most 1,000,000
-triangles in total and 100,000 per element. A document holds at most 100,000 faces of unique
-geometry, and a curved surface becomes one face per triangle, so a curved model fills the document at
-about 100,000 triangles; the bodies that would go over it are left out and reported as not imported. An export
-writes into a 256 MiB file and is refused above it. The largest model a document can hold, five placements of a 100,000-triangle grid, exports in about 19 s (its budget is 23 s), and the export helper keeps its 4 GiB address-space cap. Measured: about 2.4 KB per triangle face, so a
+triangles in total and 100,000 per element. A document holds at most 300,000 faces of unique
+geometry (100,000 before 1.7.0), and a curved surface becomes one face per triangle, so a curved model fills the document at
+about 300,000 triangles; the bodies that would go over it are left out and reported as not imported. An export
+writes into a 256 MiB file and is refused above it. The largest model a document held before 1.7.0, five placements of a 100,000-triangle grid, exports in about 19 s (its budget is 23 s), and the export helper keeps its 4 GiB address-space cap. Measured: about 2.4 KB per triangle face, so a
 model made of triangle faces reaches the limit at about 110,000 faces; large flat faces take about
 0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
 note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
@@ -633,9 +642,11 @@ does not change the size of the model.
 - The file: 256 MiB at most. A larger file is refused before the helper starts.
 - The helper: 4 GiB of address space, 480 seconds of CPU time, 512 MiB of output, and the time
   allowance above. A helper that goes over one of these limits stops, and nothing is created.
-- The model: a component of up to 100,000 faces, 100,000 vertices and 300,000 edges. A component over
-  these limits is left out and reported, and the rest of the model comes across. The document also
-  takes at most 10,000 distinct geometry records, 600,000 faces after placement and 1,024 materials.
+- The model: one body of up to 100,000 faces or vertices and 300,000 edges, and one component of up to
+  200,000 faces, vertices or wires and 600,000 edges. A body or component over these limits is left out and
+  reported, and the rest of the model comes across. The document also takes at most 10,000 distinct
+  geometry records, 300,000 faces, vertices and wires and 900,000 edges of distinct geometry (a component
+  counts once), 600,000 faces after placement and 1,024 materials.
   Anything beyond them is left out and reported.
 - Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
 - Nesting: components nested more than 64 levels deep are left out and reported.
@@ -747,7 +758,7 @@ maximum edge length, flat-triangle flips and Steiner fill, shows the result of t
 you apply it, and applies it as one undoable edit. If a terrain's tiles no longer match the mesh
 generated from its sources, an amber **Changed since generated** chip offers **Regenerate**
 (one undoable edit; it asks first when paint on individual tiles would be lost). **Explode
-terrain…** shows what it does to the 100,000-face modelling budget and the 250,000-triangle
+terrain…** shows what it does to the 300,000-face modelling budget and the 250,000-triangle
 terrain budget; Cancel is the default, and Explode is unavailable when the faces would not fit.
 To make a terrain from drawn contours, select their edges or curves, right-click in the view (or
 press the Menu key or Shift+F10) and choose **Create terrain from selection**; edges inside

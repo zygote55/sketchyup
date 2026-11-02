@@ -189,7 +189,7 @@ QByteArray encodeContainer(const Document &doc) {
 Document decodeContainer(const QByteArray &bytes) {
     // Explicit legacy migration, without rewriting the source file.
     if (!bytes.startsWith(magic)) {
-        if (bytes.size() > qsizetype(NativeLimits::fileBytes))
+        if (bytes.size() > qsizetype(NativeLimits::rawJsonBytes))
             throw std::runtime_error("Raw document exceeds 128 MiB");
         return decodeDocument(bytes);
     }

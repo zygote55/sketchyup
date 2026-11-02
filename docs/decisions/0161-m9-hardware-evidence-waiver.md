@@ -22,7 +22,7 @@ By runbook section:
 | Section | Check | Status |
 | --- | --- | --- |
 | 1 (1a-1d) | R082 Intel campaigns: frame, history, file, and the 10,000-placement case | Waived. Never run; no Intel result exists at the session revision. |
-| 1d, 2 | The sharing-off control: the by-hand 10,000-placement run with `SKETCHYUP_BENCHMARK_PLACEMENT_SHARING=0` (modeled worst case, 3 GiB ceiling), on Intel and AMD | Waived. Not run on any hardware. Software measured 1.93 GB ([R082.gg](../verification/R082gg-placement-limits.md)). |
+| 1d, 2 | The sharing-off control: the by-hand 10,000-placement run with `SKETCHYUP_BENCHMARK_PLACEMENT_SHARING=0` (modeled worst case, 3.75 GiB ceiling since R110, 2026-11-01), on Intel and AMD | Waived. Not run on any hardware. Software measured 1.93 GB ([R082.gg](../verification/R082gg-placement-limits.md)). |
 | 3 | R085 output hotplug on the Qt X11 fallback (Xcb) | Waived. Not run. |
 | 4 | R085 suspend and resume | Waived. Not run. |
 | 5 | N04 physical 150% scale | Waived. Not run. |

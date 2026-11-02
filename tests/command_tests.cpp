@@ -61,9 +61,10 @@ ComponentResult heavyComponent(Document &doc, int rings, const std::string &name
     return createComponent(doc, createGroup(doc, parts, name), name);
 }
 // D-075, the user's scenario at small scale: two single-instance definitions of 50,000
-// unique vertices each. Their sum fits the 100,000 limit; keeping each replaced record
-// counts 150,000. Each command is previewed, as `sketchyup-cli --script --preview` does,
-// then committed.
+// unique vertices each. Their sum, 100,000, is well within the 300,000 limit (R110), so every
+// command is accepted and counts each definition once. The refusal at the limit that keeping
+// each replaced record would cause is in document_limits_tests (draftCountsEditedDefinitionOnce).
+// Each command is previewed, as `sketchyup-cli --script --preview` does, then committed.
 void orphanedDefinitionCommands() {
     Document doc;
     const auto alpha = heavyComponent(doc, 50, "Alpha", 0);

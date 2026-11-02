@@ -41,7 +41,7 @@ work.
 Frames have a little-endian 32-bit payload length, 32 raw SHA-256 bytes and UTF-8
 JSON. Metadata payloads are bounded to 64 KiB (below the protocol's 32 MiB
 ceiling). Checkpoints use the native container bounds; the reader additionally
-caps any file at 128 MiB and journals at 512 KiB. All integers use canonical
+caps any file at 128 MiB (256 MiB from 1.7.0, R110; ADR 0005) and journals at 512 KiB. All integers use canonical
 decimal strings. Filenames must match generated token forms, never relative or
 absolute paths from metadata. Linked checkpoint/pointer/journal files reject.
 

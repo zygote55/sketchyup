@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 3,
+  "supersedes": "R082w-memory-budget-v2.json",
+  "status": "measured-within-raised-ceiling",
+  "frozenAt": null,
+  "sha256": null,
+  "acceptanceStatus": "accepted-software-under-3.75-GiB-ceiling (owner decision, 2026-11-01)",
+  "priorEvidenceAccepted": false,
+  "publicModelLimitsChanged": true,
+  "releaseAccepted": false,
+  "hardwareAccepted": false,
+  "measured": true,
+  "measuredScope": "Software only: llvmpipe on xcb at 1920 by 1080, Release, static, in sketchyup-native-fonts-check:20261008. Viewport figures come from real_model_benchmark, which measured one CPU and 4 GiB. Core figures come from unique_limits_benchmark, which has no viewport, so it gives no frame time. Not hardware evidence.",
+  "buildAndRun": {
+    "image": "sketchyup-native-fonts-check:20261008",
+    "qtVersion": "6.11.2",
+    "graphics": "llvmpipe (LLVM 23.1.1, 256 bits) / 4.6 (Core Profile) Mesa 26.2.3-arch1.2",
+    "kernel": "7.2.8-9-omarchy",
+    "buildContainer": "--cpus=2 --memory=4g --memory-swap=4g, -j2; build directory .local-build-r082w in the R110 worktree, removed before the PR was pushed",
+    "measureContainer": "--cpus=1 --memory=4g --memory-swap=4g",
+    "configuration": "CMAKE_BUILD_TYPE=Release, SKETCHYUP_BUILD_DESKTOP=ON, SKETCHYUP_BUILD_CLI=OFF, SKETCHYUP_BUILD_IFC=OFF, SKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF, SKETCHYUP_SHARED_LIBS=OFF",
+    "v2Differences": "v2 records its calibration source as Release, llvmpipe, xcb, one CPU and 4 GiB in the same image, but not its Mesa or LLVM version, so the graphics stack may differ. The source revision differs by the R082 to R110 changes."
+  },
+  "reason": "R110 measured the raised unique limits (ADR 0005, 1.7.0). The modeled worst case, with the retained-history row at the 192 MiB undo budget, is 3,249,961,744 bytes (3.03 GiB). With the per-unique-vertex excess that the measurements show, it is 3,839,057,776 bytes (3.58 GiB). The owner decided on 2026-11-01 to raise the modeled worst-case ceiling to 3.75 GiB, under which the worst case fits by 187,474,064 bytes (178.8 MiB). With the 150 MB hardware delta that v1 measured it is 3.72 GiB, still under the ceiling and the 4 GiB operational job cap. Hardware acceptance stays under the ADR 0161 waiver. Version 2 under-counted the per-unique-vertex cost; see correctionToV2.",
+  "hardwareRequirement": "Fresh Intel and AMD reruns per docs/M9_HARDWARE_SESSION.md section 1 remain required; the ADR 0161 waiver applies as it did to v2.",
+  "publicLimits": {
+    "uniqueGeometry": {
+      "bodies": 10000,
+      "vertices": 300000,
+      "faces": 300000,
+      "wires": 300000,
+      "edges": 900000,
+      "curves": 10000,
+      "guides": 10000
+    },
+    "placements": 20000,
+    "materialized": {
+      "bodies": 40000,
+      "vertices": 600000,
+      "faces": 600000,
+      "wires": 600000,
+      "edges": 900000,
+      "curves": 40000,
+      "guides": 40000
+    },
+    "undoHistoryBytes": 201326592,
+    "undoHistoryBytesBefore": 67108864
+  },
+  "limits": {
+    "modeledWorstCaseCeilingBytes": 4026531840,
+    "modeledWorstCaseAtLimitsPeakRssBytes": 4026531840
+  },
+  "measurements": {
+    "a_realModel_unique_1000": {
+      "description": "real_model_benchmark 1000 unique (100,000 triangles, 1,000 bodies, 52,000 vertices)",
+      "fixturePeakRssBytes": 245313536,
+      "peakRssBytes": 607469568,
+      "fixtureBuildMs": 1601.3,
+      "gpuCompleteFrameP95Ms": 186.9,
+      "editAndReadbackP95Ms": 387.4,
+      "inferenceInitialBuildMs": 214.5,
+      "inferenceQueryP95Ms": 0.511,
+      "inferenceUpdateP95Ms": 0.957,
+      "inferencePrimitiveCount": 360000,
+      "bodyCacheGpuPayloadBytes": 34656000,
+      "bodyCacheVectorCapacityBytes": 89088000,
+      "loadSeconds": 0.22,
+      "saveSeconds": 0.24,
+      "loadSaveSource": "unique_limits_benchmark family 1000, core only, same image and CPU count"
+    },
+    "b_realModel_unique_5769": {
+      "description": "real_model_benchmark 5769 unique (576,900 triangles, 5,769 bodies, 299,988 unique vertices, no placements)",
+      "fixturePeakRssBytes": 1157664768,
+      "peakRssBytes": 1915072512,
+      "fixtureBuildMs": 14712.6,
+      "gpuCompleteFrameP95Ms": 492.9,
+      "editAndReadbackP95Ms": 1005.1,
+      "inferenceInitialBuildMs": 1029.2,
+      "inferenceQueryP95Ms": 1.209,
+      "inferenceUpdateP95Ms": 6.860,
+      "inferencePrimitiveCount": 2076840,
+      "bodyCacheGpuPayloadBytes": 199930464,
+      "bodyCacheVectorCapacityBytes": 513948672,
+      "loadSeconds": 1.24,
+      "saveSeconds": 1.44,
+      "documentChunkMiB": 33.8,
+      "loadSaveSource": "unique_limits_benchmark family 5769, core only: chunk 33.8 MiB, container 34.0 MiB, peak RSS 756 MiB"
+    },
+    "b2_densest_three_closed_spheres": {
+      "description": "unique_limits_benchmark dense: three closed 100,000-face spheres in one component (150,006 vertices, 300,000 faces, 450,000 edges); core only",
+      "peakRssAfterBuildMiB": 549,
+      "peakRssMiB": 974,
+      "documentChunkMiB": 37.7,
+      "saveSeconds": 1.23,
+      "loadSeconds": 2.52,
+      "inferenceBuildMs": 1268.9,
+      "inferenceIndexMiB": 176.2,
+      "inferenceQueryP95Ms": 0.64
+    },
+    "c_fileLoad_89MiB": {
+      "description": "unique_limits_benchmark padded then load: 5,769 bodies (299,988 unique vertices) with 220 bodies carrying 128 properties of 2,040 bytes; a fresh process loads the file",
+      "fileMiB": 89.3,
+      "documentChunkMiB": 89.1,
+      "chunkBoundMiB": 96,
+      "readAndLoadSeconds": 1.51,
+      "peakRssAfterLoadMiB": 905,
+      "peakRssMiB": 1391,
+      "saveSeconds": 1.53,
+      "inferenceBuildMs": 963.8,
+      "inferenceIndexMiB": 262.5,
+      "inferenceQueryP95Ms": 0.86,
+      "frameTime": "not measured: the core-only harness has no viewport"
+    },
+    "d_wholeDocumentEditKeptInHistory": {
+      "description": "unique_limits_benchmark history 5769 5700: one edit moves 5,700 of the 5,769 bodies (98.8 percent of the family) and is kept in undo history",
+      "chargedHistoryMiB": 191.0,
+      "historyBudgetMiB": 192,
+      "peakRssBeforeMiB": 112,
+      "peakRssKeptInHistoryMiB": 297,
+      "undoSeconds": 0.01,
+      "redoSeconds": 0.01,
+      "frameTime": "not measured: the core-only harness has no viewport"
+    },
+    "d_wholeDocumentEditRefused": {
+      "description": "unique_limits_benchmark history 5769 5769: one edit moves all 5,769 bodies",
+      "outcome": "refused",
+      "message": "Edit exceeds the 192 MiB history budget",
+      "linearEstimateChargedMiB": 193.3,
+      "linearEstimateBasis": "134.0 MiB charged for 4,000 bodies, scaled to 5,769; not measured because the edit is refused"
+    },
+    "inference_sharedAfter_5769": {
+      "description": "inference_index_benchmark 5769 unique, the shared-after index (R082.ee)",
+      "indexBytesEstimate": 275212900,
+      "buildMs": 1078.0,
+      "queryP95Ms": 0.861
+    }
+  },
+  "modeledWorstCase": {
+    "method": "v2's table (docs/verification/R082w-memory-budget-v2.json, modeledWorstCaseArithmetic) with the unique-vertex inference term at 300,000 vertices, plus a retained-history row at the 192 MiB undo budget. The v2 terms are unchanged, so the table is arithmetic on v2's measured per-unit costs, which the R110 measurements confirm for the inference index (275,212,900 bytes measured, 275,100,000 modeled).",
+    "terms": [
+      {
+        "name": "Base, including 1,000 shared placements (repeated 1k, five cycles)",
+        "bytes": 288276480
+      },
+      {
+        "name": "19,000 more placements x 36,138 B",
+        "bytes": 686622000
+      },
+      {
+        "name": "600,000 materialized vertices x 2,542 B unshared viewport payload",
+        "bytes": 1525200000
+      },
+      {
+        "name": "Unique vertices x 917 B inference index (300,000 in v3; 100,000 in v2)",
+        "bytes": 275100000
+      },
+      {
+        "name": "Maximum texture fixture (textures 1k - repeated 1k)",
+        "bytes": 273436672
+      },
+      {
+        "name": "Retained undo history at the 192 MiB budget (new in v3)",
+        "bytes": 201326592
+      }
+    ],
+    "totalBytes": 3249961744,
+    "totalGiB": 3.0268,
+    "totalWithoutHistoryBytes": 3048635152,
+    "totalWithoutHistoryGiB": 2.8393,
+    "v2TotalBytes": 2865235152,
+    "withinCeiling": true,
+    "ceilingBytes": 4026531840,
+    "underCeilingBytes": 776570096,
+    "underCeilingMiB": 740.6,
+    "measuredUniqueExcess": {
+      "method": "Measured peak RSS of the loose unique family at 300,000 vertices (b, 1,915,072,512 bytes), minus the v2 terms for the same shape (base 288,276,480 + 300,000 x 2,542 + 300,000 x 917 = 1,325,976,480 bytes). The shape has no placements, so the excess is attributed to unique geometry; the per-vertex cost is 1,964 bytes.",
+      "bytes": 589096032,
+      "perUniqueVertexBytes": 1964,
+      "cross-check": "The slope between (a) and (b), (1,915,072,512 - 607,469,568) / (299,988 - 51,998) = 5,273 bytes per unique vertex, against the v2 2,542 + 917 = 3,459, gives 544,100,000 bytes at 300,000 vertices."
+    },
+    "totalWithMeasuredExcessBytes": 3839057776,
+    "totalWithMeasuredExcessGiB": 3.5754,
+    "totalWithMeasuredExcessUnderCeilingBytes": 187474064,
+    "hardwareDeltaBytes": 150000000,
+    "totalWithHardwareDeltaBytes": 3989057776,
+    "totalWithHardwareDeltaGiB": 3.7151,
+    "totalWithHardwareDeltaUnderCeilingBytes": 37474064,
+    "operationalJobCapBytes": 4294967296
+  },
+  "decision": "Owner, 2026-11-01: the modeled worst-case ceiling is raised from 3 GiB (3,221,225,472 bytes) to 3.75 GiB (4,026,531,840 bytes), and the unique limits are accepted for 1.7.0 on that ceiling. The 4 GiB operational job cap is unchanged. No other limit changed.",
+  "correctionToV2": {
+    "finding": "v2 under-counted the per-unique-vertex cost (917 B modeled; 1,964 B measured excess).",
+    "unitExcessBytes": 1964,
+    "reCostedOneSixOneLimitsBytes": 3128744016,
+    "reCostedOneSixOneLimitsGiB": 2.9138,
+    "reCostedOneSixOneLimitsBasis": "v2 terms with 100,000 unique vertices, a 64 MiB undo history (1.6.1), plus 100,000 x 1,964 B"
+  },
+  "measurementsRequired": [
+    "Done: the unique-geometry family at about 300,000 unique vertices, no placements: peak RSS, load and save time, inference-index build and query time (b, b2, family 5769). Frame time is measured for the viewport (b).",
+    "Done: the v2 unique 100k case on this build (a), for comparison: 607,469,568 bytes against v2's 560,132,096 bytes.",
+    "Done: any per-unique-vertex cost the measurements show, added to the worst case (measuredUniqueExcess)."
+  ],
+  "notMeasured": [
+    "Frame time for (c) and (d): the core-only harness has no viewport. A viewport measurement of a file-loaded document would need a file option in real_model_benchmark.",
+    "A viewport frame time for the densest component (b2): core only.",
+    "The charged history of a 300,000-face component edit: not reachable now, since a component definition is limited to 200,000 faces (R110). The 200,000-face edit is measured at 183.1 MiB (ADR 0005).",
+    "Intel and AMD hardware: the ADR 0161 waiver applies; fresh reruns remain required for hardware acceptance of the raised ceiling."
+  ],
+  "hostObservations": {
+    "note": "Not calibration. R110's local build (Debug with -g0, shared libraries) gave the same charged history bytes (accounting is structural) and a 300,000-vertex file load of 6.8 s and inference build of 9.4 s, against 1.5 s and 1.0 s in this Release run. Its unique_limits_acceptance_tests peak RSS was 1,529 MiB."
+  }
+}

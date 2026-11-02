@@ -260,7 +260,7 @@ std::uint32_t CatalogBuilder::addEntry(EntryDraft entry) {
                 std::size_t(entry.payload.size()) <=
                     (record ? CatalogLimits::recordBytes : CatalogLimits::payloadBytes),
             record ? "Catalog style and material records are limited to 16 KiB"
-                   : "Catalog payload is empty or exceeds 128 MiB");
+                   : "Catalog payload is empty or exceeds 256 MiB");
     const auto &deps = entry.dependencies;
     require(deps.size() <= CatalogLimits::dependencies,
             "Catalog entry has more than 64 dependencies");
@@ -368,7 +368,7 @@ QByteArray CatalogBuilder::encode() const {
         region += entry.payload;
     }
     require(std::size_t(region.size()) <= CatalogLimits::payloadBytes,
-            "Catalog payload exceeds 128 MiB");
+            "Catalog payload exceeds 256 MiB");
     QJsonArray labels;
     for (const auto &label : metadata_.labels)
         labels.append(label);
@@ -533,7 +533,7 @@ CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &
                     std::size_t(entry.bytes) <=
                         (record_kind ? CatalogLimits::recordBytes : CatalogLimits::payloadBytes),
                 record_kind ? "Catalog style and material records are limited to 16 KiB"
-                            : "Catalog payload is empty or exceeds 128 MiB");
+                            : "Catalog payload is empty or exceeds 256 MiB");
         require(wholeNumber(record["offset"], qsizetype(payloadSize),
                             "Catalog entry offset is out of range") == cursor,
                 "Catalog payload must be contiguous in id order");

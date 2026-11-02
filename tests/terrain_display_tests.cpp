@@ -217,7 +217,7 @@ void bound() {
     // 249,924 triangles (353 x 354 cells), the document limit's scale. Steep enough that a
     // 1 cm interval would need millions of segments.
     // The tiles are built as createTerrain builds them, without a document: one edit of this
-    // size is over the 64 MiB history budget (a document reaches it through several terrains).
+    // size is over the general history budget (a document reaches it through several terrains).
     const auto mesh =
         grid(353, 354, 1, [](double x, double y) { return 40 * std::sin(x * .05) + .2 * y; });
     check(mesh.triangles.size() == 249924, "Mesh size");

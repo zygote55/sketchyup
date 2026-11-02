@@ -98,25 +98,31 @@ void randomizedEquivalence(std::uint32_t seed, int steps) {
     // Small, large (limit pressure) and nested definitions.
     const auto small = createComponent(doc, prism(doc, 6), "Small").definition;
     const auto large = createComponent(doc, prism(doc, 200, 2, {10, 0, 0}), "Large").definition;
-    // Unchanged loose geometry just below the unique vertex limit keeps sequences at
-    // the boundary without re-validating large records on every step. A locked
-    // group keeps random erases from releasing it, so loose edits and unique copies
-    // reach the unique limit. placementBoundary covers the materialized limits,
-    // which random sequences would need about 1,250 placements to reach.
-    // Ballast is setup, not an edit under test; no build runs the oracle while
-    // building it (every step of the sequences below does).
+    // Unchanged loose geometry just below the unique vertex limit (299,520 of 300,000 since
+    // R110) keeps sequences at the boundary without re-validating large records on every step. A
+    // locked groups keep random erases from releasing it, so loose edits and unique copies reach
+    // the unique limit. placementBoundary covers the materialized limits, which random sequences
+    // would need about 1,250 placements to reach. Ballast is setup, not an edit under test; no
+    // build runs the oracle while building it (every step of the sequences below does).
     Document::setFullValidationOracle(false);
     std::set<Id> ballast;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 300; ++i) {
         std::vector<Vec3> loop;
-        const int sides = i < 99 ? 1000 : 520;
+        const int sides = i < 299 ? 1000 : 520;
         for (int j = 0; j < sides; ++j) {
             const auto angle = 2 * std::numbers::pi * j / sides;
             loop.push_back({50 + std::cos(angle), std::sin(angle), double(i)});
         }
         ballast.insert(doc.addFace({loop}, "Ballast"));
     }
-    setEntityState(doc, createGroup(doc, ballast, "Ballast"), {}, true);
+    // Locked groups of 100 faces each. One group over all 300 faces would be one edit whose undo
+    // record is charged to the history budget.
+    for (auto next = ballast.begin(); next != ballast.end();) {
+        std::set<Id> chunk;
+        for (int n = 0; n < 100 && next != ballast.end(); ++n, ++next)
+            chunk.insert(*next);
+        setEntityState(doc, createGroup(doc, chunk, "Ballast"), {}, true);
+    }
     Document::setFullValidationOracle(true);
     const auto inner = placeComponent(doc, small, Transform::translation({0, 5, 0})).instance;
     const auto loose = prism(doc, 4, 1, {3, 5, 0});
