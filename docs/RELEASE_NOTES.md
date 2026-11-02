@@ -52,7 +52,7 @@ The owner raised the modeled worst-case ceiling from 3 GiB to 3.75 GiB on 2026-1
 
 ### Scripted bulk edits and the 128 MiB staging budget (R110)
 
-The staging budget for a transaction did not change: 128 MiB. A proposal stages the records it adds and the history charge of its edit. So one transaction that moves many dense bodies can be refused. On a 300,000-vertex model, a transaction of 100 bodies of 1,500 sides stages 261.4 MiB and is refused with `STAGE_LIMIT`. A transaction of 20 bodies stages 52.3 MiB and commits and undoes. **Split bulk edits into transactions of about 20 dense bodies**, for MCP, the headless session and `sketchyup-cli --script`. The user guide's scripting section says the same. This is [D-090](verification/R089a-defect-triage.md).
+The staging budget for a transaction did not change: 128 MiB. A proposal stages the records it adds and the history charge of its edit. So one transaction that moves many dense bodies can be refused. On a 300,000-vertex model, a transaction of 100 bodies of 1,500 sides stages 261.4 MiB and is refused with `STAGE_LIMIT`. A transaction of 20 bodies stages 52.3 MiB and commits and undoes. **Split bulk edits into transactions of about 20 dense bodies**, for MCP and headless-session transactions. A `sketchyup-cli --script` batch is not staged; it is bounded by the 192 MiB undo history budget instead. The user guide's scripting section says the same. This is [D-090](verification/R089a-defect-triage.md).
 
 ### Removing unused definitions, materials and assets (R111)
 
