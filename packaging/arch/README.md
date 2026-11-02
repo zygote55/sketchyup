@@ -18,8 +18,8 @@ them; for the IFC helper they are `boost`, `eigen`, `opencascade` and `patchelf`
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-1.6.1-1-x86_64.pkg.tar.zst
-sudo pacman -U sketchyup-ifc-1.6.1-1-x86_64.pkg.tar.zst   # optional: IFC helper
+sudo pacman -U sketchyup-1.7.0-1-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-ifc-1.7.0-1-x86_64.pkg.tar.zst   # optional: IFC helper
 ```
 
 The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
@@ -88,8 +88,8 @@ the same source to exercise clean install and upgrade hooks. The preceding packa
 the previous release in the series: `pkgrel - 1` of the same version; for the first
 `pkgrel` of a patch version, the previous patch at `pkgrel` 1 (`1.0.1-1` upgrades from
 `1.0.0-1`, and `1.6.1-1` from `1.6.0-1`); and for the first `pkgrel` of `x.y.0`, the newest earlier entry of the
-script's `released_packages` table (`1.6.0-1` upgrades from `1.5.0-1`, `1.5.0-1` from `1.4.0-1`,
-`1.4.0-1` from `1.3.0-1`, `1.3.0-1` from `1.2.0-1`, `1.2.0-1` from `1.1.1-1`, `1.1.0-1` from `1.0.1-1`,
+script's `released_packages` table (`1.7.0-1` upgrades from `1.6.1-1`, `1.6.0-1` from `1.5.0-1`, `1.5.0-1` from
+`1.4.0-1`, `1.4.0-1` from `1.3.0-1`, `1.3.0-1` from `1.2.0-1`, `1.2.0-1` from `1.1.1-1`, `1.1.0-1` from `1.0.1-1`,
 `1.0.0-1` from the development package `0.1.0-3`). `vercmp` must order the table and each pair. A new
 minor version whose previous series is missing from the table stops with an error, so
 add each published release to it. After the upgrade it
@@ -107,18 +107,23 @@ It verifies the package's SHA-256 (pinned in the script per file name, or
 passes its CLI to `check()` as `SKETCHYUP_PRIOR_CLI`. After installation, the released
 CLI must refuse every retained fixture newer than the schemas it reads and leave it
 unchanged, and must accept a sheet-free document saved by the new package. CI downloads
-the previous release, `sketchyup-1.6.0-1-x86_64.pkg.tar.zst` from the v1.6.0 release
-(SHA-256 `f701d61f…`, pinned in the script).
-The 1.6.0-1 CLI reads schemas 1 to 35, the newest schema this series writes, so no retained fixture is
-newer than it. For 1.6.1 the check therefore runs the other way: `verify-package.sh` saves a
+the previous release, `sketchyup-1.6.1-1-x86_64.pkg.tar.zst` from the v1.6.1 release
+(SHA-256 `414e7851…`, pinned in the script).
+The 1.6.1-1 CLI reads schemas 1 to 35, the newest schema this series writes, so no retained fixture is
+newer than it. The check therefore runs the other way: `verify-package.sh` saves a
 georeferenced reference image with the new package (schema 35) and requires the released CLI to open
-it unchanged, which is the downgrade window to 1.6.0-1. `native_format` requires the released CLI to
+it unchanged, which is the downgrade window to 1.6.1-1. `native_format` requires the released CLI to
 open the retained `reference-geo-v35.sketchyup` unchanged. The tests in `check()` also require the
 released CLI to open, unchanged, every retained fixture it reads: `presentation_io` (schema 30),
 `style_bundle` (schema 31), `geographic_site` (schema 32), `material_texture_size` (schema 33),
 `terrain_io` (schema 34, the GeoTIFF terrain `terrain-dem-v34.sketchyup`) and `native_format` (schema 35).
 `terrain_io` (schema 29), `component_parameter_io` (schema 28) and `drawing_sheet_io` (schema 27) do
 the same for their files.
+The raised limits of 1.7.0 (R110) add a second window that the schema does not show. `verify-package.sh`
+makes, at check time, a model over the released CLI's unique-vertex limit (150 flat polygons of 1,000 sides,
+150,000 unique vertices, against 100,000 in 1.6.1). The released CLI must refuse it with its own message,
+recorded in the script, and leave it unchanged. The file is made, not committed, so the repository carries no
+large fixture for it.
 
 After upgrading, the installed CLI migrates the retained historical native fixtures
 to new files. `scripts/verify-installed-migrations.py` checks source hashes, identity,
