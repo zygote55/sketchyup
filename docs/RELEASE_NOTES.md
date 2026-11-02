@@ -1,5 +1,136 @@
 # SketchyUp release notes
 
+## 1.7.0
+
+SketchyUp 1.7.0 is a minor release. It raises the unique geometry limits about threefold (R110, [ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)), so a larger model fits in one document, and it adds two scripting commands that remove unused component definitions, materials and assets (R111, [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111)). It changes no document schema: 1.7.0 reads document versions 1 through 35 and writes 35 at most, as 1.6.1 does. The release is gated through its [M10 acceptance](M10_ACCEPTANCE.md#the-170-release); its record is [verification/G-1.7.0.md](verification/G-1.7.0.md), written at the release candidate.
+
+**The one rule to know.** A file that is over 1.6.1's limits does not open in 1.6.1. It is refused with 1.6.1's own message and is left unchanged. Keep a model within the 1.6.1 limits until every machine that opens it runs 1.7.0. See [Downgrade](#downgrade-to-161).
+
+Existing commands, queries and schemas keep their shapes. A model within the 1.6.1 limits is written with the bytes 1.6.1 writes, except the writer string, which now names 1.7.0.
+
+### Raised limits (R110)
+
+| Limit | 1.6.1 | 1.7.0 |
+| --- | --- | --- |
+| Unique vertices, faces and wires per document | 100,000 each | 300,000 each |
+| Unique edges per document | 300,000 | 900,000 |
+| Unique bodies, curves and guides | 10,000 bodies; 10,000 curves; 10,000 guides | unchanged |
+| Component definition: vertices, faces and wires | none (the document-wide limit applied) | 200,000 each |
+| Component definition: edges | none | 600,000 |
+| Placements | 20,000 | unchanged |
+| Materialized (per document) | 40,000 bodies; 600,000 vertices, faces and wires; 900,000 edges; 40,000 curves and guides | unchanged |
+| Per-body kernel limits (100,000 vertices or faces per body, 10,000 per loop, 300,000 edges per body) | as stated | unchanged |
+| Document chunk (`modelBytes`, the model inside a file) | 32 MiB | 96 MiB |
+| Native file (`fileBytes`) | 128 MiB | 256 MiB |
+| Raw JSON file with no container (a legacy or import file) | 128 MiB | 128 MiB (unchanged) |
+| Undo history (`historyLimit`) | 64 MiB | 192 MiB |
+| Durable outcome store (MCP and assistant commits, `outcomeBytes`) | 268,812,472 bytes | 403,030,200 bytes |
+| Largest container (`containerBytes`) | 126,017,628 bytes (120.2 MiB) | 193,126,492 bytes (about 184 MiB) |
+| Transaction staging, transactions and the inspection snapshot | 128 MiB, 128 MiB, 32 MiB | unchanged |
+
+Each unique value is at or below its materialized value. The materialized limits and the per-body kernel limits did not change. The capability output reports the four component definition values. Each unique and component limit is checked on load and on each edit, and a refusal names the limit it reached.
+
+- **Edit size.** One edit is charged its records before and after, in full, for every record it touches. An edit over 192 MiB is refused with "Edit exceeds the 192 MiB history budget". Moving all 150 loose bodies of a 300,000-vertex model in one edit is charged 174.5 MiB and is accepted and undone exactly.
+- **Save and reopen.** A 300,000-vertex model, with a 35.0 MiB document chunk, saves, reopens and re-saves byte for byte.
+
+### Component definitions (R110)
+
+One component definition's own members are limited to 200,000 vertices, 200,000 faces, 200,000 wires and 600,000 edges. The document-wide limits still apply to the whole model. The cap keeps every component edit within the undo budget. An edit replaces a definition's whole record, so its history charge covers the whole definition. A definition of 200,000 faces is charged 183.1 MiB, which fits the 192 MiB undo budget. A definition of 300,000 faces would need about 275 MiB to edit, an estimate that was not measured, since the cap refuses it. The limit is checked when a definition is created, edited, loaded, published, or added from a library or catalog. A definition over the limit is refused with the D06 message, for example "Component definition exceeds component definition limits: vertices would be 200,001 of 200,000 (definition 'Chair' #3)".
+
+### Memory and the 3.75 GiB ceiling (R110)
+
+The memory evidence is [R082w v3](verification/R082w-memory-budget-v3.md). It was measured in software only (Release build, one CPU, 4 GiB):
+
+- the loose unique family at 300,000 vertices peaks at 1.92 GB;
+- an 89 MiB container loads in 1.5 s from a fresh process and peaks at 1.39 GB;
+- three closed 100,000-face spheres in one component, which the component limit now refuses, peaked at 974 MiB when they were measured;
+- a whole-document edit of 5,700 bodies, charged 191.0 MiB, stays in history at 297 MiB resident.
+
+Version 2 of that record under-counted the cost of each unique vertex (917 bytes modeled, 1,964 bytes measured). Its 2.67 GiB worst case was therefore low. Re-costed, 1.6.1's own limits come to about 2.9 GiB. At the 1.7.0 limits, with the 192 MiB undo budget and the measured excess, the modeled worst case is 3.58 GiB. With the 150 MB hardware delta that v1 measured, it is about 3.72 GiB, under the 4 GiB operational job cap.
+
+The owner raised the modeled worst-case ceiling from 3 GiB to 3.75 GiB on 2026-11-01. The margin is 179 MiB without the hardware delta and 36 MiB with it. **The evidence is software only.** No hardware frame time, history or file timing was taken at the 1.7.0 limits. The hardware evidence waiver of [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md) still applies, and the open row [D-091](verification/R089a-defect-triage.md) records the gap.
+
+### Scripted bulk edits and the 128 MiB staging budget (R110)
+
+The staging budget for a transaction did not change: 128 MiB. A proposal stages the records it adds and the history charge of its edit. So one transaction that moves many dense bodies can be refused. On a 300,000-vertex model, a transaction of 100 bodies of 1,500 sides stages 261.4 MiB and is refused with `STAGE_LIMIT`. A transaction of 20 bodies stages 52.3 MiB and commits and undoes. **Split bulk edits into transactions of about 20 dense bodies**, for MCP and headless-session transactions. A `sketchyup-cli --script` batch is not staged; it is bounded by the 192 MiB undo history budget instead. The user guide's scripting section says the same. This is [D-090](verification/R089a-defect-triage.md).
+
+### Removing unused definitions, materials and assets (R111)
+
+Two scripting commands are new. Both are in the catalog, so they reach the headless session, transactions and MCP, and both are listed in the [tool reference](TOOL_REFERENCE.md). The desktop interface does not change, and the desktop assistant does not run them.
+
+- **`component.delete_definition` `{definition}`** removes one definition that nothing uses. Nothing uses it when no placement names it, no other definition nests it, and it has no library assembly identity. Otherwise the command refuses, changes nothing, and names the blocker: `DEFINITION_PLACED` (the placement count and up to five placement IDs), `DEFINITION_NESTED` (up to five definitions that nest it) or `DEFINITION_ASSEMBLY`. It does not cascade. One undo restores the definition with its ID and content.
+- **`document.purge_unused` `{definitions?, materials?, assets?, dryRun?}`** removes, in one edit, every unused definition, then every material that nothing names, then every asset that nothing names. Each category defaults to on. `dryRun` defaults to off: a dry run reports the same lists and leaves the document unchanged, so its saved bytes stay the same. With nothing to remove, the command succeeds with empty lists and records no history item. The result lists each removed record by ID and name, and `uniqueVerticesFreed`. An asset that a reference image or an edge stroke texture names is kept.
+
+Ordinary edits still do not drop definitions. The rules are in [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111).
+
+### `.skp` import over the component limit (R110)
+
+The `.skp` importer applies the component definition limit. A face or a loose-edge wire that would take a definition past 200,000 vertices, faces or wires, or 600,000 edges, is left out, and the import report names it under the `documentLimit` notice. The rest of the model imports, and the definition keeps the geometry that fits. The geometry past the limit is lost. This is [D-092](verification/R089a-defect-triage.md). The importer was tested with a synthetic two-strip definition, not with a real model of that size.
+
+### Downgrade to 1.6.1
+
+- **What 1.6.1 still opens.** A file within the 1.6.1 bounds (a document chunk of at most 32 MiB and a file of at most 128 MiB) opens in 1.6.1, and so does a file with a georeferenced reference image, which is schema 35 in both versions. The package acceptance checks both: 1.6.1-1 accepts a sheet-free save and opens the schema-35 reference-image save from 1.7.0 unchanged.
+- **What 1.6.1 refuses.** A file over one of the 1.6.1 limits is refused by 1.6.1 with its own message, and the file is left unchanged. The package acceptance checks a model of 153,000 unique vertices (17 bodies), which 1.7.0 writes, and 1.6.1 refuses with this message: `{"code":"INVALID_OPERATION","error":"Document load exceeds document unique geometry limits: vertices would be 153,000 of 100,000","status":"failed"}`, with exit status 1.
+- **The rule.** Keep a model within the 1.6.1 limits until every machine that opens it runs 1.7.0. A model that is over them and that reaches a 1.6.1 machine is refused there, not damaged.
+
+### Split-package rollback
+
+The optional `sketchyup-ifc` package requires the exact `sketchyup` version, so pacman refuses to install `sketchyup-1.6.1-1` while `sketchyup-ifc-1.7.0-1` is installed, and it changes nothing (D-071). Remove the helper first, then install the application, as in [Rollback](#rollback-to-161).
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.7.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.7.0-1, x86_64; `sketchyup-ifc` 1.7.0-1 (optional, IFC and STEP helper) |
+| Native document | Schema 35 at most, in SKUPDOC container version 2; reads versions 1 through 35. Saves record the writer `SketchyUp/1.7.0`. No schema or version change |
+| Transaction capabilities | `outcomeBytes` is 403030200 (1.6.1: 268812472). No field or shape changed |
+| Limits in the capability output | `componentDefinitionVertices`, `componentDefinitionFaces`, `componentDefinitionWires` and `componentDefinitionEdges` are new |
+| MCP, inspection, recipes and other public schemas | The transaction and headless-session contracts state the new `outcomeBytes`. The MCP contract and the tool reference list the two R111 commands. No shape changed; the contracts were regenerated with the project's generators |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, with the 1.2.0 limits, as in 1.6.1. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.7.0 writer. The assistant's six pinned tool surfaces did not change. The offline checks pass: `provider_release_corpus`, `provider_release_score` and `assistant_tool_surface`. No live provider run was made in this preparation; the release candidate's record states the run it makes. |
+| New third-party code | None |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.6.1.
+
+### File format
+
+1.7.0 reads document versions 1 through 35 and writes the schema each document needs, as 1.6.1 does (see the
+[1.6.0 file format](#160) table). A document with a georeferenced reference image is schema 35. The 1.6.1 reader opens
+it when it is within the 1.6.1 limits, and refuses it with its own message when it is not. The published 1.5.0-1 reader
+still refuses schema 35, as before.
+
+### Upgrade from 1.6.1-1
+
+Run `pacman -U sketchyup-1.7.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install `sketchyup-ifc-1.7.0-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a 1.6.1-1 package built from the release source to 1.7.0-1. Preferences, data and cache are kept, as package acceptance checks.
+
+### Rollback to 1.6.1-1
+
+1. Remove `sketchyup-ifc` first if it is installed: `pacman -R sketchyup-ifc`.
+2. Install `sketchyup-1.6.1-1-x86_64.pkg.tar.zst` with `pacman -U`.
+3. Install `sketchyup-ifc-1.6.1-1-x86_64.pkg.tar.zst` if you want the IFC helper.
+
+A document that is over the 1.6.1 limits does not open in 1.6.1, so copy such a document before you open it in 1.7.0 if you may need 1.6.1. A document within them opens in 1.6.1 after the rollback.
+
+### Budgets
+
+- **No budget is missed in the measurements above.** The modeled worst case is under the 3.75 GiB ceiling. Two refusals are limits by design, not misses: an edit over the 192 MiB history budget, and a transaction over the 128 MiB staging budget. The unique-limit acceptance suite is slow: 1,667 s under the sanitizer, at a peak of 3,977 MiB against the 4 GiB container cap.
+- **Not measured on hardware.** The frame times, history and file timings at the raised limits (D-091).
+- **Carried from 1.6.1, unchanged.** The STEP speed budgets, the render limits and the view test's cost, as listed in the [1.6.0 budgets](#160).
+
+### Known limitations
+
+The 1.6.1 limitations still apply where this section does not change them. In particular:
+
+- **Limits.** The memory evidence is software only ([D-091](verification/R089a-defect-triage.md)). A bulk transaction over the 128 MiB staging budget is refused, so split it ([D-090](verification/R089a-defect-triage.md)). A `.skp` definition over the component limit loses its geometry past the limit ([D-092](verification/R089a-defect-triage.md)). The inline form of a native document, at its 256 MiB file bound, has unmeasured parse memory ([D-093](verification/R089a-defect-triage.md)).
+- **Defects.** The triage lists 27 open defects: none is release-blocking or Major (8 Minor, 19 Limitations). D-087 (Minor, a render saved before 1.6.0 can still carry a terrain credit outside its view when it is re-rendered) stays open.
+
+### Not in this release
+
+- R107.d (geocoding, held). C06 stays Investigate until R107.d is accepted.
+- The orthophoto in exports and presentation frames, and any online source for an image.
+- The buildingSMART hosted validation of the IFC export. That is the owner's own task and is not a gate for this release.
+- Rows the owner deferred: R103 (2026-10-27), R106 and R108, and R104.b (formula mapping). R105.b to R105.d are design only, and Sketchfab (R105.d) is deferred. The 1.6.0 list still holds: Ruby extensions (C02), DWG (C05), collaboration (C07), `.skp` export, IFC2X3 and IFC4X3 export, STEP AP242 export, and any import format beyond those listed.
+
 ## 1.6.1
 
 SketchyUp 1.6.1 is a patch release for 1.6.0. It fixes two defects in the durable outcome store, which MCP and

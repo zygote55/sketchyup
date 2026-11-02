@@ -31,8 +31,9 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
 # first pkgrel of x.y.0 upgrades from the newest earlier entry of released_packages
 # (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1, 1.2.0-1 from
 # 1.1.1-1, 1.3.0-1 from 1.2.0-1, 1.4.0-1 from 1.3.0-1, 1.5.0-1 from 1.4.0-1, 1.6.0-1 from
-# 1.5.0-1). Add each published release to this table, oldest first.
-released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1 1.2.0-1 1.3.0-1 1.4.0-1 1.5.0-1 1.6.0-1)
+# 1.5.0-1, 1.6.1-1 from 1.6.0-1, and 1.7.0-1 from 1.6.1-1). Add each published release to
+# this table, oldest first.
+released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1 1.2.0-1 1.3.0-1 1.4.0-1 1.5.0-1 1.6.0-1 1.6.1-1)
 for (( index = 1; index < ${#released_packages[@]}; index++ )); do
   (( $(vercmp "${released_packages[index]}" "${released_packages[index - 1]}") > 0 )) || {
     echo "released_packages is not in vercmp order at ${released_packages[index]}." >&2
@@ -83,6 +84,7 @@ declare -A known_release_sha256=(
   [sketchyup-1.4.0-1-x86_64.pkg.tar.zst]=0d3dd1503fae3ef372956bd40f6d8d0a176d813b4bd8e71595cc978048c4a3d7
   [sketchyup-1.5.0-1-x86_64.pkg.tar.zst]=92c36696e47eddfc5d3fba2d98f8dc56405f737779bc4fafe78f43b4951dd668
   [sketchyup-1.6.0-1-x86_64.pkg.tar.zst]=f701d61f7a45acd8efb243d56871344d0bf357f0cf0090ce0743b6c55baafcad
+  [sketchyup-1.6.1-1-x86_64.pkg.tar.zst]=414e7851862af157353ccf1066acce94f4008952b86c06eaa1b7e0773fe05dc9
 )
 prior_release_cli=
 if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
@@ -290,6 +292,38 @@ PYVERSION
   cp "$reference_save" "$reference_save.before"
   runuser -u builder -- "$prior_release_cli" --validate-native "$reference_save" > /dev/null
   cmp "$reference_save" "$reference_save.before"
+  # The raised limits (R110, 1.7.0): a model over the released CLI's unique-geometry limit, which this package
+  # writes and the released CLI refuses with its own message and leaves unchanged. It is made here, not committed:
+  # one face of 9,000 points (under the 10,000-vertex loop limit) and a linear copy array of its body, 17 bodies
+  # and 153,000 unique vertices. The released 1.6.1 limit is 100,000 vertices.
+  over_script=/work/acceptance/prior-release/over-unique-limit.json
+  over_save=/work/acceptance/prior-release/over-unique-limit.sketchyup
+  python - "$over_script" <<'PYOVER'
+import json, math, sys
+loop = []
+for point in range(9000):
+    angle = 2.0 * math.pi * point / 9000.0
+    loop.append([round(100.0 * math.cos(angle), 4), round(100.0 * math.sin(angle), 4), 0])
+steps = [
+    {"command": "geometry.face", "name": "Dense face", "loops": [loop]},
+    {"command": "geometry.array_selection", "entities": [{"body": "1", "kind": "context", "entity": "0"}],
+     "mode": "linear", "delta": [300, 0, 0], "count": 16},
+]
+with open(sys.argv[1], 'w') as handle:
+    json.dump(steps, handle)
+PYOVER
+  runuser -u builder -- sketchyup-cli --script "$over_script" --output "$over_save" > /dev/null
+  runuser -u builder -- sketchyup-cli --validate-native "$over_save" |
+    jq -e '.valid and .bodies == 17 and .documentVersion == 26' > /dev/null
+  cp "$over_save" "$over_save.before"
+  if runuser -u builder -- "$prior_release_cli" --validate-native "$over_save" > /dev/null 2> "$over_save.stderr"; then
+    echo "Prior release opened a model over its unique-geometry limit: $over_save" >&2
+    exit 1
+  fi
+  jq -e '.status == "failed" and .error == "Document load exceeds document unique geometry limits: vertices would be 153,000 of 100,000"' \
+    "$over_save.stderr" > /dev/null
+  cmp "$over_save" "$over_save.before"
+  printf '\nPrior release refused the 153,000-vertex model over its 100,000-vertex unique limit unchanged.\n'
   printf 'Prior release reads schemas up to %s: refused %s newer fixtures unchanged, opened unchanged this package'"'"'s schema-35 reference-image save, and accepted its sheet-free save.\n' \
     "$prior_reads" "$newer_fixtures"
 fi

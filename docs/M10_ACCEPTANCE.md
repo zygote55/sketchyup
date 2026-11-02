@@ -239,3 +239,40 @@ record is accepted.
 | Accepted misses | No new budget miss is recorded for the 1.6.1 items. The STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.0 as accepted or unmeasured limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
 | Triage | The triage holds 23 open defects (0 release-blocking, 0 Major, 8 Minor and 15 Limitation) after the D-089 and D-086 fixes. D-087 stays open. The record gives the count at the RC |
 | Documentation | The release notes (their 1.6.1 section), the support matrix, the user guide, the changelog (its "1.6.1 — unreleased" heading set to the date at the tag), SCOPE (unchanged: it has no outcome-budget statement), the roadmap entry "1.6.1 release" and ADR 0162's notes match the record |
+
+## The 1.7.0 release
+
+SketchyUp 1.7.0 is a minor release of 1.6.1. It is one release with one record, `docs/verification/G-1.7.0.md`, written at its
+release candidate, in the form of the 1.6.1 record. It follows the gate above, with the differences below. It carries:
+
+- the raised unique geometry limits (R110): 300,000 vertices, faces and wires and 900,000 edges per document; a component
+  definition of at most 200,000 vertices, faces and wires and 600,000 edges; a 96 MiB model and a 256 MiB file; a 192 MiB
+  undo history; the durable outcome budget of 403,030,200 bytes; and the modeled worst-case memory ceiling of 3.75 GiB
+  ([ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170), [PR #565](https://github.com/zygote55/sketchyup/pull/565));
+- the two scripting commands that remove unused definitions, materials and assets, `component.delete_definition` and
+  `document.purge_unused` (R111, [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111), [PR #564](https://github.com/zygote55/sketchyup/pull/564));
+- no schema change. The highest schema stays 35. A file over the 1.6.1 limits does not open in 1.6.1. The downgrade window is
+  1.6.1-1, which reads every file 1.7.0 writes within the 1.6.1 limits.
+
+**Roadmap entries and records 1.7.0 rests on.** The roadmap entry "1.7.0 release" and its rows R110 and R111 in
+[PR_ROADMAP.md](PR_ROADMAP.md); the memory evidence [R082w v3](verification/R082w-memory-budget-v3.md) for the raised limits;
+the implementation notes of [ADR 0005](decisions/0005-document-protocol.md#implementation-notes-r110) (R110), its R110.a
+notes (the component definition limit) and the R111 section; the defect triage rows D-090 to D-093 in
+[R089a](verification/R089a-defect-triage.md), which record the limits that remain open; and the prior release record
+[G-1.6.1](verification/G-1.6.1.md). Every merged head of those entries must have a green CI verdict (the fast tier) before the
+record is accepted.
+
+**What the 1.7.0 release record must show, in addition to the required evidence above:**
+
+| Area | Required for 1.7.0 |
+| --- | --- |
+| RC | Cut by the parent after the preparation PR merges, on the release branch it creates. `release-version.sh` prints `1.7.0`, `pkgver` is 1.7.0 and `pkgrel` is 1. The record gives the commit, the source-archive and package SHA-256 values and the image digest |
+| CI | The full tier passes at the RC (`full-ci` label, or `gh workflow run native.yml --ref <branch> -f tier=full`). Its Arch package acceptance uses the published 1.6.1-1 as the prior release (`SKETCHYUP_PRIOR_RELEASE_PACKAGE`, SHA-256 `414e7851…`, pinned in `verify-package.sh` and `native.yml`). The split package's prior, `sketchyup-ifc-1.6.1-1` (SHA-256 `c665a849…`, in the 1.6.1 `SHA256SUMS`), is not pinned, because no script reads it |
+| Downgrade window | The published 1.6.1-1 CLI, in `verify-package.sh`: (a) opens, unchanged, the schema-35 reference-image save that the RC package writes, and accepts its sheet-free save; (b) refuses, and leaves unchanged, a model of 153,000 unique vertices that the RC package writes at check time, with the exact text the 1.6.1 CLI prints. The record gives the exit status, the unchanged bytes and that text. The check for a document chunk over 32 MiB is recorded as done or not done, with the reason |
+| Split-package rollback | With `sketchyup` and `sketchyup-ifc` 1.7.0-1 installed, `pacman -U` of `sketchyup-1.6.1-1` is refused by the dependency on `sketchyup=1.7.0` and changes nothing. The documented steps (remove `sketchyup-ifc` first, then install `sketchyup-1.6.1-1`) run on a machine with both packages installed, as D-071 requires. The record gives the pacman output |
+| Corpus | The corpus content (prompts, limits, instructions and the six pinned assistant tool surfaces) is unchanged from 1.6.1 (v6); only the eight `inputSha256` values in each manifest change, for the 1.7.0 writer. The offline checks (`provider_release_corpus`, `assistant_tool_surface`) pass in CI at the RC. A live provider run of the supported profile against corpus v6 is made at the RC, and the record states its result. The owner decides whether any earlier run carries over; the record states the decision and its reason |
+| Limits | `unique_limits_acceptance` and `purge_unused` pass in the sanitized run of the pinned image, with the peak RSS and time against the 4 GiB container cap. The record states the modeled worst case (3.58 GiB, 3.72 GiB with the hardware delta) against the 3.75 GiB ceiling, and that the evidence is software only (D-091) |
+| Clean machines | The RC package installs over 1.6.1-1, and opens migrated documents, on the pinned and fresh machines, as for 1.6.1 ([R087.u](verification/R087u-clean-machine-packages.md)) |
+| Accepted misses | No budget miss is recorded for the 1.7.0 items. The staging budget (D-090) and the hardware evidence at the raised limits (D-091) are recorded as open limits, not misses. The STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.1 as accepted or unmeasured limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
+| Triage | The triage holds 27 open defects (0 release-blocking, 0 Major, 8 Minor and 19 Limitation) after the D-090 to D-093 rows. D-087 stays open. The record gives the count at the RC |
+| Documentation | The release notes (their 1.7.0 section), the support matrix, the user guide, the changelog (its "1.7.0 — unreleased" heading set to the date at the tag), SCOPE (unchanged unless the RC finds a statement to change), the roadmap entry "1.7.0 release" and ADR 0162's notes match the record |

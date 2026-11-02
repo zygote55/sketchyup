@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
             check(refused, "A container that names an unknown required feature is refused");
             const auto prior = qEnvironmentVariable("SKETCHYUP_PRIOR_CLI");
             if (!prior.isEmpty()) {
-                // The prior release (1.6.0) reads schemas 1 to 35: it must open this file and leave it unchanged.
+                // The prior release (1.6.1) reads schemas 1 to 35: it must open this file and leave it unchanged.
                 const auto path = files.filePath("prior-reference-geo.sketchyup");
                 write(path, fixture);
                 QProcess process;

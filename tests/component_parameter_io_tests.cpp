@@ -1225,8 +1225,8 @@ int main(int argc, char **argv) {
         // ---- The previous-release window (ADR 0165 §5) ----
         // SKETCHYUP_PRIOR_CLI names a released sketchyup-cli (package acceptance passes
         // the previous release's: 1.1.1-1 for 1.2.0, 1.2.0-1 for 1.3.0, 1.3.0-1 for 1.4.0,
-        // 1.4.0-1 for 1.5.0, 1.5.0-1 for 1.6.0, 1.6.0-1 for 1.6.1; R093.c also ran 1.0.1-1's and
-        // 1.1.0-1's). A prior that reads schema 26 or 27 must refuse the schema-28 fixture with its
+        // 1.4.0-1 for 1.5.0, 1.5.0-1 for 1.6.0, 1.6.0-1 for 1.6.1, 1.6.1-1 for 1.7.0; R093.c also
+        // ran 1.0.1-1's and 1.1.0-1's). A prior that reads schema 26 or 27 must refuse the schema-28 fixture with its
         // newer-format error and leave it unchanged; a prior that reads schema 28 or later must
         // open the fixture and a schema-28 save from this build unchanged (terrain_io checks the
         // schema-29 and schema-34 files).

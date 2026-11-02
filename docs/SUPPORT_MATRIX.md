@@ -1,9 +1,14 @@
-# SketchyUp 1.6.1 support matrix
+# SketchyUp 1.7.0 support matrix
 
-SketchyUp 1.6.1. This is the support declaration for the 1.6.1 patch release. It is the 1.6.0 declaration with two
-durable-outcome fixes, D-089 and D-086, which let MCP and assistant commits succeed on large models; the
-[release notes](RELEASE_NOTES.md#161) give the limits. The corpus stays at version 6, and its writer-dependent inputs
-are re-pinned for the 1.6.1 writer; no live provider run was made for this patch.
+SketchyUp 1.7.0. This is the support declaration for the 1.7.0 release. It is the 1.6.1 declaration with the raised
+unique geometry limits (R110: 300,000 vertices, faces and wires and 900,000 edges per document, a 200,000 per-definition
+cap, a 96 MiB model and a 256 MiB file), and the two scripting commands that remove unused definitions, materials and
+assets (R111). The [release notes](RELEASE_NOTES.md#170) give every limit. The corpus stays at version 6, and its
+writer-dependent inputs are re-pinned for the 1.7.0 writer; no live provider run was made for this preparation, and the
+release candidate's record states the run it makes.
+
+The 1.6.1 declaration is the 1.6.0 declaration with two durable-outcome fixes, D-089 and D-086, which let MCP and
+assistant commits succeed on large models ([release notes](RELEASE_NOTES.md#161)).
 
 The 1.6.0 declaration is the 1.5.0 declaration plus the
 georeferenced orthophoto as a reference image (R107.b2, part of C06, which stays Investigate; viewport only), the frame
@@ -26,7 +31,7 @@ sheets, Extended row F01.
 **Supported** means the configuration has release evidence. **Untested** means no
 evidence exists for this release; it is neither claimed to work nor known to fail.
 
-- **Supported:** Arch Linux x86_64 with the `sketchyup` 1.6.1-1 package, Qt 6.8.0
+- **Supported:** Arch Linux x86_64 with the `sketchyup` 1.7.0-1 package, Qt 6.8.0
   through 6.12.0 and an OpenGL 3.3 core-profile driver. Omarchy/Hyprland on Wayland
   is the primary desktop; the Qt X11 path is also tested. Ordinary modeling needs
   no network, account, provider or Blender. The assistant's supported provider is
@@ -58,7 +63,7 @@ uses the same gate; its record, with the 1.2.0 release-candidate evidence, is
 record, with the 1.3.0 release-candidate evidence, is [verification/F03-1.3.0.md](verification/F03-1.3.0.md).
 The 1.4.0 group uses the same gate; its record, with the 1.4.0 release-candidate evidence, is
 [verification/G-1.4.0.md](verification/G-1.4.0.md). The 1.5.0 release uses the same gate; its record,
-with the 1.5.0 release-candidate evidence, is [verification/G-1.5.0.md](verification/G-1.5.0.md). The 1.6.0 release uses the same gate; its record, with the 1.6.0 release-candidate evidence, is [verification/G-1.6.0.md](verification/G-1.6.0.md). The 1.6.1 patch uses the same gate; its record, with the 1.6.1 release-candidate evidence, is [verification/G-1.6.1.md](verification/G-1.6.1.md). The [release notes](RELEASE_NOTES.md) list
+with the 1.5.0 release-candidate evidence, is [verification/G-1.5.0.md](verification/G-1.5.0.md). The 1.6.0 release uses the same gate; its record, with the 1.6.0 release-candidate evidence, is [verification/G-1.6.0.md](verification/G-1.6.0.md). The 1.6.1 patch uses the same gate; its record, with the 1.6.1 release-candidate evidence, is [verification/G-1.6.1.md](verification/G-1.6.1.md). The 1.7.0 release uses the same gate; its record, written at the release candidate, is verification/G-1.7.0.md. The [release notes](RELEASE_NOTES.md) list
 versions, upgrade and rollback notes and known limitations. The
 [roadmap](PR_ROADMAP.md) traces each Core row to its work.
 
@@ -75,7 +80,8 @@ versions, upgrade and rollback notes and known limitations. The
 | Blender | Optional Blender 5.2 LTS rendering/handoff, with runtime/device checks; the worker rejects other Blender versions | CI runs Blender 5.2.2. [M7 procedure](M7_ACCEPTANCE.md); CPU/actual consumer evidence does not validate every GPU/driver combination |
 | Ordinary modeling | No provider, account, browser runtime or Blender required | Shared native/core operations; [combined exchange study](M8_ACCEPTANCE.md) also exercises offline editing and undo |
 | Commits of large models (MCP and assistant transactions; durable outcomes, 1.6.1) | A durable commit records the before and after containers of the document within an outcome budget of 268,812,472 bytes (about 256 MiB), so the largest container a document can have (120.2 MiB) fits by arithmetic. Commits were tested on a 3,000-placement model (1.63 MiB stored) and on 42 and 64 MiB payload containers; the 64 MiB commit peaked at 526 MiB resident. **Not measured:** a commit at the 120.2 MiB bound, and its transient memory, about six times the container's size (about 720 MiB at the bound, estimated). Staging and snapshot budgets are unchanged. From 1.7.0 the outcome budget is 403,030,200 bytes (two containers of 193,126,492 bytes plus 16 MiB), and the largest container (about 184 MiB) fits by arithmetic ([ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)) | [ADR 0023 implementation notes](decisions/0023-durable-outcomes.md#implementation-notes-d-089-and-d-086); [defect triage](verification/R089a-defect-triage.md) D-089 and D-086; [release notes](RELEASE_NOTES.md#161) |
-| Packaging | Arch packages `sketchyup` 1.6.1-1 (x86_64), MIT application code plus retained dependency notices, and the optional `sketchyup-ifc` 1.6.1-1 helper. Upgrades from 1.6.0-1 (1.6.0-1 upgraded from 1.5.0-1); 1.5.0-1 upgraded from 1.4.0-1; 1.4.0-1 upgraded from 1.3.0-1; 1.3.0-1 upgraded from 1.2.0-1; 1.2.0-1 upgraded from 1.1.1-1; 1.1.1-1 upgraded from 1.1.0-1 ([F01.a](verification/F01a-1.1.1-patch.md)); 1.1.0-1 upgraded from 1.0.1-1; 1.0.1-1 upgraded from 1.0.0-1, and 1.0.0-1 from development package 0.1.0-3 | [Clean current-source lifecycle and prior-application upgrade](verification/R087g-clean-current-package.md); [current and reference Arch clean machines](verification/R087u-clean-machine-packages.md) (Qt 6.8.0 through 6.12.0). PKGBUILD dependencies carry no versions, so pacman installs a package built against newer Qt on an older system where it cannot start (R087.u). Install the package built for your repository snapshot |
+| Large models (R110, 1.7.0) | Unique geometry up to 300,000 vertices, faces and wires and 900,000 edges per document; a component definition up to 200,000 vertices, faces and wires and 600,000 edges; a model chunk of 96 MiB and a file of 256 MiB; an undo history of 192 MiB. A dense whole-document MCP or scripted transaction is limited by the 128 MiB staging budget, so split it into transactions of about 20 dense bodies | [ADR 0005, R110](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170) and its implementation notes; [R082w v3](verification/R082w-memory-budget-v3.md) (software memory evidence); [release notes](RELEASE_NOTES.md#170). Not measured on hardware at these limits (D-091). The staging limit (D-090), `.skp` definitions over the component limit (D-092) and inline document parse memory (D-093) are open |
+| Packaging | Arch packages `sketchyup` 1.7.0-1 (x86_64), MIT application code plus retained dependency notices, and the optional `sketchyup-ifc` 1.7.0-1 helper. Upgrades from 1.6.1-1 (1.6.1-1 upgraded from 1.6.0-1, 1.6.0-1 from 1.5.0-1); 1.5.0-1 upgraded from 1.4.0-1; 1.4.0-1 upgraded from 1.3.0-1; 1.3.0-1 upgraded from 1.2.0-1; 1.2.0-1 upgraded from 1.1.1-1; 1.1.1-1 upgraded from 1.1.0-1 ([F01.a](verification/F01a-1.1.1-patch.md)); 1.1.0-1 upgraded from 1.0.1-1; 1.0.1-1 upgraded from 1.0.0-1, and 1.0.0-1 from development package 0.1.0-3 | [Clean current-source lifecycle and prior-application upgrade](verification/R087g-clean-current-package.md); [current and reference Arch clean machines](verification/R087u-clean-machine-packages.md) (Qt 6.8.0 through 6.12.0). PKGBUILD dependencies carry no versions, so pacman installs a package built against newer Qt on an older system where it cannot start (R087.u). Install the package built for your repository snapshot |
 
 | Helper processes (R109) | The `.skp`, IFC and STEP, text, extension and Blender helpers run under a Landlock ruleset and a seccomp-bpf allow-list, with `PR_SET_NO_NEW_PRIVS`. A helper cannot open a socket or run another program, and it reads only the files its policy names (its input, a private directory and, for the text helper, the font folders and the locale). A call outside the policy ends the helper and is reported as a sandbox violation. Linux only | [ADR 0183](decisions/0183-helper-process-sandbox.md). An unavailable layer refuses the job with a named reason and reads nothing. The `sandbox_available` check is required in CI. Not measured: kernels other than the CI runner and the developer machine (24.04 and 26.04 are not measured). The record and observe modes of ADR 0183 §8 were not built, so their trace check is absent. Access to `chmod`, `/proc` reads and device `ioctl` is not limited |
 

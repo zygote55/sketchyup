@@ -125,8 +125,8 @@ requires this build to read the file and write it back bit for bit, and to refus
 required feature. The published 1.5.0-1 reader refused it and left it unchanged, with `--validate-native` exiting with
 status 1 and printing `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}` (checked on the
 package, 2026-10-31). The published 1.6.0-1 reader opens it unchanged, with exit status 0 (checked 2026-10-31 for the
-1.6.1 preparation). `native_format_tests` runs that check when `SKETCHYUP_PRIOR_CLI` names the reader. It is original
-synthetic data.
+1.6.1 preparation), and so does the published 1.6.1-1 reader (checked 2026-11-01 for the 1.7.0 preparation).
+`native_format_tests` runs that check when `SKETCHYUP_PRIOR_CLI` names the reader. It is original synthetic data.
 
 `reference/` holds the synthetic orthophoto fixtures for the R107.b2.1 reader and importer, written by
 `reference/make_reference_fixtures.py` (run with `python3 -I`; `north-up.jpg` needs `cjpeg`). They are 8 by 6

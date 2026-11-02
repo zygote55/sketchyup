@@ -204,3 +204,53 @@ informational: readers accept any writer string, and retained fixtures that reco
   is 256.36 MiB, which rounds to 256.4 MiB. The 1.6.1 release notes and the support matrix give the byte count and "about 256 MiB".
 - Contradiction, not changed: `tests/provider_release_corpus_tests.py` still says in its header that v5 is authoritative (carried
   from 1.4.0).
+
+## Implementation notes (1.7.0 release preparation)
+
+- The prior release for the 1.7.0-1 package is the published `sketchyup-1.6.1-1-x86_64.pkg.tar.zst` (SHA-256
+  `414e7851862af157353ccf1066acce94f4008952b86c06eaa1b7e0773fe05dc9`, which the 1.6.1 `SHA256SUMS` lists). Unpacked
+  with `bsdtar`, without pacman, its `sketchyup-cli --format-capabilities` reports `documentVersion` 35,
+  `readDocumentVersions` 1 through 35 and `fileLimitBytes` 134217728. It opens `tests/fixtures/reference-geo-v35.sketchyup`
+  with exit status 0 and leaves the file unchanged (`native_format_tests`).
+- The split package's prior, `sketchyup-ifc-1.6.1-1` (SHA-256 `c665a849aef6a94a11ac784599d9b922c32a1f49919808483070a474ad3c8594`,
+  the 1.6.1 `SHA256SUMS`), is not pinned, as before: the script unpacks only the `sketchyup` package.
+- The `released_packages` table gained 1.6.1-1 and `known_release_sha256` its SHA-256. `vercmp` orders the table, and
+  1.7.0-1 upgrades from 1.6.1-1 by the `x.y.0` rule.
+- The downgrade window. The schema-35 reference-image check is unchanged: the 1.6.1 reader opens the 1.7.0 save unchanged.
+  The new check in `verify-package.sh` makes, at check time, a model of 153,000 unique vertices: one face of 9,000 points
+  (under the 10,000-vertex loop limit) and a linear `geometry.array_selection` of its body, count 16, which gives 17 bodies.
+  The 1.7.0 CLI writes it at `documentVersion` 26, with a document chunk of 9,654,097 bytes and a file of 9,655,465 bytes.
+  The published 1.6.1 CLI refuses it, unchanged, with exit status 1 and
+  `{"code":"INVALID_OPERATION","error":"Document load exceeds document unique geometry limits: vertices would be 153,000 of 100,000","status":"failed"}`.
+  This was run by hand in the pinned image. The package acceptance itself needs pacman as root in that image, so it was not run here.
+- Not done: the refusal of a document chunk over 32 MiB. At the 1.6.1 unique limits, geometry does not reach that size (the
+  300,000-vertex model is 35.0 MiB, per the R110 notes), so the check would need bulk that is not geometry. None was built.
+- Fixtures regenerated with the writer `SketchyUp/1.7.0`. The nine writer-bearing fixtures keep their sizes; only the writer
+  and the bytes that depend on it change.
+  - `material-texture-size-v33.sketchyup` and `geographic-site-v32.sketchyup`: their `--write-fixture` generators, in place.
+  - `terrain-dem-v34.sketchyup`: `terrain_import_tests --write-fixture` to a scratch path, then copied, because the CLI
+    refuses an existing `--output` file.
+  - `reference-geo-v35.sketchyup`: `sketchyup-cli --import-reference-image ... --output` to a scratch path, then copied, for the same reason.
+  - the five catalog fixtures: `catalog_tests --write-fixtures DIR` into a new directory, then copied.
+  The copied files were set back to mode 0644.
+- IFC export goldens: `IFC_UPDATE_GOLDENS=1 ifc_export_tests` in `sketchyup-ci-pinned:r097a-ifc`, against the helper and the
+  IfcOpenShell prefix built in this worktree (`build/ifc`, then `build/ifc-app`, with `CMAKE_LINKER_TYPE=DEFAULT`, since that
+  image has no mold). Only the `FILE_NAME` and `IFCAPPLICATION` lines changed: 12 lines in six files. `ifc_export_tests` passes after the update.
+- Corpus. The eight `inputSha256` values in each of the six manifests were regenerated for the `SketchyUp/1.7.0` writer. Each task
+  was described with `provider_trial --describe gpt-6-astra` twice, and the two describes agree. For each task the retained
+  input's SHA-256 equals the describe's value, the prompt and `promptSha256` are unchanged, the `allowedCommands`, `toolsSha256`
+  and instruction hashes equal the v6 pins, and the input contains `SketchyUp/1.7.0` and not `SketchyUp/1.6.1`. So the six
+  pinned assistant surfaces did not change, and the corpus stays at v6. `provider_release_corpus_tests.py`,
+  `provider_release_score_tests.py` and `assistant_tool_surface_tests` pass. No live provider run was made here.
+- Generated artifacts. `generate-tool-reference.py --check` passes. Of `generate-api-schemas.py`, the eight CLI-side artifacts match.
+  Its two desktop-side artifacts (`inspection-desktop-v1.json`, `mcp-native-2026-07-28.json`) were not checked, because they
+  need the desktop binary, which this preparation did not build. No file in `docs/api` names a version.
+- Suites run in the pinned image, with `SKETCHYUP_PRIOR_CLI` set to the published 1.6.1 CLI where a suite reads it:
+  `catalog_tests`, `catalog_import_tests`, `catalog_fuzz_tests`, `reference_image_io_tests`, `terrain_io_tests`,
+  `native_format_tests`, `document_limits_io_tests`, `document_limits_tests`, `asset_io_tests`, `presentation_io_tests`,
+  `style_bundle_tests`, `geographic_site_tests`, `material_texture_size_tests`, `drawing_sheet_io_tests`,
+  `component_parameter_io_tests`, `purge_unused_tests`, `terrain_import_tests` and `unique_limits_acceptance_tests` all exit 0.
+- Contradictions, not changed:
+  - The R110 compatibility note (ADR 0005) says a model within the 1.6.1 bounds is written with the bytes 1.6.1 writes. The
+    writer string is part of those bytes, and it now names 1.7.0, so the bytes differ in that field, as the fixture regeneration shows.
+  - `tests/provider_release_corpus_tests.py` still says in its header that v5 is authoritative (carried from 1.4.0).

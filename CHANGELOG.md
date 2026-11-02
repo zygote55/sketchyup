@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.7.0 — unreleased
 
-- Unique geometry limits raised about threefold for 1.7.0 (R110, [ADR 0005](docs/decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)): 300,000 vertices, faces and wires and 900,000 edges per document, 200,000 vertices, faces and wires and 600,000 edges per component definition, a 96 MiB model chunk and a 256 MiB file. The undo history budget rises from 64 MiB to 192 MiB. A legacy raw JSON file keeps its 128 MiB limit. No format or schema change.
+Raised unique geometry limits and two scripting commands. No schema change. A file over the 1.6.1 limits does not open in 1.6.1, so the downgrade window is 1.6.1-1. The release notes are in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md#170).
+
+- Unique geometry limits raised about threefold for 1.7.0 (R110, [ADR 0005](docs/decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)): 300,000 vertices, faces and wires and 900,000 edges per document, 200,000 vertices, faces and wires and 600,000 edges per component definition, a 96 MiB model chunk and a 256 MiB file. The undo history budget rises from 64 MiB to 192 MiB. A legacy raw JSON file keeps its 128 MiB limit. No format or schema change ([release notes](docs/RELEASE_NOTES.md#170)).
+- A `.skp` component definition over the component definition limit (200,000 vertices, faces or wires, or 600,000 edges) keeps the geometry that fits and reports the rest under the `documentLimit` notice (R110, [D-092](docs/verification/R089a-defect-triage.md)).
 - Scripting commands `component.delete_definition` and `document.purge_unused` remove unused component definitions, materials and assets, in one undo step; `dryRun` reports the same lists without a change (R111, [ADR 0005](docs/decisions/0005-document-protocol.md#removing-unused-definitions-r111), [PR #564](https://github.com/zygote55/sketchyup/pull/564)).
 
 ## 1.6.1 — 2026-11-01

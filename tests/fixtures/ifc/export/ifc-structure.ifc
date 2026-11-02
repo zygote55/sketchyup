@@ -1,14 +1,14 @@
 ISO-10303-21;
 HEADER;
 FILE_DESCRIPTION(('SketchyUp export, tessellated geometry'),'2;1');
-FILE_NAME('structure.ifc','2026-01-02T03:04:05',(''),(''),'IfcOpenShell 0.9.0','SketchyUp 1.6.1','');
+FILE_NAME('structure.ifc','2026-01-02T03:04:05',(''),(''),'IfcOpenShell 0.9.0','SketchyUp 1.7.0','');
 FILE_SCHEMA(('IFC4'));
 ENDSEC;
 DATA;
 #1=IFCPERSON('unknown',$,$,$,$,$,$,$);
 #2=IFCORGANIZATION($,'SketchyUp',$,$,$);
 #3=IFCPERSONANDORGANIZATION(#1,#2,$);
-#4=IFCAPPLICATION(#2,'1.6.1','SketchyUp','SketchyUp');
+#4=IFCAPPLICATION(#2,'1.7.0','SketchyUp','SketchyUp');
 #5=IFCOWNERHISTORY(#3,#4,$,$,$,$,$,1767323045);
 #6=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);
 #7=IFCUNITASSIGNMENT((#6,#8,#9,#10));
