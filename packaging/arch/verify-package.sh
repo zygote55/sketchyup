@@ -292,6 +292,38 @@ PYVERSION
   cp "$reference_save" "$reference_save.before"
   runuser -u builder -- "$prior_release_cli" --validate-native "$reference_save" > /dev/null
   cmp "$reference_save" "$reference_save.before"
+  # The raised limits (R110, 1.7.0): a model over the released CLI's unique-geometry limit, which this package
+  # writes and the released CLI refuses with its own message and leaves unchanged. It is made here, not committed:
+  # one face of 9,000 points (under the 10,000-vertex loop limit) and a linear copy array of its body, 17 bodies
+  # and 153,000 unique vertices. The released 1.6.1 limit is 100,000 vertices.
+  over_script=/work/acceptance/prior-release/over-unique-limit.json
+  over_save=/work/acceptance/prior-release/over-unique-limit.sketchyup
+  python - "$over_script" <<'PYOVER'
+import json, math, sys
+loop = []
+for point in range(9000):
+    angle = 2.0 * math.pi * point / 9000.0
+    loop.append([round(100.0 * math.cos(angle), 4), round(100.0 * math.sin(angle), 4), 0])
+steps = [
+    {"command": "geometry.face", "name": "Dense face", "loops": [loop]},
+    {"command": "geometry.array_selection", "entities": [{"body": "1", "kind": "context", "entity": "0"}],
+     "mode": "linear", "delta": [300, 0, 0], "count": 16},
+]
+with open(sys.argv[1], 'w') as handle:
+    json.dump(steps, handle)
+PYOVER
+  runuser -u builder -- sketchyup-cli --script "$over_script" --output "$over_save" > /dev/null
+  runuser -u builder -- sketchyup-cli --validate-native "$over_save" |
+    jq -e '.valid and .bodies == 17 and .documentVersion == 26' > /dev/null
+  cp "$over_save" "$over_save.before"
+  if runuser -u builder -- "$prior_release_cli" --validate-native "$over_save" > /dev/null 2> "$over_save.stderr"; then
+    echo "Prior release opened a model over its unique-geometry limit: $over_save" >&2
+    exit 1
+  fi
+  jq -e '.status == "failed" and .error == "Document load exceeds document unique geometry limits: vertices would be 153,000 of 100,000"' \
+    "$over_save.stderr" > /dev/null
+  cmp "$over_save" "$over_save.before"
+  printf '\nPrior release refused the 153,000-vertex model over its 100,000-vertex unique limit unchanged.\n'
   printf 'Prior release reads schemas up to %s: refused %s newer fixtures unchanged, opened unchanged this package'"'"'s schema-35 reference-image save, and accepted its sheet-free save.\n' \
     "$prior_reads" "$newer_fixtures"
 fi

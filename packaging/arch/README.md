@@ -120,8 +120,8 @@ released CLI to open, unchanged, every retained fixture it reads: `presentation_
 `terrain_io` (schema 29), `component_parameter_io` (schema 28) and `drawing_sheet_io` (schema 27) do
 the same for their files.
 The raised limits of 1.7.0 (R110) add a second window that the schema does not show. `verify-package.sh`
-makes, at check time, a model over the released CLI's unique-vertex limit (150 flat polygons of 1,000 sides,
-150,000 unique vertices, against 100,000 in 1.6.1). The released CLI must refuse it with its own message,
+makes, at check time, a model over the released CLI's unique-vertex limit (one face of 9,000 points and a
+linear copy array of it: 17 bodies, 153,000 unique vertices, against 100,000 in 1.6.1). The released CLI must refuse it with its own message,
 recorded in the script, and leave it unchanged. The file is made, not committed, so the repository carries no
 large fixture for it.
 
