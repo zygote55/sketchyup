@@ -73,6 +73,15 @@ Run `pacman -U sketchyup-1.8.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helpe
 
 The optional `sketchyup-ifc` package requires the exact `sketchyup` version, so pacman refuses to install `sketchyup-1.7.0-1` while `sketchyup-ifc-1.8.0-1` is installed, and it changes nothing (D-071). Remove the helper first, then install the application, as in [Rollback](#rollback-to-170-1).
 
+### Rollback to 1.7.0-1
+
+1. Remove `sketchyup-ifc` first if it is installed: `pacman -R sketchyup-ifc`.
+2. Install `sketchyup-1.7.0-1-x86_64.pkg.tar.zst` with `pacman -U`.
+3. Install `sketchyup-ifc-1.7.0-1-x86_64.pkg.tar.zst` if you want the IFC helper.
+
+A file that 1.8.0 wrote opens in 1.7.0 after the rollback. Exports and catalog imports of a model over the 1.7.0 limits are
+refused by 1.7.0 until 1.8.0 is installed again; nothing is changed by the refusal.
+
 ### Versions
 
 | Item | Version |
@@ -82,7 +91,7 @@ The optional `sketchyup-ifc` package requires the exact `sketchyup` version, so 
 | Native document | Schema 35 at most, in SKUPDOC container version 2; reads versions 1 through 35. Saves record the writer `SketchyUp/1.8.0`. No schema or version change |
 | Capability output | `limits.readSnapshotBytes` (536870912) and `limits.glbVisibleFaces` (600000) are new; no other field changed |
 | Errors | A missing body, material, tag or component definition named by a command or query is `NOT_FOUND`, not `INVALID_OPERATION` (see above) |
-| MCP, inspection, recipes and other public schemas | No shape changed. The generated references and the CLI schema artifacts match |
+| MCP, inspection, recipes and other public schemas | No shape changed. The generated references and all ten discovery schemas match the built CLI and desktop binaries |
 | Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, as in 1.7.0. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.8.0 writer. The assistant's tool surfaces did not change: the corpus v6 manifest pins eight trial entries with five distinct `toolsSha256` values. The offline checks pass: `provider_release_corpus`, `provider_release_score` and `assistant_tool_surface`. No live provider run was made in this preparation; the release candidate's record states the run it makes |
 | New third-party code | None |
 
@@ -98,7 +107,6 @@ Qt, OpenGL and Blender requirements are unchanged from 1.7.0.
 - R107.d (held), the deferred rows, and buildingSMART hosted validation of the IFC export, which is the owner's own task and not a gate for this release.
 - D-087 (open, Minor), and PR #574.
 - The 1.7.0 list still holds: Ruby extensions (C02), DWG (C05), collaboration (C07), `.skp` export, IFC2X3 and IFC4X3 export, STEP AP242 export, and any import format beyond those listed.
-
 
 ## 1.7.0
 
