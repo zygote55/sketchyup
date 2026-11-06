@@ -1056,8 +1056,8 @@ std::string derivedIfcGlobalId(const std::string &identity, const std::string &k
 
 namespace {
 IfcExportCapture captureChecked(const Document &document, const IfcExportOptions &options, const QString &fileName) {
-    if (document.readSnapshotBytes() > 256u * 1024 * 1024)
-        refuse("documentTooLarge", "The document is too large to export (over the 256 MiB snapshot budget).");
+    if (!withinReadSnapshotBudget(document, Document::readSnapshotByteLimit))
+        refuse("documentTooLarge", "The document is too large to export (over the read-snapshot budget).");
     Capture c(document);
     c.index();
     c.classify();

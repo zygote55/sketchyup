@@ -351,6 +351,12 @@ class Document {
     // Share immutable scene records and preserve identity, allocator floors,
     // session and saved-state markers, without retaining undo/redo history.
     Document readSnapshot() const;
+    // R112 (1.8.0, owner approval 2026-11-06): the one read-snapshot budget. A component's geometry
+    // is charged twice, in its definition and in each placement, so the published unique and
+    // materialized limits need more than the 256 MiB this was before 1.8.0 (ADR 0005, R112). Every
+    // admission check that reads readSnapshotBytes() uses this constant, and no refusal message
+    // states a number.
+    static constexpr size_t readSnapshotByteLimit = 512 * 1024 * 1024;
     // Conservative admission charge for all retained records, including assets
     // and allocator bookkeeping; shared records are charged at full size.
     size_t readSnapshotBytes() const;
@@ -482,4 +488,7 @@ class Document {
     // readSnapshotBytes() and bytesNotSharedWith(): a null base charges every record.
     size_t chargedBytes(const Document *base) const;
 };
+// R112: whether the read-snapshot charge of `doc` is within `limit`. Every snapshot site passes
+// Document::readSnapshotByteLimit; a boundary test passes the charge itself, or one byte less.
+bool withinReadSnapshotBudget(const Document &doc, size_t limit);
 } // namespace sketchy

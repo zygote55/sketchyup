@@ -598,7 +598,7 @@ def rendered_camera(camera):
 def render(request, directory):
     source = Path(request['sourceDirectory'])
     # The manifest bound (R099.f): must equal glbManifestByteLimit in glb_export.hpp.
-    manifest, manifest_bytes = load_json(source / 'manifest.json', 128 * 1024 * 1024)
+    manifest, manifest_bytes = load_json(source / 'manifest.json', 192 * 1024 * 1024)
     if sha(manifest_bytes) != request['manifestSha256']:
         raise WorkerError('invalid_snapshot', 'Snapshot manifest changed')
     scene_path = source / 'scene.glb'

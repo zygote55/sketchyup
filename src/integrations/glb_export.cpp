@@ -20,12 +20,14 @@
 namespace sketchy {
 namespace {
 constexpr qsizetype binaryLimit = 256 * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
-// Visible faces of modelling bodies (ADR 0032). A terrain tile's faces are counted against
-// terrainTriangleLimit instead (ADR 0168 decision 3), so a terrain does not use this budget.
-constexpr size_t visibleFaceLimit = 100000;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
+}
+// The bound is stated from its constant, so the message and the limit cannot disagree (R112).
+[[noreturn]] void manifestTooLarge() {
+    throw std::runtime_error("GLB manifest exceeds " +
+                             std::to_string(glbManifestByteLimit / (1024 * 1024)) + " MiB");
 }
 QString id(Id value) { return QString::number(value); }
 QString digest(const QByteArray &bytes) {
@@ -109,8 +111,9 @@ struct Writer {
         referenceImages{};
     Bounds bounds;
     SourceCredits credits; // R107.c1: the DEM notices of the terrain written
-    explicit Writer(const RenderSnapshot &snapshot)
-        : snapshot(snapshot), doc(snapshot.document()) {}
+    size_t visibleFaceBudget{};
+    Writer(const RenderSnapshot &snapshot, size_t visibleFaces)
+        : snapshot(snapshot), doc(snapshot.document()), visibleFaceBudget(visibleFaces) {}
     int buffer(const QByteArray &data, bool attributes) {
         aligned(binary, 0);
         require(data.size() <= binaryLimit - binary.size(), "GLB binary exceeds 256 MiB");
@@ -285,7 +288,7 @@ struct Writer {
                 require(++terrainFaces <= terrainTriangleLimit,
                         "GLB terrain has more than 250,000 triangles");
             else
-                require(++faces <= visibleFaceLimit, "GLB has too many visible faces");
+                require(++faces <= visibleFaceBudget, "GLB has too many visible faces");
             for (const auto &loop : record.loops) {
                 references += loop.size();
                 require(references <= 2000000, "GLB has too many face vertices");
@@ -650,19 +653,21 @@ struct Writer {
             manifest["environment"] = describeRenderEnvironment(*snapshot.environment());
             environment = snapshot.environment()->image;
         }
-        require(QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() <=
-                    glbManifestByteLimit,
-                "GLB manifest exceeds 128 MiB");
+        if (QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() > glbManifestByteLimit)
+            manifestTooLarge();
         return {std::move(glb), std::move(manifest), std::move(environment)};
     }
 };
 } // namespace
-GlbExport exportGlb(const RenderSnapshot &snapshot) { return Writer(snapshot).run(); }
+GlbExport exportGlb(const RenderSnapshot &snapshot, size_t visibleFaceBudget) {
+    return Writer(snapshot, visibleFaceBudget).run();
+}
 void writeGlbExport(const GlbExport &scene, const QString &directory) {
     require(!directory.isEmpty(), "Choose an export directory");
     const auto manifest = QJsonDocument(scene.manifest).toJson();
     require(scene.glb.size() <= binaryLimit, "Export artifacts exceed bounds");
-    require(manifest.size() <= glbManifestByteLimit, "GLB manifest exceeds 128 MiB");
+    if (manifest.size() > glbManifestByteLimit)
+        manifestTooLarge();
     const auto identity = scene.manifest.value("scene").toObject();
     require(identity.value("file") == "scene.glb" &&
                 identity.value("bytes").toInteger() == scene.glb.size() &&

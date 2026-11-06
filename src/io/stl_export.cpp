@@ -45,7 +45,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
     coordinates.validate();
     require(encoding == StlEncoding::Binary || encoding == StlEncoding::Ascii,
             "Invalid STL encoding");
-    require(doc.readSnapshotBytes() <= 256 * 1024 * 1024,
+    require(withinReadSnapshotBudget(doc, Document::readSnapshotByteLimit),
             "STL export exceeds document snapshot budget");
     StlExport result;
     const bool binary = encoding == StlEncoding::Binary;

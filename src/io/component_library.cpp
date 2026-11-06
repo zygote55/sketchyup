@@ -106,8 +106,8 @@ LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBu
     placement.validate();
     // Recapture validates public, caller-constructed bundle records as well as decoded bundles.
     const auto source = captureLibraryComponent(bundle.document, bundle.definition);
-    if (destination.readSnapshotBytes() > 256 * 1024 * 1024 ||
-        source.readSnapshotBytes() > 256 * 1024 * 1024)
+    if (!withinReadSnapshotBudget(destination, Document::readSnapshotByteLimit) ||
+        !withinReadSnapshotBudget(source, Document::readSnapshotByteLimit))
         throw std::runtime_error("Library insertion exceeds snapshot budget");
     auto draft = destination.readSnapshot();
     LibraryInsertion result;
@@ -256,7 +256,7 @@ LibraryInsertion insertLibraryComponent(Document &destination, const ComponentBu
     draft.apply(std::move(resources), draft.revision());
     result.component = placeComponent(draft, definitionIds.at(bundle.definition), placement, parent,
                                       bundle.metadata.name.toStdString());
-    if (draft.readSnapshotBytes() > 256 * 1024 * 1024)
+    if (!withinReadSnapshotBudget(draft, Document::readSnapshotByteLimit))
         throw std::runtime_error("Library insertion result exceeds snapshot budget");
     Edit insertion{"Insert library component", {}};
     for (const auto &[id, body] : draft.bodies()) {
@@ -288,7 +288,7 @@ AssemblyPlacementResult placeLibraryAssembly(Document &destination, const Compon
     placement.transform.validate();
     if (label.empty())
         label = "Place " + bundle.metadata.name.toStdString();
-    if (destination.readSnapshotBytes() > 256 * 1024 * 1024)
+    if (!withinReadSnapshotBudget(destination, Document::readSnapshotByteLimit))
         throw std::runtime_error("Library insertion exceeds snapshot budget");
     // Every step runs on one private draft; the document receives one edit (§6.3).
     auto draft = destination.readSnapshot();
@@ -318,7 +318,7 @@ AssemblyPlacementResult placeLibraryAssembly(Document &destination, const Compon
         options.tangent = host.tangent;
         attachComponent(draft, result.placement, host.host, host.face, options, host.inset);
     }
-    if (draft.readSnapshotBytes() > 256 * 1024 * 1024)
+    if (!withinReadSnapshotBudget(draft, Document::readSnapshotByteLimit))
         throw std::runtime_error("Library insertion result exceeds snapshot budget");
     Edit edit{label, {}};
     for (const auto &[id, body] : draft.bodies()) {

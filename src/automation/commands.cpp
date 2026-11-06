@@ -44,6 +44,7 @@
 #include "geometry/drawing.hpp"
 #include "geometry/inference.hpp"
 #include "geometry/intersection.hpp"
+#include "integrations/glb_export.hpp"
 #include "io/assets.hpp"
 #include "io/display_precision_io.hpp"
 #include "io/document_io.hpp"
@@ -312,6 +313,8 @@ QJsonObject capabilities() {
                                {"assets", 1024},
                                {"documentBytes", int(NativeLimits::fileBytes)},
                                {"packagedModelBytes", int(NativeLimits::modelBytes)},
+                               {"readSnapshotBytes", int(Document::readSnapshotByteLimit)},
+                               {"glbVisibleFaces", int(glbVisibleFaceLimit)},
                                {"bodies", int(DocumentLimits::unique.bodies)},
                                {"placements", int(DocumentLimits::materialized.placements)},
                                {"materializedBodies", int(DocumentLimits::materialized.bodies)},

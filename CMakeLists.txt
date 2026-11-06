@@ -1045,6 +1045,9 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     # R110 (R082w v3): manual memory and load measurements at the raised limits; never a timing gate.
     add_executable(unique_limits_benchmark EXCLUDE_FROM_ALL tests/unique_limits_benchmark.cpp)
     target_link_libraries(unique_limits_benchmark PRIVATE sketchyup_io)
+    # R112 (1.8.0): manual measurement of the read-snapshot budget at the published limits; never a timing gate.
+    add_executable(snapshot_glb_limits_benchmark EXCLUDE_FROM_ALL tests/snapshot_glb_limits_benchmark.cpp)
+    target_link_libraries(snapshot_glb_limits_benchmark PRIVATE sketchyup_io)
     if(TARGET sketchyup-cli)
       target_compile_definitions(native_format_tests PRIVATE CLI_PATH="$<TARGET_FILE:sketchyup-cli>")
       add_dependencies(native_format_tests sketchyup-cli)
@@ -1152,6 +1155,11 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(unique_limits_acceptance_tests tests/unique_limits_acceptance_tests.cpp)
     target_link_libraries(unique_limits_acceptance_tests PRIVATE sketchyup_io)
     add_test(NAME unique_limits_acceptance COMMAND unique_limits_acceptance_tests)
+    # R112 (ADR 0005, ADR 0032, 1.8.0): the read-snapshot budget and the GLB visible-face cap at the
+    # published limits, through a catalog import, save and reopen, and export. A slow core test.
+    add_executable(snapshot_glb_limits_acceptance_tests tests/snapshot_glb_limits_acceptance_tests.cpp)
+    target_link_libraries(snapshot_glb_limits_acceptance_tests PRIVATE sketchyup_io)
+    add_test(NAME snapshot_glb_limits_acceptance COMMAND snapshot_glb_limits_acceptance_tests)
     add_executable(staging_tests tests/staging_tests.cpp)
     target_link_libraries(staging_tests PRIVATE sketchyup_io)
     target_compile_definitions(staging_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

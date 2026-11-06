@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 4,
+  "supersedes": "R082w-memory-budget-v3.json (for the R112 limits; v1 to v3 stay as they are)",
+  "status": "measured-software-within-8-gib-ceiling",
+  "frozenAt": null,
+  "sha256": null,
+  "acceptanceStatus": "accepted by the owner on 2026-11-06: the modeled worst-case ceiling is raised from 3.75 GiB to 8 GiB; software-only, hardware evidence (D-091) stays open",
+  "priorEvidenceAccepted": false,
+  "publicModelLimitsChanged": true,
+  "releaseAccepted": false,
+  "hardwareAccepted": false,
+  "measured": true,
+  "measuredScope": "Software only: Release, static, command-line build (SKETCHYUP_BUILD_DESKTOP=OFF, so no viewport, no llvmpipe frame figures). Peaks are process peak RSS. Not hardware evidence; D-091 stays open.",
+  "buildAndRun": {
+    "image": "sketchyup-ci-pinned:r097a-ifc",
+    "qtVersion": "6.11.2",
+    "compiler": "gcc 16.2.1",
+    "cmake": "4.4.3",
+    "ninja": "1.13.2",
+    "kernel": "7.2.15-1-omarchy",
+    "buildContainer": "--cpus=2 --memory=4g --memory-swap=4g, -j2, Release",
+    "measureContainer": "--cpus=1 --memory=4g --memory-swap=4g (the 4 GiB job cap)",
+    "configuration": "CMAKE_BUILD_TYPE=Release, SKETCHYUP_BUILD_DESKTOP=OFF, SKETCHYUP_BUILD_CLI=ON, SKETCHYUP_BUILD_IFC=OFF, SKETCHYUP_SHARED_LIBS=OFF, SKETCHYUP_NATIVE_FIXTURES_IN_ALL=OFF",
+    "sourceBranch": "feat/r112-snapshot-glb-limits, from 44c7ab96 (main)",
+    "harness": "tests/snapshot_glb_limits_benchmark.cpp (new, EXCLUDE_FROM_ALL) and sketchyup-cli; export mode prints resident memory before and after the GLB export"
+  },
+  "reason": "R112 raises the read-snapshot budget from 256 MiB to 512 MiB (owner approval 2026-11-06) and the GLB visible-face cap from 100,000 to 600,000, with the manifest bound at 192 MiB. The snapshot budget is admission only (a snapshot shares records), so v3's resident terms do not change. The GLB export at 600,000 faces adds a transient that v3 did not model: about 278 MiB above the resident model. With v3's 3.72 GiB (hardware delta included) the modeled worst case with an export is 3.99 GiB, over the earlier 3.75 GiB ceiling and 14 MiB under the 4 GiB job cap. The owner raised the ceiling to 8 GiB on 2026-11-06.",
+  "publicLimits": {
+    "readSnapshotByteLimit": 536870912,
+    "glbVisibleFaceLimit": 600000,
+    "glbManifestByteLimit": 201326592,
+    "uniqueGeometry": {
+      "vertices": 300000,
+      "faces": 300000,
+      "wires": 300000,
+      "edges": 900000
+    },
+    "materialized": {
+      "vertices": 600000,
+      "faces": 600000,
+      "wires": 600000,
+      "edges": 900000,
+      "placements": 20000,
+      "bodies": 40000
+    },
+    "definition": {
+      "vertices": 200000,
+      "faces": 200000,
+      "wires": 200000,
+      "edges": 600000
+    },
+    "modelChunkBytes": 100663296,
+    "assetTotalBytes": 67108864
+  },
+  "shapes": {
+    "spheres-at-cap": "three closed 100,000-face spheres, each placed twice; unique 300,000 faces, 150,006 vertices, 450,000 edges; materialized 600,000 faces, 300,012 vertices, 900,000 edges",
+    "strips-at-limits": "three strip definitions (99,998, 99,998 and 98,004 triangles) and a 2,000-face sphere placed 100 times; unique 300,000 faces, 299,008 vertices, 599,003 edges; materialized 498,000 faces, 398,206 vertices, 896,003 edges. Edges bind before materialized faces with smooth edges."
+  },
+  "measurements": {
+    "charges": {
+      "strips-at-limits-smooth": {
+        "geometryBytes": 420352838,
+        "withAssetsBytes": 487462730,
+        "withAssetsMiB": 464.9,
+        "againstBudget": "within by 47.1 MiB",
+        "chunkMiB": 69.5,
+        "containerMiB": 133.6,
+        "buildSeconds": 336.9,
+        "buildPeakRssMiB": 1728
+      },
+      "spheres-at-cap-smooth": {
+        "geometryBytes": 389287368,
+        "withAssetsBytes": 456397260,
+        "withAssetsMiB": 435.3,
+        "againstBudget": "within by 76.8 MiB",
+        "chunkMiB": 59.8,
+        "containerMiB": 123.8,
+        "buildSeconds": 75.5,
+        "buildPeakRssMiB": 1457
+      },
+      "strips-at-limits-paint-every-face": {
+        "geometryBytes": 487384838,
+        "withAssetsBytes": 554494730,
+        "withAssetsMiB": 528.8,
+        "againstBudget": "over by 16.8 MiB",
+        "chunkMiB": 76.1,
+        "perCopyBytes": 84
+      },
+      "strips-at-limits-textured": {
+        "variant": "tex=3:0 (all sphere faces, 200,000 copies), tex=0:25000 and tex=1:25000 (50,000 strip faces)",
+        "geometryBytes": 500080838,
+        "withAssetsBytes": 567190730,
+        "withAssetsMiB": 540.9,
+        "againstBudget": "over by 28.9 MiB",
+        "chunkMiB": 77.4,
+        "perCopyBytes": 264.0,
+        "texturedUniqueFaces": 52000,
+        "texturedCopies": 302000
+      }
+    },
+    "headroomAtSmoothWorstCaseBytes": 49408182,
+    "copiesToExceedBudgetAtSmoothWorstCase": {
+      "colouredFaceCopies": 588192,
+      "texturedFaceCopies": 187152
+    },
+    "commandLine": {
+      "spheres-at-cap": {
+        "validateNative": {
+          "seconds": 7.4,
+          "peakRssMiB": 1231,
+          "valid": true
+        },
+        "saveByteIdentical": {
+          "seconds": 65.8,
+          "peakRssMiB": 1453,
+          "cmpIdentical": true
+        },
+        "reopenValidate": {
+          "seconds": 7.0,
+          "peakRssMiB": 1231,
+          "valid": true
+        },
+        "exportGlb": {
+          "seconds": 22.1,
+          "peakRssMiB": 1326,
+          "visibleTriangles": 600000,
+          "manifestBytes": 183684206,
+          "manifestMiB": 175.2,
+          "glbBytes": 7203224,
+          "glbJsonBytes": 3196,
+          "uniqueMeshes": 1
+        }
+      },
+      "strips-at-limits": {
+        "validateNative": {
+          "seconds": 5.1,
+          "peakRssMiB": 1427,
+          "valid": true
+        },
+        "exportGlb": {
+          "seconds": 11.6,
+          "peakRssMiB": 1464,
+          "visibleTriangles": 498000,
+          "manifestMiB": 145.0,
+          "glbBytes": 14425784,
+          "glbJsonBytes": 25612,
+          "uniqueMeshes": 3
+        }
+      },
+      "strips-at-limits-textured": {
+        "exportGlb": {
+          "seconds": 6.8,
+          "peakRssMiB": 1649,
+          "result": "refused",
+          "error": "Render snapshot exceeds the read-snapshot budget"
+        }
+      },
+      "catalogImport": {
+        "composition": "base of two spheres placed twice (400,000 materialized, 200,000 unique) plus one-sphere entry (100,000 faces) imported",
+        "seconds": 201.2,
+        "peakRssMiB": 2042,
+        "result": "500,000 materialized faces, 300,000 unique; validated (valid: true)",
+        "note": "a catalog import adds a new definition each time, so it cannot raise a placement count; the 600,000-face model is measured by its container instead"
+      }
+    },
+    "inProcessExport": {
+      "spheres-at-cap": {
+        "residentAfterLoadMiB": 1047,
+        "peakDuringLoadMiB": 1229,
+        "residentAfterExportMiB": 1070,
+        "exportPeakCliMiB": 1326,
+        "exportAddsAboveResidentMiB": 278
+      },
+      "strips-at-limits": {
+        "residentAfterLoadMiB": 1196,
+        "peakDuringLoadMiB": 1426,
+        "residentAfterExportMiB": 1207,
+        "exportPeakCliMiB": 1464,
+        "exportAddsAboveResidentMiB": 268
+      }
+    },
+    "acceptance": {
+      "snapshot_glb_limits_acceptance": {
+        "faces": 291994,
+        "definitions": 29,
+        "chargeMiB": 285.3,
+        "peakRssMiB": 1539,
+        "seconds": 78.1,
+        "passed": true
+      },
+      "unique_limits_acceptance": {
+        "seconds": 56.5,
+        "peakRssMiB": 1864,
+        "passed": true
+      }
+    }
+  },
+  "modeledWorstCase": {
+    "v3WithHardwareDeltaBytes": 3989057776,
+    "exportTransientBytes": 291504128,
+    "exportTransientMiB": 278,
+    "totalBytes": 4280561904,
+    "totalGiB": 3.987,
+    "ceilingBytes": 8589934592,
+    "capBytes": 4294967296,
+    "underCapMiB": 13.7,
+    "softwareOnlyWithoutHardwareDeltaMiB": 3939.2,
+    "previousCeilingBytes": 4026531840,
+    "overPreviousCeilingMiB": 242.3,
+    "exportTransientFittingPreviousCeilingMiB": 35.7,
+    "underCeilingBytes": 4309372688
+  },
+  "desktopExportOnLoadedViewport": {
+    "answer": "yes, through the Blender render path (src/integrations/blender_job.cpp calls exportGlb and writeGlbExport on the document while the viewport holds its payload)",
+    "measured": false,
+    "reason": "the desktop build is not compiled here; the transient was measured on the command-line export, which runs the same exportGlb and writeGlbExport"
+  },
+  "limitsChangedBy": [
+    "Document::readSnapshotByteLimit 256 MiB to 512 MiB",
+    "glbVisibleFaceLimit 100,000 to 600,000",
+    "glbManifestByteLimit 128 MiB to 192 MiB (blender_worker.py bound to match)"
+  ],
+  "hardwareRequirement": "Fresh Intel and AMD reruns per docs/M9_HARDWARE_SESSION.md section 1 remain required; the ADR 0161 waiver applies as it did to v2 and v3.",
+  "ownerDecision": {
+    "date": "2026-11-06",
+    "answer": "Raise the memory ceiling to 8GiB",
+    "effect": [
+      "the modeled worst-case ceiling is 8 GiB, from 3.75 GiB",
+      "the 600,000-face cap applies to every GLB export, including renders from the desktop app",
+      "the 4 GiB cap on test and measurement jobs is unchanged",
+      "no model limit changes"
+    ]
+  }
+}

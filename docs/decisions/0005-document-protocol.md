@@ -502,6 +502,59 @@ desktop interface, and the desktop assistant does not run them.
   asset no material uses). It is unchanged, and it does not keep an asset that a reference image
   or an edge stroke names.
 
+## R112: snapshot and GLB limits (1.8.0)
+
+The owner approved these numbers on 2026-11-06: the read-snapshot budget rises
+from 256 MiB to 512 MiB, and the GLB export's visible-face cap rises from 100,000 to 600,000, which is
+the materialized face limit. The manifest bound rises from 128 MiB to 192 MiB so that a 600,000-face
+export fits. No file format, schema, document version or materialized limit changes.
+
+- **Why the budget was too small.** A component's geometry is charged twice, once in its definition and
+  once in each placement. The 256 MiB was written as a literal at eleven sites (the component library and
+  bundle inserts, render, OBJ, STL, DXF, IFC) when the GLB export was added (ADR 0032, first commit
+  `ddb3071b`, which says "capture is limited to 256 MiB of retained document data"). It was never derived
+  from the model limits, and R110 did not revisit it.
+- **Decision.** `Document::readSnapshotByteLimit` (512 MiB) is the one budget. Every site checks it through
+  `withinReadSnapshotBudget`, and no refusal message states a number. The budget is an admission check: a
+  read snapshot shares the document's records, so raising it does not copy anything.
+- **The measured worst case.** Synthetic models, charged with `readSnapshotBytes()` (the
+  [R082w v4 record](../verification/R082w-memory-budget-v4.md)): the smooth worst case at the limits,
+  with 64 MiB of assets, is 464.9 MiB, so it fits 512 MiB by 47.1 MiB. Its shape is strips, because strips
+  have one vertex per face and two edges per face, and the 900,000 materialized edge limit binds before the
+  600,000 materialized faces. A closed sphere case is 435.3 MiB. Colours cost 84 bytes per charged face copy
+  and textured faces 264 bytes per copy (measured). Colours on every face give 528.8 MiB,
+  and textures on 302,000 copies give 540.9 MiB. **Those exceed 512 MiB, so 512 is kept**, and the documents
+  that exceed it are recorded as [D-100](../verification/R089a-defect-triage.md).
+- **The GLB cap.** `glbVisibleFaceLimit` (600,000) replaces the 100,000 `visibleFaceLimit`. It equals the
+  materialized face limit, so a valid document with everything visible exports in full, and the cap stays as
+  the export's own bound. `exportGlb` takes the budget as an argument, defaulting to the cap, so that a boundary
+  test can reach the refusal without a 600,000-face document.
+- **The manifest bound.** `glbManifestByteLimit` is 192 MiB (201,326,592 bytes). The manifest is indented and
+  about 306 bytes a face: 600,000 faces write 175.2 MiB (measured). `blender_worker.py` states the same bound,
+  and its refusal message is derived from the constant.
+- **Other caps on the 600,000-face path.** Triangles are 600,000 of the 1,000,000 cap; face-vertex references
+  are 1,800,000 of the 2,000,000 cap, for triangles (a quad model of 600,000 faces would be refused on its
+  references, as 2,400,000 would exceed the cap); the GLB JSON chunk is 3 KB (one mesh is shared by the three
+  definitions); the binary is 7.2 MB, and about 72 bytes a triangle for distinct geometry, so under 256 MiB;
+  the render snapshot's 20,000-body limit is unchanged.
+- **Measured.** The export at 600,000 faces peaks at 1,326 MiB in the command-line build, 22.1 s. The export
+  adds about 278 MiB above the loaded model's resident set (1,048 MiB). Save and reopen are byte for byte.
+  The modelled worst case with an export on a loaded viewport is 3.99 GiB, over the 3.75 GiB ceiling of the time.
+  **The owner raised the modeled ceiling to 8 GiB on 2026-11-06** (R082w v4), so the cap applies to every GLB
+  export, including renders from the desktop app. The 4 GiB cap on test jobs is unchanged, and no model limit changes.
+- **Capabilities.** `sketchyup-cli --capabilities` reports `readSnapshotBytes` and `glbVisibleFaces` beside
+  `packagedModelBytes`. The generated references and the CLI schema artifacts match; the assistant tool
+  surface and the provider corpus are unchanged.
+- **Tests.** `snapshot_glb_limits_acceptance` (new, slow core): 291,994 faces in 29 definitions, a catalog
+  import of two entries with a nested definition, save and reopen byte for byte, scene records unchanged, a
+  GLB export with everything visible whose triangles equal the triangulated faces, the budget helper accepting
+  the charge and refusing one byte less, the cap accepting its visible count and refusing one face less by
+  name (and changing nothing), and hiding a body lowering the visible count. `glb_export_tests` now expects
+  the 192 MiB refusal.
+- **Contradictions.** None with this ADR's accepted rules. The encoded cost of a texture mapping depends on its
+  values: glTF imports store full-precision records, about 264 bytes per side, while a synthetic model with short
+  values grew about 159 bytes per face. D-099 records both.
+
 ## Implementation notes (D-083)
 
 D-083 changes what erasing a context does to its descendants. Where this section and the rules above differ, these notes govern.
