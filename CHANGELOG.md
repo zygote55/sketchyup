@@ -1,14 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — unreleased
+
+Raised read-snapshot and GLB visible-face limits (R112), defect fixes D-094 to D-098, with a changed error code for a missing entity (D-095, D-096), and the README and documentation index. No schema change: a file that 1.8.0 writes opens in 1.7.0, but 1.7.0 still refuses a GLB export or a catalog insert of a model over its old limits. The release notes are in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md#180).
 
 - Fixed (D-094, Minor, [triage](docs/verification/R089a-defect-triage.md)): with saved-scene tabs visible, the Select tool's hint no longer overlaps the status line at the bottom left of the viewport.
 - Fixed (D-095, Minor, [triage](docs/verification/R089a-defect-triage.md)): a scripted command that names a body, material, tag or component definition the document does not hold fails with `NOT_FOUND` and names it (for example "Body #7 does not exist"), not with the C++ text `map::at`. Successful commands are unchanged.
 - Fixed (D-096, Minor, [triage](docs/verification/R089a-defect-triage.md)): a read-only query that names a missing body or component definition (for example `geometry.inspect` through `sketchyup-cli --query --context 999`) fails with `NOT_FOUND` and names it, not with `map::at`. A `tag.assign` to a tag that does not exist fails with `NOT_FOUND` ("Tag #9 does not exist"), not with the folder message. Successful commands and queries are unchanged.
-- Changed (R112, not yet released, see [R112](docs/PR_ROADMAP.md#r112)): the read-snapshot budget is 512 MiB (was 256 MiB), one named constant for every export, render and insert that takes a snapshot; a GLB export writes up to 600,000 visible modelling faces (was 100,000) with a manifest of up to 192 MiB (was 128 MiB); `sketchyup-cli --capabilities` reports `readSnapshotBytes` and `glbVisibleFaces`. The measured worst case is in [R082w v4](docs/verification/R082w-memory-budget-v4.md), for which the owner raised the modelled memory ceiling from 3.75 GiB to 8 GiB.
+- Changed (R112, see [R112](docs/PR_ROADMAP.md#r112)): the read-snapshot budget is 512 MiB (was 256 MiB), one named constant for every export, render and insert that takes a snapshot; a GLB export writes up to 600,000 visible modelling faces (was 100,000) with a manifest of up to 192 MiB (was 128 MiB); `sketchyup-cli --capabilities` reports `readSnapshotBytes` and `glbVisibleFaces`. The measured worst case is in [R082w v4](docs/verification/R082w-memory-budget-v4.md), for which the owner raised the modelled memory ceiling from 3.75 GiB to 8 GiB.
 - Fixed (D-097, Minor, [triage](docs/verification/R089a-defect-triage.md)): a model at the published limits could not be exported, because the snapshot budget was 256 MiB and a component is charged twice. The budget is now 512 MiB, and the refusals state no number.
 - Fixed (D-098, Minor, [triage](docs/verification/R089a-defect-triage.md)): the GLB export refused more than 100,000 visible faces, so a model at the published limits could not be exported to GLB or sent to Blender. The cap is 600,000, and the manifest bound is 192 MiB.
 - Known limitations (D-099 and D-100, Limitation, [triage](docs/verification/R089a-defect-triage.md)): models with imported UVs or per-face colours can exceed the 512 MiB budget, so their exports refuse by name; the UV storage change is left for a later release.
+- Documentation: the README is rewritten to a short overview with screenshots (#570), and the documentation index and the screenshot set are new (#572).
 
 ## 1.7.0 — 2026-11-02
 

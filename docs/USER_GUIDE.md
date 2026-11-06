@@ -397,7 +397,7 @@ need to be re-created.
 
 Open **View → Assistant** or press **Ctrl+J**. Preferences offers the implemented
 OpenAI connections and an experimental numeric-loopback Ollama adapter. The
-supported provider for 1.0 through 1.7.0 is the remote OpenAI connection: choose **Continue with
+supported provider for 1.0 through 1.8.0 is the remote OpenAI connection: choose **Continue with
 ChatGPT** to sign in with a ChatGPT plan (the subscription that includes Codex;
 SketchyUp does not use the Codex tool or its credentials). The local adapter is
 experimental and is not a 1.0 requirement ([provider scope](decisions/0160-provider-scope-for-1-0.md)).
@@ -413,7 +413,7 @@ before further editing or saving.
 Model prose is not the measurement oracle. The [agent guide](AI_MODELING.md),
 [tool reference](TOOL_REFERENCE.md) and [frozen provider corpus](https://github.com/zygote55/sketchyup/blob/6a5a7d1cd43df585bf940facf83b08f138e1f1a9/docs/verification/R086a-frozen-provider-corpus.md)
 describe the supported commands and evaluation boundary. The assistant does not work
-with drawing sheets or component parameters in 1.7.0: the sheet and component parameter
+with drawing sheets or component parameters in 1.8.0: the sheet and component parameter
 operations in the tool reference are available over MCP and the transaction APIs, not
 in the assistant panel. The retained local
 CPU profile is experimental, with no quality guarantee, automatic model download
@@ -449,6 +449,12 @@ DXF subset. `.skp` files import too, as described in [Importing .skp files](#imp
 materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
+
+**Export limits.** A GLB export writes up to 600,000 visible modelling faces, with a manifest of up to 192 MiB. In 1.7.0
+the limits were 100,000 faces and 128 MiB. The exports, renders and library inserts that take a read snapshot share one
+budget of 512 MiB of document data (256 MiB before 1.8.0). A model over the budget is refused by name, and nothing is
+written. A model with per-face colours or texture mappings can exceed it at the model limits; it still opens and saves,
+and its exports refuse ([release notes](RELEASE_NOTES.md#180), D-100).
 
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance

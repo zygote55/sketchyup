@@ -1455,6 +1455,7 @@ At the 1.7.0 RC1 `0496b4f1` (2026-11-01): 27 open (0 release-blocking, 0 Major, 
 After the 1.7.0 release (2026-11-02, [G-1.7.0](G-1.7.0.md)): 27 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 19 Limitation). D-090 to D-093 were added before the release and are open in it.
 After the D-094 fix (2026-11-02, branch `fix/select-hint-scene-tabs`): 27 open, unchanged (0 release-blocking, 0 Major, 8 Minor, 19 Limitation). D-094 (Minor) was found in the README screenshots and is fixed on that branch; no other row changed status.
 After R112 (2026-11-06): 29 open (0 release-blocking, 0 Major, 8 Minor, 21 Limitation). D-097 and D-098 (Minor) are fixed by R112; D-099 and D-100 (Limitation) are added and open. D-095 and D-096 are fixed before this line and not counted here. The 1.7.0 record `G-1.7.0` is unchanged.
+At 1.8.0 preparation (2026-11-06): 29 open (0 release-blocking, 0 Major, 8 Minor, 21 Limitation), unchanged from the line above. No new defect was found by the preparation, so no row was added. D-087 and D-090 to D-093 stay open, and D-099 and D-100 stay open as the 1.8.0 limits (the RC record, G-1.8.0, gives the count at the RC).
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
