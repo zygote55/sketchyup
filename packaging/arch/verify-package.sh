@@ -320,6 +320,46 @@ PYOVER
   runuser -u builder -- "$prior_release_cli" --validate-native "$over_save" > /dev/null
   cmp "$over_save" "$over_save.before"
   printf '\nPrior release opened the 153,000-vertex model unchanged, within its 300,000-vertex unique limit.\n'
+  # The raised GLB visible-face cap (R112, 1.8.0): a model of 153,000 visible faces, over the 100,000 that 1.7.0
+  # exports. This package exports it, and the released CLI opens it unchanged and refuses the export with its own
+  # message, creating no directory. It is made here, not committed: a 9,000-sided prism (9,002 faces) placed 17
+  # times. (A model over the 256 MiB snapshot charge of 1.7.0 is not made: it needs hidden bodies and was not cheap.)
+  export_script=/work/acceptance/prior-release/over-visible-face-cap.json
+  export_save=/work/acceptance/prior-release/over-visible-face-cap.sketchyup
+  python - "$export_script" <<'PYEXPORT'
+import json, math, sys
+sides = 9000
+loop = []
+for point in range(sides):
+    angle = 2.0 * math.pi * point / sides
+    loop.append([round(100.0 * math.cos(angle), 4), round(100.0 * math.sin(angle), 4), 0])
+steps = [
+    {"command": "geometry.face", "name": "Prism", "loops": [loop]},
+    {"command": "geometry.push_pull", "body": "1", "face": str(sides + 1), "distance": 50},
+    {"command": "component.create", "body": "1", "name": "Prism"},
+]
+for index in range(17):
+    steps.append({"command": "component.instance", "definition": "1",
+                  "matrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 300.0 * index, 0, 0, 1]})
+with open(sys.argv[1], 'w') as handle:
+    json.dump(steps, handle)
+PYEXPORT
+  runuser -u builder -- sketchyup-cli --script "$export_script" --output "$export_save" > /dev/null
+  runuser -u builder -- sketchyup-cli --validate-native "$export_save" |
+    jq -e '.valid and .documentVersion == 26' > /dev/null
+  runuser -u builder -- sketchyup-cli --input "$export_save" --export-glb /work/acceptance/prior-release/over-visible-face-cap-glb > /dev/null
+  jq -e '.visibleTriangles > 100000' /work/acceptance/prior-release/over-visible-face-cap-glb/manifest.json > /dev/null
+  test -s /work/acceptance/prior-release/over-visible-face-cap-glb/scene.glb
+  cp "$export_save" "$export_save.before"
+  if runuser -u builder -- "$prior_release_cli" --input "$export_save" --export-glb /work/acceptance/prior-release/over-visible-face-cap-prior-glb > /dev/null 2> "$export_save.stderr"; then
+    echo "Prior release exported a model over its visible-face cap: $export_save" >&2
+    exit 1
+  fi
+  jq -e '.status == "failed" and .error == "GLB has too many visible faces"' "$export_save.stderr" > /dev/null
+  [[ ! -e /work/acceptance/prior-release/over-visible-face-cap-prior-glb ]]
+  runuser -u builder -- "$prior_release_cli" --validate-native "$export_save" > /dev/null
+  cmp "$export_save" "$export_save.before"
+  printf 'Prior release opened the 17-placement prism model unchanged and refused its GLB export with "GLB has too many visible faces", creating no directory.\n'
   printf 'Prior release reads schemas up to %s: refused %s newer fixtures unchanged, opened unchanged this package'"'"'s schema-35 reference-image save, and accepted its sheet-free save.\n' \
     "$prior_reads" "$newer_fixtures"
 fi
