@@ -111,3 +111,13 @@ Blender is an optional external application, not linked or bundled with SketchyU
 
 R057.d adds sided export fixtures, actual Cycles pixels and malformed-pair rejection
 through `scripts/verify-blender-sides.py`; all eleven GLBs pass the same validator.
+
+## R112 note: caps
+
+Dated 2026-11-06 (R112, 1.8.0, owner approval). The export's visible-face cap is 600,000 faces, not 100,000,
+and the manifest bound is 192 MiB, not 128 MiB. The cap equals the materialized face limit of
+[ADR 0005](0005-document-protocol.md#r112-snapshot-and-glb-limits-180), so a valid document with everything
+visible exports in full. A 600,000-face export writes a 175.2 MiB manifest (measured). The 2,000,000
+face-vertex references and 1,000,000 triangles caps, the 256 MiB binary, the 16 MiB JSON and the 20,000-body
+render snapshot are unchanged. The export at the cap adds about 278 MiB above a loaded model; that transient
+is the open memory decision in [R082w v4](../verification/R082w-memory-budget-v4.md).
