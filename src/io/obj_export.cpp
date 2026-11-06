@@ -262,7 +262,7 @@ struct Writer {
     }
     ObjExport run() {
         options.validate();
-        require(doc.readSnapshotBytes() <= 256 * 1024 * 1024,
+        require(withinReadSnapshotBudget(doc, Document::readSnapshotByteLimit),
                 "OBJ export exceeds document snapshot budget");
         for (const auto &[id, b] : doc.bodies()) {
             if (b->kind == BodyKind::ReferenceImage) {

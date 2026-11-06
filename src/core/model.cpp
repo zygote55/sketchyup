@@ -597,6 +597,9 @@ size_t recordBytes(const Records &records, const Records *base, Bytes bytesOf) {
 }
 } // namespace
 size_t Document::readSnapshotBytes() const { return chargedBytes(nullptr); }
+bool withinReadSnapshotBudget(const Document &doc, size_t limit) {
+    return doc.readSnapshotBytes() <= limit;
+}
 size_t Document::bytesNotSharedWith(const Document &base) const { return chargedBytes(&base); }
 size_t Document::chargedBytes(const Document *base) const {
     size_t result = sizeof(Document) + identity_.size() + 256;

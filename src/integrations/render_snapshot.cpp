@@ -342,7 +342,8 @@ SourceCredits viewDemCredits(const Document &document, const RenderSnapshot &sna
 RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions options,
                                        SelectionSet hidden) {
     validateRenderSettings(options.settings);
-    require(document.readSnapshotBytes() <= 256 * 1024 * 1024, "Render snapshot exceeds 256 MiB");
+    require(withinReadSnapshotBudget(document, Document::readSnapshotByteLimit),
+            "Render snapshot exceeds the read-snapshot budget");
     require(document.bodies().size() <= renderSnapshotBodyLimit && hidden.size() <= 10000,
             "Render snapshot contains too many records");
     for (auto entity : hidden) {

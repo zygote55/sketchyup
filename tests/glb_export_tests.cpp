@@ -107,7 +107,7 @@ template <class F> std::string refusal(F operation) {
     return {};
 }
 // R099.f: the limits a large capture meets. A terrain's triangles count against the terrain class
-// (ADR 0168), not the 100,000-face modelling limit. The manifest bound is 128 MiB: exactly the
+// (ADR 0168), not the modelling face limit. The manifest bound is 192 MiB (R112): exactly the
 // bound is written, one byte more is refused by name. The render snapshot keeps its 20,000-body
 // limit: 6,666 placements of the 12-face part are 19,998 bodies, and 6,667 are 20,001.
 // R107.c1 (ADR 0181 §3.3, §3.4, V6): a scene that holds DEM terrain carries the credit in asset.copyright
@@ -182,11 +182,11 @@ void checkLargeCaptureLimits(const QString &directory) {
     // The indented manifest is the published size; the padding adds one byte per character.
     const auto room = glbManifestByteLimit - QJsonDocument(scene(0).manifest).toJson().size();
     check(refusal([&] { writeGlbExport(scene(room + 1), directory + "/over"); }) ==
-              "GLB manifest exceeds 128 MiB",
-          "A manifest one byte over 128 MiB is refused by name");
+              "GLB manifest exceeds 192 MiB",
+          "A manifest one byte over 192 MiB is refused by name");
     writeGlbExport(scene(room), directory + "/exact");
     check(QFileInfo(directory + "/exact/manifest.json").size() == glbManifestByteLimit,
-          "A manifest of exactly 128 MiB is written");
+          "A manifest of exactly 192 MiB is written");
     Document parts, over;
     report_fixtures::buildPartsModel(parts, 6666, false);
     report_fixtures::buildPartsModel(over, 6667, false);

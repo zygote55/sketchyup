@@ -211,7 +211,7 @@ struct Writer {
         const std::map<double, int> units{{.0254, 1}, {.3048, 2}, {.001, 4}, {.01, 5}, {1, 6}};
         require(units.contains(scale),
                 "DXF export units must be inches, feet, millimetres, centimetres or metres");
-        require(doc.readSnapshotBytes() <= 256 * 1024 * 1024,
+        require(withinReadSnapshotBudget(doc, Document::readSnapshotByteLimit),
                 "DXF export exceeds native snapshot budget");
         layers[0] = "0";
         std::set<QString> names{"0"};

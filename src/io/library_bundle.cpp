@@ -29,7 +29,8 @@ void validateMetadata(const TemplateMetadata &m, const Document &doc) {
         require(bool(asset->payload),
                 "Restore missing embedded assets before saving a template bundle");
     }
-    require(doc.readSnapshotBytes() <= 256 * 1024 * 1024, "Template records exceed memory budget");
+    require(withinReadSnapshotBudget(doc, Document::readSnapshotByteLimit),
+            "Template records exceed memory budget");
 }
 std::pair<int, int> thumbnail(const QByteArray &png) {
     require(png.size() >= 33 && png.size() <= thumbnailLimit &&
