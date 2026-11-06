@@ -22,7 +22,8 @@ template <class F> void rejects(Document &doc, F run) {
     const auto definitions = doc.definitions();
     const auto instances = doc.instances();
     const auto hosted = doc.hostedRecords();
-    const auto revision = doc.revision(), next = doc.nextId(), history = doc.historyBytes();
+    const auto revision = doc.revision(), next = doc.nextId();
+    const auto history = doc.historyBytes();
     try {
         run();
     } catch (const std::exception &) {

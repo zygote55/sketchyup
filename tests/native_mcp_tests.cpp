@@ -4,6 +4,7 @@
 #include "automation/local_mcp.hpp"
 #include "automation/mcp.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -89,7 +90,7 @@ int main(int argc, char **argv) {
         std::cout << QJsonDocument(nativeMcpCapabilities()).toJson().toStdString();
         return 0;
     }
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     Window window;
     try {
         window.openPath("examples/m4-room-study.sketchyup");

@@ -21,21 +21,22 @@
 #include "app/terrain_preview_worker.hpp"
 #include "app/terrain_replay_job.hpp"
 #include "app/terrain_tool_strip.hpp"
-#include "core/terrain_display.hpp"
-#include "terrain_run_hold.hpp"
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "automation/terrain_commands.hpp"
+#include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "core/terrain.hpp"
+#include "core/terrain_display.hpp"
+#include "core/terrain_drape.hpp"
 #include "core/terrain_edit_mesh.hpp"
 #include "core/terrain_sculpt.hpp"
 #include "core/terrain_source_edit.hpp"
 #include "core/terrain_sources.hpp"
 #include "core/terrain_stamp.hpp"
-#include "core/terrain_drape.hpp"
-#include "core/groups.hpp"
-#include "core/materials.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
+#include "terrain_run_hold.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -47,6 +48,7 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMouseEvent>
@@ -55,14 +57,13 @@
 #include <QSettings>
 #include <QSignalSpy>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
-#include <QTabWidget>
 #include <QTreeWidget>
-#include <QListWidget>
 #include <QWidgetAction>
 #include <cmath>
 #include <iostream>
@@ -1922,7 +1923,7 @@ void padOptionsAndRefusal(Window &window) {
     QTest::keyClicks(offset, "15cm");
     QTest::keyClick(offset, Qt::Key_Return);
     check(std::abs(view->terrainOptions().padOffset - 0.15) < 1e-12 &&
-              std::abs(QSettings("SketchyUp", "SketchyUp").value("terrainPadOffset").toDouble() - 0.15) < 1e-12,
+              std::abs(Preferences().value("terrainPadOffset").toDouble() - 0.15) < 1e-12,
           "the pad offset is set and remembered");
     QTest::keyClick(offset, Qt::Key_Escape);
     // Fixed width replaces the slopes with Width.
@@ -2361,8 +2362,7 @@ int main(int argc, char **argv) {
         if (QString(argv[i]) == "--only")
             only = argv[i + 1];
         if (QString(argv[i]) == "--text-percent")
-            QSettings("SketchyUp", "SketchyUp")
-                .setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
+            Preferences().setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
     }
     Window window;
     // Screenshots are taken tall enough for the whole tool rail (its Terrain slot follows Tape,

@@ -6,6 +6,7 @@
 #include "app/render_jobs.hpp"
 #include "core/scenes.hpp"
 #include "integrations/animation_export.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QCheckBox>
 #include <QComboBox>
@@ -428,7 +429,7 @@ struct RenderPanel::Impl {
         if (width)
             return {width->value(), height->value(), samples->value(), 0,
                     engine->currentIndex() == 1 ? RenderEngine::Eevee : RenderEngine::Cycles};
-        QSettings preferences("SketchyUp", "SketchyUp");
+        Preferences preferences;
         return {preferences.value("render/width", 1024).toInt(),
                 preferences.value("render/height", 768).toInt(),
                 preferences.value("render/samples", 32).toInt(), 0, RenderEngine::Cycles};
@@ -473,7 +474,7 @@ struct RenderPanel::Impl {
         auto *form = new QFormLayout;
         form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
         form->setRowWrapPolicy(QFormLayout::WrapLongRows);
-        QSettings preferences("SketchyUp", "SketchyUp");
+        Preferences preferences;
         path = new QLineEdit(preferences.value("render/blenderPath").toString());
         path->setObjectName("blenderPath");
         path->setPlaceholderText("Discover blender on PATH");
@@ -646,7 +647,7 @@ struct RenderPanel::Impl {
                 worker.backend = backend->currentText();
                 worker.deviceId = device->currentData().toString();
                 worker.allowCpuFallback = fallback->isChecked();
-                QSettings preferences("SketchyUp", "SketchyUp");
+                Preferences preferences;
                 preferences.setValue("render/blenderPath", worker.executable);
                 preferences.setValue("render/width", width->value());
                 preferences.setValue("render/height", height->value());

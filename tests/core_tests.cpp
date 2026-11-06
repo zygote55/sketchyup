@@ -5,7 +5,9 @@
 #include <limits>
 #include <random>
 #include <string>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -35,7 +37,12 @@ void capped(const char *message, const std::function<bool()> &body) {
     const pid_t child = fork();
     require(child >= 0, "fork for a capped tessellation check");
     if (child == 0) {
+#ifdef __linux__
         prctl(PR_SET_DUMPABLE, 0);
+#else
+        const rlimit noCore{0, 0};
+        setrlimit(RLIMIT_CORE, &noCore);
+#endif
 #if !defined(__SANITIZE_ADDRESS__)
         const rlimit cap{2ull << 30, 2ull << 30};
         setrlimit(RLIMIT_AS, &cap);

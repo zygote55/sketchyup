@@ -1,6 +1,8 @@
 #include "automation/commands.hpp"
 #include "automation/transaction_coordinator.hpp"
+#include "child_process.hpp"
 #include "core/components.hpp"
+#include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -8,7 +10,6 @@
 #include <csignal>
 #include <future>
 #include <iostream>
-#include <sys/wait.h>
 #include <unistd.h>
 using namespace sketchy;
 void check(bool ok, const char *message) {
@@ -49,8 +50,37 @@ QJsonObject query(const Document &doc, QString name, QJsonObject fields = {}) {
     fields["query"] = name;
     return fields;
 }
+// An actor killed after its durable commit: --child <document> <root>. The document is the
+// parent's (its container, in a file); the actor is killed after the outcome's directory sync,
+// before it publishes the live document.
+int killedActor(const QStringList &arguments) {
+    QFile file(arguments[0]);
+    if (!file.open(QIODevice::ReadOnly))
+        return 4;
+    const auto bytes = file.readAll();
+    const auto room = decodeContainer(bytes);
+    if (encodeContainer(room) != bytes)
+        return 4; // not the parent's document
+    bool armed = false;
+    try {
+        TransactionCoordinator::Options options;
+        options.fault = [&](auto phase) {
+            if (armed && phase == OutcomeStore::Phase::AfterDirectorySync)
+                ::kill(::getpid(), SIGKILL);
+        };
+        TransactionCoordinator actor(room, arguments[1], options);
+        const auto p = actor.prepare(batch(actor.document()));
+        armed = true;
+        actor.commit(p["requestId"].toString(), p["payloadHash"].toString());
+    } catch (...) {
+        return 2;
+    }
+    return 3;
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (const auto child = childArguments())
+        return killedActor(*child);
     try {
         QTemporaryDir files;
         check(files.isValid(), "Transaction test directory");
@@ -352,28 +382,15 @@ int main(int argc, char **argv) {
         }
         {
             const auto killedRoot = files.path() + "/killed-coordinator";
-            const auto child = ::fork();
-            check(child >= 0, "Fork transaction actor");
-            if (child == 0) {
-                bool armed = false;
-                try {
-                    TransactionCoordinator::Options options;
-                    options.fault = [&](auto phase) {
-                        if (armed && phase == OutcomeStore::Phase::AfterDirectorySync)
-                            ::kill(::getpid(), SIGKILL);
-                    };
-                    TransactionCoordinator actor(room, killedRoot, options);
-                    const auto p = actor.prepare(batch(actor.document()));
-                    armed = true;
-                    actor.commit(p["requestId"].toString(), p["payloadHash"].toString());
-                } catch (...) {
-                    ::_exit(2);
-                }
-                ::_exit(3);
+            const auto roomFile = files.path() + "/killed-room";
+            {
+                QFile file(roomFile);
+                check(file.open(QIODevice::WriteOnly) && file.write(original) == original.size(),
+                      "Write the actor's document");
             }
-            int status = 0;
-            check(::waitpid(child, &status, 0) == child && WIFSIGNALED(status) &&
-                      WTERMSIG(status) == SIGKILL,
+            check(encodeContainer(room) == original, "The actor's document is still the room");
+            const int status = runChild({roomFile, killedRoot});
+            check(killedBy(status, SIGKILL),
                   "Actor must die after durable commit before live publication");
             TransactionCoordinator::Options options;
             options.mode = TransactionCoordinator::OpenMode::RecoverLatest;

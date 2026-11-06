@@ -21,12 +21,16 @@
 //     same result as the same probes run by Blender directly, without a sandbox (ADR 0183
 //     section 6.6). A render that writes a PNG through the launcher is blender_job_tests --real.
 // The stand-ins are hard links to blender_job_tests (tests/blender_stand_in.hpp). Landlock must be
-// available: the checks fail, not skip, when it is not (ADR 0183 decision 9).
+// available: the checks fail, not skip, when it is not (ADR 0183 decision 9). On macOS the layers
+// are one Seatbelt profile: the probes expect its refusals (EPERM, never a kill;
+// tests/sandbox_platform.hpp), and the negative control shows the profile's refusal instead of the
+// kill default, which macOS does not have.
 #include "blender_stand_in.hpp"
 #include "integrations/blender_job.hpp"
 #include "integrations/blender_sandbox_policy.hpp"
 #include "sandbox/sandbox.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
+#include "sandbox_platform.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -48,9 +52,11 @@
 #include <fcntl.h>
 #include <functional>
 #include <iostream>
+#include <netinet/in.h>
 #include <string>
 #include <sys/ptrace.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
@@ -126,13 +132,20 @@ bsp::Layout layoutIn(const std::string &scratch) {
     return layout;
 }
 
-// The policy of an attempt, prepared and entered in this child; the attack runs after it.
-int armed(const bsp::Layout &layout, const std::function<int()> &attack,
-          const sandbox::ApplyOptions &options = {}) {
-    sandbox::PreparedPolicy prepared;
-    if (prepared.prepare(bsp::policy(layout), options) || prepared.enter())
-        return 3;
-    return attack();
+// A connect that leaves the process: 0 when the sandbox refuses it (EPERM), 1 otherwise. Nothing
+// listens on the loopback discard port, so a connect that reached the network is ECONNREFUSED.
+int connectRefused() {
+    const int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1)
+        return errno == EPERM ? 0 : 1;
+    sockaddr_in loopback{};
+    loopback.sin_family = AF_INET;
+    loopback.sin_port = htons(9);
+    loopback.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    return connect(fd, reinterpret_cast<sockaddr *>(&loopback), sizeof loopback) == -1 &&
+                   errno == EPERM
+               ? 0
+               : 1;
 }
 
 void testPolicyBuilds(const std::string &scratch) {
@@ -166,38 +179,55 @@ void testAttacks(const std::string &scratch) {
         outside.write("outside");
         outside.close();
     }
+    // The policy is prepared here, before each fork, and entered in the child, as the job does
+    // (ADR 0183 section 4.1); macOS also stops a forked child of this process that builds it.
     const auto layout = layoutIn(scratch);
     const auto refused = [&](const std::function<int()> &attack) {
-        return inChild(scratch + "/attack.out", [&] { return armed(layout, attack); });
+        sandbox::PreparedPolicy prepared;
+        const bool ready = !prepared.prepare(bsp::policy(layout));
+        return inChild(scratch + "/attack.out", [&] {
+            if (!ready || prepared.enter())
+                return 3;
+            return attack();
+        });
     };
+    const std::string refusal = std::string(" (") + sandbox_platform::refusedPathName + ")";
 
-    const auto socketCall = refused([] {
-        const int fd = socket(AF_INET, SOCK_STREAM, 0);
-        return (fd == -1 && errno == EPERM) ? 0 : 1;
-    });
+    // Linux refuses the socket itself; Seatbelt refuses its use, so macOS checks a connect.
+    const auto socketCall = refused(connectRefused);
     check(!socketCall.signaled && socketCall.code == 0, "a socket is refused (EPERM)");
 
     const auto unixSocket = refused([] {
         const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        return (fd == -1 && errno == EPERM) ? 0 : 1;
+        if (fd == -1)
+            return errno == EPERM ? 0 : 1;
+        // macOS: a connect to the system's DNS service socket
+        sockaddr_un address{};
+        address.sun_family = AF_UNIX;
+        std::strcpy(address.sun_path, "/private/var/run/mDNSResponder");
+        return connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof address) == -1 &&
+                       errno == EPERM
+                   ? 0
+                   : 1;
     });
     check(!unixSocket.signaled && unixSocket.code == 0, "a UNIX socket is refused (EPERM)");
 
     const auto shell = refused([] {
         char *const argv[] = {const_cast<char *>("/bin/sh"), const_cast<char *>("-c"),
-                              const_cast<char *>("true"), nullptr};
+                              const_cast<char *>("exit 7"), nullptr};
         execv("/bin/sh", argv);
-        return (errno == EACCES) ? 0 : 1;
+        return (errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
-    check(!shell.signaled && shell.code == 0, "an exec of /bin/sh is refused (EACCES)");
+    check(!shell.signaled && shell.code == 0, "an exec of /bin/sh is refused" + refusal);
 
     const auto otherProgram = refused([] {
-        char *const argv[] = {const_cast<char *>("/usr/bin/true"), nullptr};
-        execv("/usr/bin/true", argv);
-        return (errno == EACCES) ? 0 : 1;
+        // false: a program that ran would exit 1, not the probe's 0
+        char *const argv[] = {const_cast<char *>("/usr/bin/false"), nullptr};
+        execv("/usr/bin/false", argv);
+        return (errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!otherProgram.signaled && otherProgram.code == 0,
-          "an exec of another program than Blender is refused (EACCES)");
+          "an exec of another program than Blender is refused" + refusal);
 
     const auto forked = refused([] {
         const pid_t pid = fork();
@@ -207,24 +237,30 @@ void testAttacks(const std::string &scratch) {
     });
     check(!forked.signaled && forked.code == 0, "a fork is refused (EPERM)");
 
+#ifdef __linux__
+    // The policy does not name ptrace, so the filter kills the child. macOS has no such probe:
+    // Seatbelt does not govern PT_TRACE_ME, and macOS refuses an attach to a process without the
+    // debugging entitlement whether a profile is in force or not, so a refusal there would not show
+    // the profile's.
     const auto traced = refused([] {
         ptrace(PTRACE_TRACEME, 0, nullptr, nullptr);
         return 0;
     });
     check(traced.signaled && traced.signal == SIGSYS, "a ptrace is killed with SIGSYS");
+#endif
 
     const auto passwd = refused([] {
         const int fd = open("/etc/passwd", O_RDONLY);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
-    check(!passwd.signaled && passwd.code == 0, "/etc/passwd is refused (EACCES)");
+    check(!passwd.signaled && passwd.code == 0, "/etc/passwd is refused" + refusal);
 
     const auto writeOutside = refused([&] {
         const int fd = open(sibling.c_str(), O_WRONLY | O_TRUNC);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!writeOutside.signaled && writeOutside.code == 0,
-          "a write outside the attempt directory is refused (EACCES)");
+          "a write outside the attempt directory is refused" + refusal);
 
     const auto writeInside = refused([&] {
         const int fd = open((attempt + "/inside.txt").c_str(), O_WRONLY | O_CREAT, 0600);
@@ -248,6 +284,26 @@ void testAttacks(const std::string &scratch) {
 }
 
 void testNegativeControl(const std::string &scratch) {
+#ifdef __APPLE__
+    // macOS has no kill default. Its control shows that the refusal above is the profile's: the
+    // Blender policy with its socket rules allowed instead lets the same connect reach the network
+    // (ECONNREFUSED, nothing listens), where the policy itself refuses it (EPERM).
+    sandbox::Policy policy = bsp::policy(layoutIn(scratch));
+    for (sandbox::SyscallRule &rule : policy.syscalls)
+        if (rule.name == "socket" || rule.name == "connect")
+            rule.action = sandbox::Action::allow;
+    sandbox::PreparedPolicy prepared;
+    const bool ready = !prepared.prepare(policy);
+    const auto outcome = inChild(scratch + "/negative.out", [&] {
+        if (!ready || prepared.enter())
+            return 3;
+        return connectRefused();
+    });
+    check(!outcome.signaled && outcome.code == 1,
+          "the negative control: with its socket rules allowed, the policy lets a connect through "
+          "(code " +
+              std::to_string(outcome.code) + ")");
+#else
     // The Blender policy without its socket entries: a socket call is not named, so it is killed.
     static const char *const sockets[] = {"socket",     "socketpair", "bind",    "connect",
                                           "listen",     "accept",     "accept4", "sendto",
@@ -275,6 +331,7 @@ void testNegativeControl(const std::string &scratch) {
     check(outcome.signaled && outcome.signal == SIGSYS,
           "the negative control: without its socket entries the policy kills the first socket "
           "(SIGSYS)");
+#endif
 }
 
 void testFailClosed(const std::string &scratch) {
@@ -290,9 +347,10 @@ void testFailClosed(const std::string &scratch) {
     // In the child: a no_new_privs or seccomp failure exits 70 and writes the layer's name, and the
     // attack that follows is never reached.
     for (const sandbox::Layer layer : {sandbox::Layer::noNewPrivileges, sandbox::Layer::seccomp}) {
+        sandbox::PreparedPolicy prepared;
+        const bool ready = !prepared.prepare(bsp::policy(layout), {sandbox::Failure{layer, EPERM}});
         const auto simulated = inChild(scratch + "/simulated.out", [&] {
-            sandbox::PreparedPolicy prepared;
-            if (prepared.prepare(bsp::policy(layout), {sandbox::Failure{layer, EPERM}}))
+            if (!ready)
                 return 3;
             if (const auto failure = prepared.enter()) {
                 sandbox::writeUnavailableLine(*failure);

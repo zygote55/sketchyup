@@ -11,6 +11,7 @@
 #include "app/window.hpp"
 #include "component_parameter_fixture.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -522,7 +523,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     Window window;
     window.resize(1280, 900);
     try {

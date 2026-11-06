@@ -1,4 +1,5 @@
 #include "automation/commands.hpp"
+#include "child_process.hpp"
 #include "io/document_io.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -9,7 +10,6 @@
 #include <csignal>
 #include <iostream>
 #include <sys/resource.h>
-#include <sys/wait.h>
 #include <unistd.h>
 using namespace sketchy;
 void require(bool value, const char *message) {
@@ -25,8 +25,27 @@ template <class F> void rejects(F f) {
     }
     require(failed, "Expected rejection");
 }
+// A save under a 64-byte file size limit (set before exec): --child <document> <path>. The
+// document is the parent's (its container, in a file). The save must report the short write.
+int limitedSave(const QStringList &arguments) {
+    QFile file(arguments[0]);
+    if (!file.open(QIODevice::ReadOnly))
+        return 4;
+    const auto bytes = file.readAll();
+    auto doc = decodeContainer(bytes);
+    if (encodeContainer(doc) != bytes)
+        return 4; // not the parent's document
+    try {
+        saveDocument(doc, arguments[1]);
+        return 2;
+    } catch (const std::exception &) {
+        return 0;
+    }
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (const auto child = childArguments())
+        return limitedSave(*child);
     try {
         Document d;
         auto id = d.addFace({{{0, 0, 0}, {4, 0, 0}, {4, 4, 0}, {0, 4, 0}},
@@ -163,24 +182,20 @@ int main(int argc, char **argv) {
         rejects([&] { decodeDocument(QByteArray(32 * 1024 * 1024 + 1, ' ')); });
         // Force a short write without filling the developer's disk.
         auto beforeFailure = encodeDocument(loadDocument(path));
-        auto child = fork();
-        require(child >= 0, "fork");
-        if (child == 0) {
+        const auto childDocument = dir.filePath("limited-document");
+        {
+            const auto container = encodeContainer(d);
+            QFile file(childDocument);
+            require(file.open(QIODevice::WriteOnly) && file.write(container) == container.size(),
+                    "Write the limited save's document");
+        }
+        const int status = runChild({childDocument, path}, [] {
             std::signal(SIGXFSZ, SIG_IGN);
             rlimit limit{64, 64};
             if (setrlimit(RLIMIT_FSIZE, &limit) != 0)
                 _exit(3);
-            try {
-                saveDocument(d, path);
-                _exit(2);
-            } catch (const std::exception &) {
-                _exit(0);
-            }
-        }
-        int status = 0;
-        waitpid(child, &status, 0);
-        require(WIFEXITED(status) && WEXITSTATUS(status) == 0,
-                "Short write is reported as failure");
+        });
+        require(exitedWith(status, 0), "Short write is reported as failure");
         require(encodeDocument(loadDocument(path)) == beforeFailure,
                 "Short write preserves previous file");
         Document batch;

@@ -1,4 +1,5 @@
 #include "app/quantities_panel.hpp"
+#include "app/item_activation.hpp"
 #include "app/quantities_dialogs.hpp"
 #include "app/quantities_job.hpp"
 #include "automation/inspection.hpp"
@@ -542,6 +543,7 @@ void QuantitiesPanel::buildSchedules() {
         if (auto *item = scheduleList_->currentItem())
             deleteSchedule(item->data(Qt::UserRole).toString());
     });
+    activateOnReturn(scheduleList_);
     connect(scheduleList_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem *item) { runSchedule(item->data(Qt::UserRole).toString()); });
     connect(scheduleList_, &QListWidget::customContextMenuRequested, this, [this](QPoint at) {

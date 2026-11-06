@@ -16,6 +16,7 @@
 #include "core/drawing_sheets.hpp"
 #include "core/model_style.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
@@ -279,7 +280,7 @@ int main(int argc, char **argv) {
     AssistantPanel::HostServices services;
     services.outcomeRoot = files.filePath("isolated-outcomes");
     services.credentialExecutable = "/bin/false";
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     Window window(nullptr, services);
     try {
         const auto captureDir = qEnvironmentVariable("SKETCHYUP_FOCUS_CAPTURE_DIR");
@@ -1041,7 +1042,7 @@ int main(int argc, char **argv) {
         const auto shotDir = qEnvironmentVariable("SKETCHYUP_FOCUS_SCREENSHOT_DIR");
         for (int percent : {100, 200}) {
             textPercent = percent;
-            QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", percent);
+            Preferences().setValue("interfaceTextPercent", percent);
             for (int mode : {1, 2}) {
                 theme = mode == 1 ? "light" : "dark";
                 window.findChild<QAction *>("view.theme.1")->trigger();

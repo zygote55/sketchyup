@@ -2,6 +2,7 @@
 #include "app/window.hpp"
 #include "core/entity_measure.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QApplication>
 #include <QDialog>
 #include <QLineEdit>
@@ -96,8 +97,8 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("defaultUnits", "m");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("defaultUnits", "m");
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     Window window;
     try {
         window.resize(1200, 850);

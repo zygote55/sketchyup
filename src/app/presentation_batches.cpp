@@ -1,4 +1,5 @@
 #include "app/presentation_batches.hpp"
+#include "io/preferences.hpp"
 #include "io/presentation_io.hpp"
 #include <QFile>
 #include <QFileInfo>
@@ -14,7 +15,7 @@ namespace {
 
 // The render sheet's Blender executable, shared with the batch dialog.
 QString blenderPath() {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     return preferences.value("render/blenderPath").toString().trimmed();
 }
 

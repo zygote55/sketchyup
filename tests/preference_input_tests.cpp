@@ -2,6 +2,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QSettings>
@@ -44,7 +45,7 @@ int main(int argc, char **argv) {
                               {"render/blenderPath", files.filePath("unused-blender")},
                               {"futureNamespace/data", QByteArray("opaque\0payload", 14)}};
         {
-            QSettings settings;
+            ApplicationPreferences settings;
             for (auto it = preserved.cbegin(); it != preserved.cend(); ++it)
                 settings.setValue(it.key(), it.value());
             settings.setValue("theme", 2);
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
             }
             check(encodeContainer(window.document()) == before && !window.document().canUndo(),
                   "Preference changes preserve model content and history");
-            QSettings settings;
+            ApplicationPreferences settings;
             settings.sync();
             check(settings.status() == QSettings::NoError, "Preference store remains writable");
             for (auto it = preserved.cbegin(); it != preserved.cend(); ++it)

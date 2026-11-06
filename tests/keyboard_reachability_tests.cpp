@@ -15,6 +15,7 @@
 #include "core/components.hpp"
 #include "core/drawing_sheets.hpp"
 #include "core/scenes.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -1101,10 +1102,9 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     // Never probe an installed Blender: opening the sheet checks the saved path first.
-    QSettings("SketchyUp", "SketchyUp")
-        .setValue("render/blenderPath", QDir(files.path()).filePath("absent-blender"));
+    Preferences().setValue("render/blenderPath", QDir(files.path()).filePath("absent-blender"));
     Window window;
     try {
         window.resize(1280, 900);

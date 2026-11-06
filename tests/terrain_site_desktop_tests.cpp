@@ -19,6 +19,7 @@
 #include "core/terrain.hpp"
 #include "core/terrain_display.hpp"
 #include "geo/geographic.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -700,7 +701,7 @@ void siteOriginToggle(Window &window) {
     select(window, 0);
     toggle->trigger();
     check(toggle->isChecked() && view->siteOriginVisible() && view->siteOriginMarkerShown() &&
-              QSettings("SketchyUp", "SketchyUp").value("siteOriginVisible").toBool(),
+              Preferences().value("siteOriginVisible").toBool(),
           "Checked: always shown, and the choice is saved");
     const auto &doc = window.document();
     check(view->siteOriginMarkerLabel() ==
@@ -718,7 +719,7 @@ void siteOriginToggle(Window &window) {
     }
     toggle->trigger();
     check(!toggle->isChecked() && !view->siteOriginMarkerShown() &&
-              !QSettings("SketchyUp", "SketchyUp").value("siteOriginVisible").toBool(),
+              !Preferences().value("siteOriginVisible").toBool(),
           "Unchecked again: hidden and saved");
     fresh(window);
     toggle->trigger();
@@ -737,8 +738,7 @@ int main(int argc, char **argv) {
         if (QString(argv[i]) == "--only")
             only = argv[i + 1];
         if (QString(argv[i]) == "--text-percent")
-            QSettings("SketchyUp", "SketchyUp")
-                .setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
+            Preferences().setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
     }
     Window window;
     window.resize(1280, 860);

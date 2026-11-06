@@ -13,7 +13,8 @@ void check(bool value, const char *message) {
 void near(Vec3 a, Vec3 b, const char *message) { check(length(a - b) < 1e-6, message); }
 template <class F> void rejects(Document &doc, F operation) {
     const auto stamp = doc.saveStamp();
-    const auto revision = doc.revision(), history = doc.historyBytes();
+    const auto revision = doc.revision();
+    const auto history = doc.historyBytes();
     try {
         operation();
     } catch (const std::exception &) {

@@ -151,7 +151,7 @@ QString importStepBody(const QString &package, const int sleepSeconds, const boo
 )STEP")
                                      : (QString("    echo 'R ") + reportLine + QString("'\n    exit 0\n"));
     // The copy, the read phase, the sleep, and the tail.
-    QString head = QString("    /usr/bin/cp '") + package + QString("' \"$out\" || exit 1\n");
+    QString head = QString("    /bin/cp '") + package + QString("' \"$out\" || exit 1\n");
     head += QString("    echo 'P phase read'\n    /bin/sleep ") + QString::number(sleepSeconds) + "\n";
     return args + head + tail;
 }

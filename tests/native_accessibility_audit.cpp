@@ -1,5 +1,6 @@
 #include "app/window.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include "native_dialog_cases.hpp"
 #include <QAbstractSpinBox>
 #include <QAccessible>
@@ -210,11 +211,10 @@ int main(int argc, char **argv) {
     AssistantPanel::HostServices services;
     services.outcomeRoot = settings.filePath("isolated-outcomes");
     services.credentialExecutable = "/bin/false";
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     // Render with Blender checks its configured executable when it opens. Point it at a missing
     // file so a system Blender (CI installs one) cannot hold the check, and its button, busy.
-    QSettings("SketchyUp", "SketchyUp")
-        .setValue("render/blenderPath", settings.filePath("absent-blender"));
+    Preferences().setValue("render/blenderPath", settings.filePath("absent-blender"));
     Window window(nullptr, services);
     try {
         if (app.arguments().size() == 2 && app.arguments()[1].startsWith("--dialogs-keyboard=")) {

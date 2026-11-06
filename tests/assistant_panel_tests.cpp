@@ -4,6 +4,7 @@
 #include "integrations/credential_store.hpp"
 #include "integrations/openai_provider.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -274,7 +275,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
     QApplication app(argc, argv);
     try {
-        QSettings prefs("SketchyUp", "SketchyUp");
+        Preferences prefs;
         prefs.setValue("recoverySeconds", 0);
         const auto helper = files.path() + "/secret-tool";
         write(helper, ("#!/bin/sh\nexec " + quote(QCoreApplication::applicationFilePath()) +

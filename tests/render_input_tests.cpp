@@ -6,6 +6,7 @@
 #include "core/entity_measure.hpp"
 #include "core/scenes.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -49,7 +50,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
     QApplication app(argc, argv);
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     preferences.setValue("recoverySeconds", 0);
     preferences.setValue("render/blenderPath", files.path() + "/absent");
     try {

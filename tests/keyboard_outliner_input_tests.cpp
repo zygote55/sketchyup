@@ -1,6 +1,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/groups.hpp"
+#include "io/preferences.hpp"
 #include <QApplication>
 #include <QDialog>
 #include <QLineEdit>
@@ -81,7 +82,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     Window window;
     try {
         auto &doc = window.document();

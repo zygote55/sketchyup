@@ -4,10 +4,13 @@
 // system calls only: PreparedPolicy::enter runs them after fork().
 #include "sandbox/sandbox.hpp"
 
+#ifdef __linux__
 #include <linux/filter.h>
+#endif
 
 #include <cstddef>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace sketchyup::sandbox {
@@ -26,7 +29,9 @@ std::optional<Failure> restrictWithRuleset(int rulesetFd) noexcept;
 // own-process rule); they are filled in when the filter is installed, in the process that installs
 // it.
 struct Filter {
+#ifdef __linux__
     std::vector<sock_filter> program;
+#endif
     std::vector<std::size_t> selfSlots;
 };
 
@@ -36,5 +41,27 @@ std::optional<Failure> buildFilter(const std::vector<SyscallRule> &rules, Filter
 
 // Fills in the own-process immediates and installs the program. System calls only.
 std::optional<Failure> installFilter(Filter &filter) noexcept;
+
+#ifdef __APPLE__
+// The Seatbelt layer (macOS), in place of the three Linux layers: one profile that grants the
+// policy's files, and the network, fork, exec and signals only as far as its syscall rules allow
+// them. Everything else is denied with EPERM.
+struct Profile {
+    void *compiled = nullptr; // libsandbox's compiled profile
+    Profile() = default;
+    Profile(const Profile &) = delete;
+    Profile &operator=(const Profile &) = delete;
+    ~Profile();
+};
+
+// The profile's source text (shown by the tests).
+std::string profileText(const Policy &policy);
+
+// Compiles the profile. Returns EINVAL as a failure when libsandbox refuses the text.
+std::optional<Failure> buildProfile(const Policy &policy, Profile &profile);
+
+// Installs a profile built by buildProfile. One call only: a child after fork() may run it.
+std::optional<Failure> applyProfile(Profile &profile) noexcept;
+#endif
 
 } // namespace sketchyup::sandbox

@@ -15,6 +15,7 @@
 #include "component_parameter_fixture.hpp"
 #include "io/component_parameters_io.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -22,8 +23,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QKeyEvent>
-#include <QMouseEvent>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -927,7 +928,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     Window window;
     window.resize(1280, 900);
     try {

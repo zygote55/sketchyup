@@ -1,20 +1,22 @@
 # R093.a (ADR 0165 §7): the parameter expression library must not reference any
 # process, file, network or loader call, nor Qt. Lists the archive's undefined
 # symbols with nm and fails on any match.
-#   cmake -DNM=<nm> -DLIBRARY=<libsketchyup_parameter_expression.a> -P this-file
+#   cmake -DNM=<nm> -DLIBRARY=<libsketchyup_parameter_expression.a> [-DSYMBOL_PREFIX=_] -P this-file
+# nm prints the POSIX format (-P: "name type ..."), which GNU and macOS nm share. SYMBOL_PREFIX is
+# the object format's prefix on C names: Mach-O writes sin as _sin.
 if(NOT NM OR NOT LIBRARY)
   message(FATAL_ERROR "Usage: cmake -DNM=<nm> -DLIBRARY=<archive> -P parameter_expression_symbols.cmake")
 endif()
 if(NOT EXISTS "${LIBRARY}")
   message(FATAL_ERROR "Library not found: ${LIBRARY}")
 endif()
-execute_process(COMMAND "${NM}" -u "${LIBRARY}" OUTPUT_VARIABLE raw RESULT_VARIABLE status)
+execute_process(COMMAND "${NM}" -u -P "${LIBRARY}" OUTPUT_VARIABLE raw RESULT_VARIABLE status)
 if(NOT status EQUAL 0)
-  message(FATAL_ERROR "nm -u failed (${status}) on ${LIBRARY}")
+  message(FATAL_ERROR "nm -u -P failed (${status}) on ${LIBRARY}")
 endif()
-execute_process(COMMAND "${NM}" -u -C "${LIBRARY}" OUTPUT_VARIABLE demangled RESULT_VARIABLE status)
+execute_process(COMMAND "${NM}" -u -P -C "${LIBRARY}" OUTPUT_VARIABLE demangled RESULT_VARIABLE status)
 if(NOT status EQUAL 0)
-  message(FATAL_ERROR "nm -u -C failed (${status}) on ${LIBRARY}")
+  message(FATAL_ERROR "nm -u -P -C failed (${status}) on ${LIBRARY}")
 endif()
 
 set(forbidden
@@ -39,11 +41,18 @@ set(sawLibm OFF)
 string(REPLACE "\n" ";" lines "${raw}")
 foreach(line IN LISTS lines)
   string(STRIP "${line}" line)
-  # "                 U symbol@GLIBC_2.2.5" or "U symbol"
-  if(NOT line MATCHES "^U[ \t]+([^ \t@]+)")
+  # "symbol@GLIBC_2.2.5 U" or "_symbol U 0 0"
+  if(NOT line MATCHES "^([^ \t@]+)[^ \t]*[ \t]+U([ \t]|$)")
     continue()
   endif()
   set(symbol "${CMAKE_MATCH_1}")
+  if(SYMBOL_PREFIX)
+    string(LENGTH "${SYMBOL_PREFIX}" prefixLength)
+    string(SUBSTRING "${symbol}" 0 ${prefixLength} prefix)
+    if(prefix STREQUAL SYMBOL_PREFIX)
+      string(SUBSTRING "${symbol}" ${prefixLength} -1 symbol)
+    endif()
+  endif()
   math(EXPR count "${count} + 1")
   if(symbol STREQUAL "sin")
     set(sawLibm ON)

@@ -1,4 +1,5 @@
 #include "app/catalog_dialog.hpp"
+#include "app/item_activation.hpp"
 
 #include "app/catalog_report.hpp"
 #include "app/component_definition_section.hpp"
@@ -6,6 +7,7 @@
 #include "app/interface_preferences.hpp"
 #include "io/catalog_insert.hpp"
 #include "io/library_bundle.hpp"
+#include "io/preferences.hpp"
 
 #include <QComboBox>
 #include <QDir>
@@ -399,12 +401,9 @@ ExchangeResult runCatalogInsert(const ExchangeWorkerHooks &hooks,
 
 } // namespace
 
-
 CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
     : QDialog(parent), doc_(doc), view_(view),
-      folder_(QSettings("SketchyUp", "SketchyUp")
-                  .value("catalogFolder", catalogLibraryFolder())
-                  .toString()) {
+      folder_(Preferences().value("catalogFolder", catalogLibraryFolder()).toString()) {
     setObjectName("catalogDialog");
     setWindowTitle("Asset catalogs");
     resize(1040, 700);
@@ -514,6 +513,7 @@ CatalogDialog::CatalogDialog(Document &doc, Viewport &view, QWidget *parent)
     connect(kind_, &QComboBox::currentIndexChanged, this, [this] { rebuildTree(); });
     connect(list_, &QTreeWidget::itemSelectionChanged, this, &CatalogDialog::selectionChanged);
     connect(list_, &QTreeWidget::currentItemChanged, this, [this] { showDetails(); });
+    activateOnReturn(list_);
     connect(list_, &QTreeWidget::itemActivated, this, [this] {
         if (insertEnabled_)
             insertSelected();
@@ -694,7 +694,7 @@ void CatalogDialog::chooseFolder() {
                                                          : dialog.selectedFiles().constFirst();
     // The choice is remembered in preferences, as the component library's is (UX_DESIGN 18.1).
     folder_ = QDir(picked).absolutePath();
-    QSettings("SketchyUp", "SketchyUp").setValue("catalogFolder", folder_);
+    Preferences().setValue("catalogFolder", folder_);
     folderLabel_->setText(folder_);
     refreshLibrary();
 }

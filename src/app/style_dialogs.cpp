@@ -2,6 +2,7 @@
 #include "io/assets.hpp"
 #include "io/catalog_io.hpp"
 #include "io/model_style_io.hpp"
+#include "io/preferences.hpp"
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -267,13 +268,11 @@ QString suggestFreeStyleName(const QString &folder, const QString &name) {
 }
 
 QString styleLibraryPreference() {
-    return QSettings("SketchyUp", "SketchyUp")
-        .value("styleFolder", styleLibraryFolder())
-        .toString();
+    return Preferences().value("styleFolder", styleLibraryFolder()).toString();
 }
 
 void setStyleLibraryPreference(const QString &folder) {
-    QSettings("SketchyUp", "SketchyUp").setValue("styleFolder", QDir(folder).absolutePath());
+    Preferences().setValue("styleFolder", QDir(folder).absolutePath());
 }
 
 StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QString &path,

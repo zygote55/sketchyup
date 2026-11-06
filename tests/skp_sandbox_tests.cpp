@@ -18,10 +18,14 @@
 //     sandboxUnavailable as that refusal, while a crash stays a crash.
 // Needs sketchyup-skp-worker (SKP_WORKER_PATH). Landlock must be available: the checks fail, not
 // skip, when it is not (ADR 0183 decision 9).
+// On macOS the layers are one Seatbelt profile: the probes expect its refusals (EPERM, never a
+// kill; tests/sandbox_platform.hpp), the ioctl probe is Linux's alone, and the real refusal is the
+// helper started inside another profile.
 #include "io/ifc_import.hpp"
 #include "io/skp_worker.hpp"
 #include "sandbox/sandbox.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
+#include "sandbox_platform.hpp"
 #include "skp/import.hpp"
 #include "skp/progress.hpp"
 #include "skp/sandbox_policy.hpp"
@@ -39,15 +43,19 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <linux/filter.h>
-#include <linux/seccomp.h>
+#include <memory>
+#include <netinet/in.h>
 #include <string>
 #include <sys/ioctl.h>
-#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/wait.h>
+#ifdef __linux__
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#endif
 #include <unistd.h>
 #include <vector>
 
@@ -117,24 +125,32 @@ Outcome inChild(const std::string &stdoutFile, const std::function<int()> &body)
     return outcome;
 }
 
+#ifdef __linux__
+// A filter that refuses the given calls with refusedErrno, installed in the child before exec: the
+// test's own refusal of a layer's calls. The program is built here, before the fork.
+std::function<bool()> refusing(const std::vector<long> &refused, int refusedErrno) {
+    // [0] load the call number; one jump per refused call to the refusal; then allow; then refuse.
+    auto filter = std::make_shared<std::vector<sock_filter>>();
+    const std::size_t count = refused.size();
+    filter->push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0));
+    for (std::size_t i = 0; i < count; ++i)
+        filter->push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<unsigned>(refused[i]),
+                                   static_cast<unsigned char>(count - i), 0));
+    filter->push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+    filter->push_back(
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | static_cast<unsigned>(refusedErrno)));
+    return [filter] {
+        prctl(PR_SET_NO_NEW_PRIVS, 1UL, 0UL, 0UL, 0UL);
+        sock_fprog program{static_cast<unsigned short>(filter->size()), filter->data()};
+        return syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0UL, &program) == 0;
+    };
+}
+#endif
+
 // The helper, run with the given argument list as the application runs it (the same binary, no
-// shell). An optional filter is installed in the child before exec: the test's own refusal of some
-// calls.
+// shell). An optional step runs in the child before exec: the test's own refusal of the sandbox.
 Outcome runHelper(const std::string &stdoutFile, const std::vector<std::string> &args,
-                  const std::vector<long> &refused = {}, int refusedErrno = 0) {
-    std::vector<sock_filter> filter;
-    if (!refused.empty()) {
-        // [0] load the call number; one jump per refused call to the refusal; then allow; then
-        // refuse.
-        const std::size_t count = refused.size();
-        filter.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0));
-        for (std::size_t i = 0; i < count; ++i)
-            filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<unsigned>(refused[i]),
-                                      static_cast<unsigned char>(count - i), 0));
-        filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
-        filter.push_back(
-            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | static_cast<unsigned>(refusedErrno)));
-    }
+                  const std::function<bool()> &beforeExec = {}) {
     std::vector<std::string> argv{SKP_WORKER_PATH};
     argv.insert(argv.end(), args.begin(), args.end());
     std::vector<char *> cargv;
@@ -142,12 +158,8 @@ Outcome runHelper(const std::string &stdoutFile, const std::vector<std::string> 
         cargv.push_back(argument.data());
     cargv.push_back(nullptr);
     return inChild(stdoutFile, [&] {
-        if (!filter.empty()) {
-            prctl(PR_SET_NO_NEW_PRIVS, 1UL, 0UL, 0UL, 0UL);
-            sock_fprog program{static_cast<unsigned short>(filter.size()), filter.data()};
-            if (syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0UL, &program) != 0)
-                return 99;
-        }
+        if (beforeExec && !beforeExec())
+            return 99;
         execv(SKP_WORKER_PATH, cargv.data());
         return 98;
     });
@@ -214,6 +226,23 @@ void testFixturesIdentical(const std::string &scratch) {
     }
 }
 
+// A socket the helper may not use: 0 when the sandbox refuses it (EPERM), 1 otherwise. Linux refuses
+// the socket itself. Seatbelt refuses its use: nothing listens on the loopback discard port, so a
+// connect that reached the network would be ECONNREFUSED.
+int socketRefused() {
+    const int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1)
+        return errno == EPERM ? 0 : 1;
+    sockaddr_in loopback{};
+    loopback.sin_family = AF_INET;
+    loopback.sin_port = htons(9);
+    loopback.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    return connect(fd, reinterpret_cast<sockaddr *>(&loopback), sizeof loopback) == -1 &&
+                   errno == EPERM
+               ? 0
+               : 1;
+}
+
 void testPolicyRefusesAttacks(const std::string &scratch) {
     // A private directory with the input copied into it, as the application does, and a sibling
     // file that is outside it.
@@ -237,20 +266,22 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
         };
     };
 
-    Outcome socketCall = inChild(scratch + "/attack-socket.out", armed([] {
-                                     const int fd = socket(AF_INET, SOCK_STREAM, 0);
-                                     return (fd == -1 && errno == EPERM) ? 0 : 1;
-                                 }));
+    Outcome socketCall = inChild(scratch + "/attack-socket.out", armed(socketRefused));
     check(!socketCall.signaled && socketCall.code == 0,
-          "the sandboxed helper cannot create a socket (EPERM, R109 S6)");
+          "the sandboxed helper cannot use a socket (EPERM, R109 S6)");
 
-    Outcome execCall = inChild(scratch + "/attack-exec.out", armed([] {
-                                   char *const argv[] = {const_cast<char *>("/bin/true"), nullptr};
-                                   execv("/bin/true", argv);
-                                   return 0;
-                               }));
-    check(execCall.signaled && execCall.signal == SIGSYS,
-          "the sandboxed helper cannot exec another program (killed with SIGSYS)");
+    Outcome execCall =
+        inChild(scratch + "/attack-exec.out", armed([] {
+                    // /bin/sh: a program on every platform, so a refusal is
+                    // not a missing file; if it ran, it would exit 7
+                    char *const argv[] = {const_cast<char *>("/bin/sh"), const_cast<char *>("-c"),
+                                          const_cast<char *>("exit 7"), nullptr};
+                    execv("/bin/sh", argv);
+                    return errno == EPERM ? 0 : 1;
+                }));
+    check(sandbox_platform::unlistedRefused(execCall.signaled, execCall.signal, execCall.code),
+          std::string("the sandboxed helper cannot exec another program (") +
+              sandbox_platform::unlistedRefusal + ")");
 
     Outcome abortCall = inChild(scratch + "/attack-abort.out", armed([] {
         std::abort();
@@ -269,18 +300,23 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
 
     Outcome readOutside = inChild(scratch + "/attack-read.out", armed([&] {
                                       const int fd = open(sibling.c_str(), O_RDONLY);
-                                      return (fd < 0 && errno == EACCES) ? 0 : 1;
+                                      return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0
+                                                                                                : 1;
                                   }));
     check(!readOutside.signaled && readOutside.code == 0,
-          "the sandboxed helper cannot read a file outside its directory (EACCES)");
+          std::string("the sandboxed helper cannot read a file outside its directory (") +
+              sandbox_platform::refusedPathName + ")");
 
     Outcome writeOutside = inChild(scratch + "/attack-write.out", armed([&] {
                                        const int fd = open((scratch + "/escaped.txt").c_str(),
                                                            O_WRONLY | O_CREAT, 0600);
-                                       return (fd < 0 && errno == EACCES) ? 0 : 1;
+                                       return (fd < 0 && errno == sandbox_platform::refusedPath)
+                                                  ? 0
+                                                  : 1;
                                    }));
     check(!writeOutside.signaled && writeOutside.code == 0,
-          "the sandboxed helper cannot create a file outside its directory (EACCES)");
+          std::string("the sandboxed helper cannot create a file outside its directory (") +
+              sandbox_platform::refusedPathName + ")");
 
     Outcome writeInside = inChild(scratch + "/attack-inside.out", armed([&] {
                                       const int fd = open((privateDir + "/inside.txt").c_str(),
@@ -297,6 +333,7 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
     check(!readInput.signaled && readInput.code == 0,
           "the sandboxed helper can read its input file");
 
+#ifdef __linux__
     // The terminal check of stdio (R102.e F2). /dev/null is opened before the policy, which grants no
     // path for it, so the descriptor is inherited. The kernel answers TCGETS and TCGETS2 with ENOTTY;
     // any other ioctl request is EPERM (TIOCGWINSZ here), not a kill.
@@ -315,6 +352,9 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
           "the sandboxed helper answers TCGETS and TCGETS2 with ENOTTY, and another ioctl with EPERM (signal " +
               std::to_string(terminalCheck.signal) + ", code " + std::to_string(terminalCheck.code) + ")");
     close(nullFd);
+#endif
+    // macOS: Seatbelt does not filter ioctl requests; the helper's terminal check with stdout on
+    // /dev/null is testStdoutToDevNull's.
 }
 
 // The helper with stdout on /dev/null: a developer's probe run, or any caller that discards the
@@ -361,11 +401,28 @@ void testRefusalsFailClosed(const std::string &scratch) {
               "a refusal writes no package");
     }
 
+#ifdef __APPLE__
+    // The real helper inside another Seatbelt profile, which refuses the helper's own (ADR 0183
+    // 6.7, as the Linux filter below refuses the layers' calls).
+    const Outcome nested = runHelper(scratch + "/nested.out",
+                                     {"--import", input, "--output", scratch + "/nested.skskpp"},
+                                     sandbox_platform::enterOuterProfile);
+    check(!nested.signaled && nested.code == skp::kSandboxUnavailableExit,
+          "the helper that cannot install its profile exits " +
+              std::to_string(skp::kSandboxUnavailableExit) + " (code " +
+              std::to_string(nested.code) + ")");
+    check(nested.out.find("\"code\":\"sandboxUnavailable\"") != std::string::npos &&
+              nested.out.find(sandbox_platform::outerRefusal) != std::string::npos,
+          "the helper that cannot install its profile names the layer: " + resultLine(nested.out));
+    check(!std::filesystem::exists(scratch + "/nested.skskpp"),
+          "the helper that cannot install its profile writes no package");
+#else
     // The real helper, with a filter that refuses the layer's calls (the measured method of ADR
     // 0183 6.7).
-    const Outcome noLandlock = runHelper(
-        scratch + "/no-landlock.out",
-        {"--import", input, "--output", scratch + "/no-landlock.skskpp"}, {444, 445, 446}, ENOSYS);
+    const Outcome noLandlock =
+        runHelper(scratch + "/no-landlock.out",
+                  {"--import", input, "--output", scratch + "/no-landlock.skskpp"},
+                  refusing({444, 445, 446}, ENOSYS));
     check(!noLandlock.signaled && noLandlock.code == skp::kSandboxUnavailableExit,
           "the helper without Landlock exits " + std::to_string(skp::kSandboxUnavailableExit) +
               " (code " + std::to_string(noLandlock.code) + ")");
@@ -376,9 +433,9 @@ void testRefusalsFailClosed(const std::string &scratch) {
     check(!std::filesystem::exists(scratch + "/no-landlock.skskpp"),
           "the helper without Landlock writes no package");
 
-    const Outcome noSeccomp =
-        runHelper(scratch + "/no-seccomp.out",
-                  {"--import", input, "--output", scratch + "/no-seccomp.skskpp"}, {317}, EPERM);
+    const Outcome noSeccomp = runHelper(
+        scratch + "/no-seccomp.out",
+        {"--import", input, "--output", scratch + "/no-seccomp.skskpp"}, refusing({317}, EPERM));
     check(!noSeccomp.signaled && noSeccomp.code == skp::kSandboxUnavailableExit,
           "the helper without a seccomp filter exits " +
               std::to_string(skp::kSandboxUnavailableExit));
@@ -387,6 +444,7 @@ void testRefusalsFailClosed(const std::string &scratch) {
           "the helper without a seccomp filter names the layer: " + resultLine(noSeccomp.out));
     check(!std::filesystem::exists(scratch + "/no-seccomp.skskpp"),
           "the helper without a seccomp filter writes no package");
+#endif
 }
 
 // A stand-in helper: a shell script that ends the way the test needs. The host runs it with the
@@ -417,7 +475,7 @@ void testHostClassifies(const std::string &scratch) {
     };
 
     // killed by SIGSYS, the seccomp filter's kill
-    const auto violation = importWith(standIn(scratch, "sigsys-helper.sh", "kill -31 $$"));
+    const auto violation = importWith(standIn(scratch, "sigsys-helper.sh", "kill -SYS $$"));
     check(violation.first && violation.second == "sandboxViolation",
           "a helper killed by SIGSYS is sandboxViolation, not a crash (got " + violation.second +
               ")");
@@ -501,6 +559,15 @@ for arg in "$@"; do
   prev="$arg"
 done
 echo 'P phase parse'
+system=$(uname)
+if [ "$system" = Darwin ]; then
+  # macOS does not enforce RLIMIT_AS, so the stand-in holds the request to the limit itself.
+  if [ -n "$limit" ] && [ "$limit" -lt $((512 * 1024 * 1024)) ]; then
+    echo 'std::bad_alloc: the address space limit was reached' >&2
+    exit 1
+  fi
+  exit 0
+fi
 ulimit -v $((limit / 1024))
 python3 - <<'PY'
 import sys

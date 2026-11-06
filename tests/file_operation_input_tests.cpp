@@ -3,6 +3,7 @@
 #include "app/viewport.hpp"
 #include "app/window.hpp"
 #include "core/assets.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCryptographicHash>
@@ -110,14 +111,25 @@ QJsonObject prepareCache(const QString &path, qsizetype size) {
         return result; // read(path) immediately above populated the cache.
     const int fd = ::open(QFile::encodeName(path).constData(), O_RDONLY | O_CLOEXEC);
     check(fd >= 0, "Open owned cache fixture");
+#ifdef __linux__
     const bool evicted = ::fsync(fd) == 0 && ::posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED) == 0;
+#else
+    // No posix_fadvise on macOS: the verified-cold policy is Linux only.
+    const bool evicted = false;
+#endif
     const auto pageSize = ::sysconf(_SC_PAGESIZE);
     void *mapping =
         evicted && pageSize > 0 ? ::mmap(nullptr, size, PROT_NONE, MAP_PRIVATE, fd, 0) : MAP_FAILED;
     ::close(fd);
     check(evicted && pageSize > 0 && mapping != MAP_FAILED, "Advise owned fixture cache eviction");
     std::vector<unsigned char> residency((size + pageSize - 1) / pageSize);
+#ifdef __linux__
     const bool queried = ::mincore(mapping, size, residency.data()) == 0;
+#else
+    // mincore's vector is char * on macOS.
+    const bool queried =
+        ::mincore(mapping, size, reinterpret_cast<char *>(residency.data())) == 0;
+#endif
     ::munmap(mapping, size);
     check(queried, "Inspect fixture page-cache residency");
     const auto resident = std::count_if(residency.begin(), residency.end(),
@@ -177,7 +189,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     UnexpectedModalGuard modalGuard;
     std::optional<ReadOnlyDirectory> readOnlySaveDirectory;
     try {

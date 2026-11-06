@@ -2,12 +2,13 @@
 #include "app/component_definition_section.hpp"
 #include "app/component_drivers_section.hpp"
 #include "app/component_parameters_section.hpp"
+#include "app/components_tab.hpp"
 #include "app/inspection_service.hpp"
 #include "app/presentations_dialog.hpp"
 #include "app/render_panel.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/window.hpp"
-#include "app/components_tab.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QCheckBox>
 #include <QDialog>
@@ -75,8 +76,7 @@ void Window::startRecovery(const QString &root) {
     recovery_ = new RecoveryController(doc_, directory, [this] { return recoveryContext_; }, this);
     recovery_->setObjectName("recoveryController");
     connect(recovery_, &RecoveryController::changed, this, &Window::syncRecovery);
-    recovery_->setInterval(
-        QSettings("SketchyUp", "SketchyUp").value("recoverySeconds", 30).toInt());
+    recovery_->setInterval(Preferences().value("recoverySeconds", 30).toInt());
     recoveryStatus_->show();
     syncRecovery();
 }
@@ -147,7 +147,7 @@ void Window::recoverySettings() {
     nameInternalEditors(&dialog);
     if (dialog.exec() == QDialog::Accepted) {
         const int seconds = enabled->isChecked() ? interval->value() : 0;
-        QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", seconds);
+        Preferences().setValue("recoverySeconds", seconds);
         recovery_->setInterval(seconds);
     }
 }

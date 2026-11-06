@@ -16,7 +16,9 @@
 #include <QtGui/qguiapplication_platform.h>
 #include <algorithm>
 #include <limits>
+#if QT_CONFIG(wayland)
 #include <wayland-client.h>
+#endif
 namespace sketchy {
 namespace {
 class RepairHandoff final : public QObject {
@@ -117,7 +119,9 @@ class RepairHandoff final : public QObject {
 class DiagnosticsReport final : public ReportSheet {
     bool closing_{};
     int closeResult_{};
+#if QT_CONFIG(wayland)
     wl_callback *unmapped_{};
+#endif
     void closeEvent(QCloseEvent *event) override {
         // An accepted QWidget close also destroys its platform window. Keep
         // that close pending until the compositor has released this surface.
@@ -418,8 +422,10 @@ class DiagnosticsReport final : public ReportSheet {
 
   public:
     ~DiagnosticsReport() override {
+#if QT_CONFIG(wayland)
         if (unmapped_)
             wl_callback_destroy(unmapped_);
+#endif
     }
     DiagnosticsReport(Document &document, Viewport &view, Id bodyId, std::function<bool()> fenced,
                       QWidget *parent)

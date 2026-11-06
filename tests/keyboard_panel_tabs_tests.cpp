@@ -1,5 +1,6 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QDialog>
@@ -184,7 +185,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     Window window;
     try {
         window.resize(1280, 900);

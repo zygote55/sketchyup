@@ -18,10 +18,12 @@
 #include <atomic>
 #include <future>
 #include <optional>
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
 #include <csignal>
-#include <sys/prctl.h>
 #include <unistd.h>
+#endif
+#ifdef Q_OS_LINUX
+#include <sys/prctl.h>
 #endif
 static void initializeBlenderResource() { Q_INIT_RESOURCE(blender_worker); }
 namespace sketchy {
@@ -684,12 +686,16 @@ struct BlenderJob::Impl {
                 finish(stopPhase, errorCode, errorMessage);
                 return;
             }
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
             const auto ownerPid = getpid();
             process.setChildProcessModifier([ownerPid, policy = childPolicy.get()] {
-                // Syscalls only from here to exec: no allocation and no lock (ADR 0183
-                // section 4.1).
-                if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != ownerPid)
+            // Syscalls only from here to exec: no allocation and no lock (ADR 0183
+            // section 4.1). macOS has no parent-death signal; the getppid check remains.
+#ifdef Q_OS_LINUX
+                if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
+                    _exit(127);
+#endif
+                if (getppid() != ownerPid)
                     _exit(127);
                 if (const auto failure = policy->enter()) {
                     sketchyup::sandbox::writeUnavailableLine(*failure);

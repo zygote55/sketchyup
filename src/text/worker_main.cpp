@@ -1,6 +1,9 @@
 #include "text/sandbox_policy.hpp"
 #include "text/text_worker.hpp"
+#include <QDirIterator>
 #include <QFile>
+#include <QFileInfo>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <iostream>
@@ -38,6 +41,20 @@ int main(int argc, char **argv) {
     // Qt is given the program name only: the font arguments are the host's, and Qt takes none.
     int qtArgc = 1;
     QGuiApplication app(qtArgc, argv);
+#ifdef Q_OS_MACOS
+    // CoreText finds the user's fonts through the system's font server, which the sandbox refuses,
+    // so the helper adds the fonts of each granted folder itself (R109 S4 on macOS).
+    for (const std::string &folder : fonts.folders) {
+        QDirIterator files(QString::fromStdString(folder), QDir::Files,
+                           QDirIterator::Subdirectories);
+        while (files.hasNext()) {
+            const QString file = files.next();
+            const QString suffix = QFileInfo(file).suffix().toLower();
+            if (suffix == "ttf" || suffix == "otf" || suffix == "ttc" || suffix == "otc")
+                QFontDatabase::addApplicationFont(file);
+        }
+    }
+#endif
     try {
         QFile input;
         if (!input.open(stdin, QIODevice::ReadOnly))

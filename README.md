@@ -65,7 +65,9 @@ cmake --build --preset dev --parallel 2
 ./build/dev/sketchyup --demo
 ```
 
-This needs CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ (base and Wayland), OpenSSL 3 and Python 3. On Arch: `cmake ninja gcc pkgconf python qt6-base qt6-wayland wayland openssl`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the tests, the core-only headless build and the package.
+This needs CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ (base and Wayland), OpenSSL 3 and Python 3. On Arch: `cmake ninja gcc pkgconf python qt6-base qt6-wayland wayland openssl`.
+
+On macOS, install `brew install cmake ninja qt openssl@3` (and `brew install --cask font-dejavu`, the font the tests shape text with, as on CI) and configure with `cmake --preset dev -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)"`. macOS is not fully supported. Landlock and seccomp are Linux-only, so on macOS the sandboxed helpers (the `.skp`, IFC, STEP and text importers, extensions and Blender rendering) run under a Seatbelt profile built from the same policies instead ([ADR 0183](docs/decisions/0183-helper-process-sandbox.md), macOS notes). [CONTRIBUTING.md](CONTRIBUTING.md) covers the tests, the core-only headless build and the package.
 
 ## Documentation
 

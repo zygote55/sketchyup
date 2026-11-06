@@ -1,41 +1,17 @@
+#include "child_process.hpp"
 #include "io/new_file.hpp"
+#include "new_file_fault_hooks.hpp"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
 #include <cerrno>
 #include <csignal>
-#include <fcntl.h>
 #include <functional>
 #include <iostream>
-#include <sys/stat.h>
-#include <sys/syscall.h>
-#include <sys/wait.h>
-#include <unistd.h>
 using namespace sketchy;
 namespace {
-enum class Fault {
-    None,
-    NoSpace,
-    ShortWrite,
-    FileSync,
-    Link,
-    DirectorySync,
-    RetrySync,
-    RacingWriter,
-    KillBeforePublication,
-    KillAfterPublication
-};
-Fault fault{};
-int writes{}, syncs{};
-bool regular(int fd) {
-    struct stat st{};
-    return fd > 2 && fstat(fd, &st) == 0 && S_ISREG(st.st_mode);
-}
-bool directory(int fd) {
-    struct stat st{};
-    return fstat(fd, &st) == 0 && S_ISDIR(st.st_mode);
-}
+using namespace new_file_faults;
 void check(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -61,55 +37,20 @@ struct Inject {
     ~Inject() { fault = Fault::None; }
 };
 } // namespace
-// Link-time interposition affects only this executable and its explicit child processes.
-extern "C" ssize_t write(int fd, const void *bytes, size_t size) {
-    if (regular(fd) && (fault == Fault::NoSpace || fault == Fault::ShortWrite)) {
-        ++writes;
-        if (fault == Fault::ShortWrite && writes == 1)
-            return syscall(SYS_write, fd, bytes, std::min(size, size_t(7)));
-        errno = ENOSPC;
-        return -1;
-    }
-    return syscall(SYS_write, fd, bytes, size);
-}
-extern "C" int fsync(int fd) {
-    if (fault != Fault::None)
-        ++syncs;
-    const bool dir = directory(fd);
-    if ((!dir && fault == Fault::KillBeforePublication) ||
-        (dir && fault == Fault::KillAfterPublication))
-        raise(SIGKILL);
-    if ((!dir && fault == Fault::FileSync) || (dir && fault == Fault::DirectorySync)) {
-        errno = EIO;
-        return -1;
-    }
-    if (fault == Fault::RetrySync && syncs == 1) {
-        errno = EINTR;
-        return -1;
-    }
-    return syscall(SYS_fsync, fd);
-}
-extern "C" int link(const char *source, const char *destination) {
-    if (fault == Fault::Link) {
-        errno = EPERM;
-        return -1;
-    }
-    if (fault == Fault::RacingWriter) {
-        const auto fd = ::open(destination, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
-        if (fd >= 0) {
-            constexpr char sentinel[] = "racing writer";
-            syscall(SYS_write, fd, sentinel, sizeof(sentinel) - 1);
-            ::close(fd);
-        }
-    }
-    return syscall(SYS_link, source, destination);
-}
+// The payload every publication writes.
+QByteArray testPayload() { return QByteArray(128 * 1024, char(0x5a)); }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    // A killed writer: --child <fault> <output>. The injected fault kills it at its boundary.
+    if (const auto child = childArguments()) {
+        Inject injection(Fault(child->at(0).toInt()));
+        publishNewFile(child->at(1), testPayload());
+        return 2;
+    }
     try {
         QTemporaryDir root;
         check(root.isValid(), "Publication scratch");
-        const QByteArray payload(128 * 1024, char(0x5a));
+        const auto payload = testPayload();
         const auto original = root.filePath("original");
         publishNewFile(original, "original bytes");
         for (const auto mode : {Fault::NoSpace, Fault::ShortWrite, Fault::FileSync, Fault::Link,
@@ -150,17 +91,8 @@ int main(int argc, char **argv) {
         // Killing a writer models process interruption, not sudden storage power loss.
         for (const auto mode : {Fault::KillBeforePublication, Fault::KillAfterPublication}) {
             const auto output = root.filePath(QString("killed-%1").arg(int(mode)));
-            const auto pid = fork();
-            check(pid >= 0, "Fork explicit fault child");
-            if (pid == 0) {
-                Inject injection(mode);
-                publishNewFile(output, payload);
-                _exit(2);
-            }
-            int status{};
-            check(waitpid(pid, &status, 0) == pid && WIFSIGNALED(status) &&
-                      WTERMSIG(status) == SIGKILL,
-                  "Child stops at the intended publication boundary");
+            const int status = runChild({QString::number(int(mode)), output});
+            check(killedBy(status, SIGKILL), "Child stops at the intended publication boundary");
             if (mode == Fault::KillBeforePublication)
                 check(!QFileInfo::exists(output),
                       "Killed staging writer exposes no partial destination");

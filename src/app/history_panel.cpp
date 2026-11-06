@@ -1,4 +1,5 @@
 #include "app/history_panel.hpp"
+#include "app/item_activation.hpp"
 #include "automation/commands.hpp"
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -47,6 +48,7 @@ HistoryPanel::HistoryPanel(Document &doc, Viewport &view, QWidget *parent)
         if (!syncing_)
             navigate(item->data(0, Qt::UserRole).toULongLong());
     });
+    activateOnReturn(steps_);
     connect(steps_, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem *item) {
         if (!syncing_)
             navigate(item->data(0, Qt::UserRole).toULongLong());

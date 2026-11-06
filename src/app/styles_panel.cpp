@@ -1,5 +1,6 @@
 #include "app/styles_panel.hpp"
 #include "app/accessible_names.hpp"
+#include "app/item_activation.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/style_dialogs.hpp"
 #include "app/unit_display.hpp"
@@ -13,8 +14,8 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QFormLayout>
 #include <QFont>
+#include <QFormLayout>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -250,6 +251,7 @@ StylesPanel::StylesPanel(Document &doc, Viewport &view, QWidget *parent)
     layout->addWidget(library_, 1);
     connect(library_, &QListWidget::currentItemChanged, this,
             [this] { updateLibraryButtons(); });
+    activateOnReturn(library_);
     connect(library_, &QListWidget::itemActivated, this, [this] { applySelected(); });
     connect(library_, &QListWidget::customContextMenuRequested, this,
             [this](const QPoint &point) { showLibraryMenu(point); });

@@ -7,6 +7,7 @@
 #include "integrations/credential_store.hpp"
 #include "integrations/ollama_provider.hpp"
 #include "integrations/openai_provider.hpp"
+#include "io/preferences.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -358,15 +359,13 @@ struct AssistantPanel::Impl {
         }
     }
     QString configuredProvider() const {
-        return QSettings("SketchyUp", "SketchyUp").value("assistant/provider", "OpenAI").toString();
+        return Preferences().value("assistant/provider", "OpenAI").toString();
     }
     bool usesPlan() const {
-        return QSettings("SketchyUp", "SketchyUp")
-                   .value("assistant/openaiAuth", "api")
-                   .toString() == "chatgpt";
+        return Preferences().value("assistant/openaiAuth", "api").toString() == "chatgpt";
     }
     QString configuredModel() const {
-        const QSettings s("SketchyUp", "SketchyUp");
+        const Preferences s;
         return configuredProvider() == "Ollama"
                    ? s.value("assistant/localModel", "qwen3:4b-instruct").toString()
                    : s.value(usesPlan() ? "assistant/chatgptModel" : "assistant/openaiModel")
@@ -398,8 +397,7 @@ struct AssistantPanel::Impl {
         result.model = configuredModel();
         result.remote = result.provider == "OpenAI";
         result.remoteContextApproved =
-            !result.remote ||
-            QSettings("SketchyUp", "SketchyUp").value("assistant/consentOpenAI", false).toBool();
+            !result.remote || Preferences().value("assistant/consentOpenAI", false).toBool();
         result.clarificationAvailable = true;
         result.limits.seconds = 300;
         if (result.remote && usesPlan())
@@ -489,9 +487,8 @@ struct AssistantPanel::Impl {
                 "The model changed during setup. Send again on the current model.");
         }
         if (pendingPlan)
-            chatgpt.prepare(
-                QSettings("SketchyUp", "SketchyUp").value("assistant/chatgptAccount").toString(),
-                pending->model);
+            chatgpt.prepare(Preferences().value("assistant/chatgptAccount").toString(),
+                            pending->model);
         else if (pending->remote)
             credentials.lookup();
         else
@@ -517,7 +514,7 @@ struct AssistantPanel::Impl {
             provider = std::make_unique<OpenAiProvider>(std::move(task), key, services.network,
                                                         nullptr, pendingPlan);
         else {
-            QSettings s("SketchyUp", "SketchyUp");
+            Preferences s;
             OllamaConfiguration config;
             config.endpoint =
                 QUrl(s.value("assistant/localEndpoint", "http://127.0.0.1:11434").toString());
@@ -606,7 +603,7 @@ struct AssistantPanel::Impl {
             allow->setObjectName("assistantConsentAllow");
             QObject::connect(allow, &QPushButton::clicked, &owner, [this, dialog] {
                 safe([this, dialog] {
-                    QSettings("SketchyUp", "SketchyUp").setValue("assistant/consentOpenAI", true);
+                    Preferences().setValue("assistant/consentOpenAI", true);
                     if (pending)
                         pending->remoteContextApproved = true;
                     dialog->accept();
@@ -726,7 +723,7 @@ void AssistantPanel::Impl::showSetup() {
     for (auto *spin : {tokens, threads})
         if (auto *input = spin->findChild<QLineEdit *>())
             input->setAccessibleName(spin->accessibleName());
-    QSettings s("SketchyUp", "SketchyUp");
+    Preferences s;
     openaiModel->setText(s.value("assistant/openaiModel").toString());
     localModel->setText(s.value("assistant/localModel", "qwen3:4b-instruct").toString());
     endpoint->setText(s.value("assistant/localEndpoint", "http://127.0.0.1:11434").toString());
@@ -821,7 +818,7 @@ void AssistantPanel::Impl::showSetup() {
                      [this, dialog, fillAccounts, updatePlan](const QString &client) {
                          fillAccounts(client);
                          updatePlan();
-                         QSettings prefs("SketchyUp", "SketchyUp");
+                         Preferences prefs;
                          if (!prefs.value("assistant/chatgptWelcomed", false).toBool()) {
                              prefs.setValue("assistant/chatgptWelcomed", true);
                              auto *welcome = new QMessageBox(
@@ -923,7 +920,7 @@ void AssistantPanel::Impl::showSetup() {
                      models->currentData().toString().isEmpty()))
                     throw std::runtime_error(
                         "Connect a ChatGPT account and select an available model.");
-                QSettings prefs("SketchyUp", "SketchyUp");
+                Preferences prefs;
                 prefs.setValue("assistant/openaiAuth", authChoice->currentData());
                 prefs.setValue("assistant/chatgptAccount", accounts->currentData());
                 prefs.setValue("assistant/chatgptModel", models->currentData());

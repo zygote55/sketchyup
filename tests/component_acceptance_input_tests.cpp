@@ -32,6 +32,7 @@
 #include "component_parameter_fixture.hpp"
 #include "core/hosted_components.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -588,8 +589,8 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
-    QSettings("SketchyUp", "SketchyUp").setValue("libraryFolder", files.filePath("library"));
+    ApplicationPreferences().setValue("recoverySeconds", 0);
+    Preferences().setValue("libraryFolder", files.filePath("library"));
     // An unexpected modal fails the run instead of blocking it.
     QTimer guard;
     std::string unexpected;

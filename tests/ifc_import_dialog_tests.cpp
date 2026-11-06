@@ -147,7 +147,7 @@ QString importBody(const QString &package, const int sleepSeconds, const bool re
 )");
     const QString work = gate.isEmpty() ? QString("    /bin/sleep ") + QString::number(sleepSeconds) + QString("\n")
                                         : waitForGate(gate);
-    return args + QString(R"(    /usr/bin/cp ')")
+    return args + QString(R"(    /bin/cp ')")
            + package
            + QString(R"(' "$out" || exit 1
     echo 'P phase geometry'

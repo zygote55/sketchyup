@@ -3,6 +3,7 @@
 #include "app/components_tab.hpp"
 #include "app/entity_info_panel.hpp"
 #include "app/history_panel.hpp"
+#include "app/item_activation.hpp"
 #include "app/materials_panel.hpp"
 #include "app/quantities_panel.hpp"
 #include "app/reference_images_panel.hpp"
@@ -368,6 +369,7 @@ OrganizationPanel::OrganizationPanel(Document &doc, Viewport &view, QWidget *par
         view_.selectEntities(entities);
         syncing_ = false;
     });
+    activateOnReturn(outliner_);
     connect(outliner_, &QTreeWidget::itemActivated, this, [this] { enter(); });
     connect(tags_, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
         if (syncing_ || column != 1)

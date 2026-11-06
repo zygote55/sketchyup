@@ -3,6 +3,7 @@
 // QTest key events would bypass the layout entirely.
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QLineEdit>
@@ -249,8 +250,8 @@ int main(int argc, char **argv) {
     app.setApplicationName("SketchyUp");
     // Locale is a separate axis from layout: fix '.' decimals and ',' lists.
     QLocale::setDefault(QLocale::c());
-    QSettings().setValue("defaultUnits", "m");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("defaultUnits", "m");
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     const auto layout = qEnvironmentVariable("SKETCHYUP_TEST_KEYBOARD_LAYOUT");
     Window window;
     try {

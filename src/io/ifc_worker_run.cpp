@@ -6,7 +6,9 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <csignal>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
 #include <unistd.h>
 
 namespace sketchy {
@@ -29,7 +31,9 @@ IfcWorkerRun runIfcWorker(const QString &worker, const QString &directory, const
     process.setProcessEnvironment(environment);
     process.setChildProcessModifier([] {
         ::setsid();
+#ifdef __linux__
         ::prctl(PR_SET_PDEATHSIG, SIGKILL);
+#endif
     });
     process.start(QIODevice::ReadOnly);
     if (!process.waitForStarted(10000)) {

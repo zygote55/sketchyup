@@ -1,5 +1,6 @@
 #include "app/interface_preferences.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QAccessibleWidget>
 #include <QEvent>
@@ -264,7 +265,7 @@ class SidebarWatcher : public QObject {
 };
 } // namespace
 void Window::setupSidebar(QWidget *workspace) {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     for (int column = 0; column < 3; ++column) {
         bool valid = false;
         const auto stored = preferences.value(sidebarKeys[column]).toInt(&valid);
@@ -425,7 +426,7 @@ void Window::storeSidebarColumn(int column, int width) {
     const int stored =
         std::clamp((width * 100 + percent / 2) / percent, sidebarMinimum, sidebarMaximum);
     sidebarWidths_[column] = stored;
-    QSettings("SketchyUp", "SketchyUp").setValue(sidebarKeys[column], stored);
+    Preferences().setValue(sidebarKeys[column], stored);
 }
 void Window::stepSidebar(int direction) {
     // The column at the sidebar's edge: the side panel, or the Assistant column without it.
@@ -452,7 +453,7 @@ void Window::stepSidebar(int direction) {
     layoutSidebar();
 }
 void Window::resetSidebar() {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     for (int column = 0; column < 3; ++column) {
         sidebarWidths_[column] = 0;
         preferences.remove(sidebarKeys[column]);

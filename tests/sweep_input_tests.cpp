@@ -118,7 +118,8 @@ int main(int argc, char **argv) {
         QTest::mouseRelease(&view, Qt::LeftButton, Qt::AltModifier, center + QPoint(30, 15));
         check(view.previewValid() && length(view.renderCamera().position - oldCamera) > tolerance,
               "Orbit retains validated sweep preview");
-        const auto history = doc.history().total, generated = doc.nextId();
+        const auto history = doc.history().total;
+        const auto generated = doc.nextId();
         QTest::keyClick(&view, Qt::Key_Return);
         check(doc.history().total == history + 1 && doc.bodies().size() == 3,
               "Enter commits exactly one result");

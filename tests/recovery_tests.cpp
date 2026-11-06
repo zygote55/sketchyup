@@ -1,4 +1,6 @@
+#include "child_process.hpp"
 #include "io/recovery.hpp"
+#include "recovery_hooks.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -9,14 +11,9 @@
 #include <cerrno>
 #include <csignal>
 #include <iostream>
-#include <sys/stat.h>
-#include <sys/syscall.h>
-#include <sys/wait.h>
-#include <unistd.h>
 using namespace sketchy;
 namespace {
-int syncs{}, failSync{}, killSync{};
-bool fullDisk{}, partialWrite{};
+using namespace recovery_faults;
 void check(bool condition, const char *message) {
     if (!condition)
         throw std::runtime_error(message);
@@ -60,35 +57,33 @@ Document model() {
     doc.extrude(1, doc.bodies().at(1)->surface.faces.begin()->first, 2);
     return doc;
 }
+// A recovery writer in its own process: --child <root> <compact> <boundary>. It writes the model's
+// generations and is killed at the boundary's sync.
+int childWriter(const QStringList &arguments) {
+    try {
+        const bool compact = arguments[1] == "1";
+        auto work = model();
+        RecoveryWriter writer(arguments[0], QString::fromStdString(work.identity()));
+        writer.write(captureRecovery(work));
+        if (compact)
+            for (int i = 0; i < 3; ++i) {
+                work.move(1, {.1, 0, 0});
+                writer.write(captureRecovery(work));
+            }
+        work.move(1, {.2, 0, 0});
+        syncs = 0;
+        killSync = arguments[2].toInt();
+        writer.write(captureRecovery(work));
+        return 3;
+    } catch (...) {
+        return 4;
+    }
+}
 } // namespace
-// Syscall fault injection is local to this executable, including killed child processes.
-extern "C" int fsync(int fd) {
-    ++syncs;
-    if (syncs == killSync)
-        raise(SIGKILL);
-    if (syncs == failSync) {
-        errno = ENOSPC;
-        return -1;
-    }
-    return syscall(SYS_fsync, fd);
-}
-extern "C" ssize_t write(int fd, const void *bytes, size_t count) {
-    struct stat st{};
-    if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode)) {
-        if (fullDisk) {
-            errno = ENOSPC;
-            return -1;
-        }
-        if (partialWrite) {
-            partialWrite = false;
-            fullDisk = true;
-            return syscall(SYS_write, fd, bytes, std::min<size_t>(13, count));
-        }
-    }
-    return syscall(SYS_write, fd, bytes, count);
-}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (const auto child = childArguments())
+        return childWriter(*child);
     try {
         QTemporaryDir temporary;
         const auto root = temporary.filePath("recovery");
@@ -267,31 +262,9 @@ int main(int argc, char **argv) {
             for (int boundary = 1; boundary <= (compact ? 6 : 3); ++boundary) {
                 const auto killedRoot =
                     temporary.filePath(QString("kill-%1-%2").arg(compact).arg(boundary));
-                const auto child = fork();
-                check(child >= 0, "Fork fault process");
-                if (child == 0) {
-                    try {
-                        auto work = model();
-                        RecoveryWriter writer(killedRoot, QString::fromStdString(work.identity()));
-                        writer.write(captureRecovery(work));
-                        if (compact)
-                            for (int i = 0; i < 3; ++i) {
-                                work.move(1, {.1, 0, 0});
-                                writer.write(captureRecovery(work));
-                            }
-                        work.move(1, {.2, 0, 0});
-                        syncs = 0;
-                        killSync = boundary;
-                        writer.write(captureRecovery(work));
-                        _exit(3);
-                    } catch (...) {
-                        _exit(4);
-                    }
-                }
-                int status{};
-                waitpid(child, &status, 0);
-                check(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL,
-                      "Writer terminated at requested sync boundary");
+                const int status =
+                    runChild({killedRoot, compact ? "1" : "0", QString::number(boundary)});
+                check(killedBy(status, SIGKILL), "Writer terminated at requested sync boundary");
                 const auto entries = listRecoveries(killedRoot);
                 check(entries.size() == 1 && entries[0].verified && entries[0].issue.isEmpty() &&
                           entries[0].info.revision >= (compact ? 5u : 2u),

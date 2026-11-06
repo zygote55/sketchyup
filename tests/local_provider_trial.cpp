@@ -12,6 +12,7 @@
 #include "integrations/ollama_provider.hpp"
 #include "integrations/openai_provider.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -172,7 +173,7 @@ int main(int argc, char **argv) {
         OllamaConfiguration config;
         config.endpoint = remote ? QUrl("https://api.openai.com/v1/responses") : QUrl(args[1]);
         config.model = remote && args[2] == "configured"
-                           ? QSettings("SketchyUp", "SketchyUp")
+                           ? Preferences()
                                  .value(plan ? "assistant/chatgptModel" : "assistant/openaiModel")
                                  .toString()
                            : args[2];
@@ -407,9 +408,7 @@ int main(int argc, char **argv) {
             QByteArray access;
             QObject::connect(&auth, &ChatGptAuth::credentialReady,
                              [&](const QByteArray &token) { access = token; });
-            auth.prepare(
-                QSettings("SketchyUp", "SketchyUp").value("assistant/chatgptAccount").toString(),
-                config.model);
+            auth.prepare(Preferences().value("assistant/chatgptAccount").toString(), config.model);
             QElapsedTimer lookup;
             lookup.start();
             while (auth.busy() && lookup.elapsed() < 123000) {

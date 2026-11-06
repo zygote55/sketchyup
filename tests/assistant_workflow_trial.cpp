@@ -5,6 +5,7 @@
 #include "integrations/chatgpt_auth.hpp"
 #include "integrations/openai_provider.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -70,9 +71,7 @@ int main(int argc, char **argv) {
         QByteArray access;
         QObject::connect(&auth, &ChatGptAuth::credentialReady,
                          [&](const QByteArray &value) { access = value; });
-        auth.prepare(
-            QSettings("SketchyUp", "SketchyUp").value("assistant/chatgptAccount").toString(),
-            options.model);
+        auth.prepare(Preferences().value("assistant/chatgptAccount").toString(), options.model);
         QElapsedTimer lookup;
         lookup.start();
         while (auth.busy() && lookup.elapsed() < 123000) {

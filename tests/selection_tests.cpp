@@ -26,7 +26,8 @@ int main() {
         const auto guide = doc.bodies().at(1)->guides.begin()->first;
         doc.addFace({{{0, 0, 1}, {1, 0, 1}, {0, 1, 1}}});
         doc.transform(2, Transform::translation({0, 0, 1}), 1);
-        const auto revision = doc.revision(), history = doc.historyBytes();
+        const auto revision = doc.revision();
+        const auto history = doc.historyBytes();
         const auto dirty = doc.dirty();
         Selection selection;
         selection.sync(doc);

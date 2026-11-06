@@ -1,8 +1,10 @@
+#include "child_process.hpp"
 #include "core/components.hpp"
 #include "core/groups.hpp"
 #include "core/materials.hpp"
 #include "core/tags.hpp"
 #include "io/document_io.hpp"
+#include "persistence_hooks.hpp"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -17,17 +19,10 @@
 #include <functional>
 #include <iostream>
 #include <sys/stat.h>
-#include <sys/syscall.h>
-#include <sys/wait.h>
 #include <unistd.h>
 using namespace sketchy;
 namespace {
-int failSync, syncError = EIO, directorySyncs, killDirectory;
-bool failWrite, killFile, failFileSync;
-bool directory(int fd) {
-    struct stat st{};
-    return fstat(fd, &st) == 0 && S_ISDIR(st.st_mode);
-}
+using namespace persistence_faults;
 void require(bool value, const char *message) {
     if (!value)
         throw std::runtime_error(message);
@@ -59,37 +54,37 @@ QByteArray changeManifest(const QByteArray &bytes,
     qToLittleEndian<quint32>(manifest.size(), header.data() + 12);
     return header + manifest + bytes.mid(16 + length);
 }
+// A writer in its own process, saving the parent's unsaved edit: the saved document <previous>
+// with the same move of <body>, which must give the parent's bytes <next> and leave it dirty.
+//   --child stage <stage> <previous> <body> <next> <path>: killed at the stage's sync boundary;
+//   --child permission <previous> <body> <next> <path>: refused by the file system.
+int childWriter(const QStringList &arguments) {
+    const bool stage = arguments[0] == "stage";
+    const auto rest = arguments.mid(stage ? 2 : 1);
+    auto doc = decodeContainer(read(rest[0]));
+    doc.move(rest[1].toULongLong(), {0, 1, 0});
+    if (encodeContainer(doc) != read(rest[2]) || !doc.dirty())
+        return 94; // not the parent's document, or nothing left to acknowledge
+    if (stage) {
+        const int boundary = arguments[1].toInt();
+        directorySyncs = 0;
+        killFile = boundary == 0;
+        killDirectory = boundary;
+        saveDocument(doc, rest[3]);
+        return 90;
+    }
+    try {
+        saveDocument(doc, rest[3]);
+        return 92;
+    } catch (const std::exception &) {
+        return doc.dirty() ? 0 : 93;
+    }
+}
 } // namespace
-// Link-time syscall interposition confines fault injection to this test process.
-extern "C" int fsync(int fd) {
-    if (directory(fd)) {
-        ++directorySyncs;
-        if (killDirectory == directorySyncs)
-            raise(SIGKILL);
-        if (failSync == directorySyncs) {
-            errno = syncError;
-            return -1;
-        }
-    } else {
-        if (killFile)
-            raise(SIGKILL);
-        if (failFileSync) {
-            errno = EIO;
-            return -1;
-        }
-    }
-    return syscall(SYS_fsync, fd);
-}
-extern "C" ssize_t write(int fd, const void *buffer, size_t size) {
-    struct stat st{};
-    if (failWrite && fstat(fd, &st) == 0 && S_ISREG(st.st_mode)) {
-        errno = ENOSPC;
-        return -1;
-    }
-    return syscall(SYS_write, fd, buffer, size);
-}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (const auto child = childArguments())
+        return childWriter(*child);
     try {
         QTemporaryDir dir;
         require(dir.isValid(), "Temporary directory");
@@ -577,21 +572,17 @@ int main(int argc, char **argv) {
         const auto next = encodeContainer(doc);
         // Every process-kill boundary leaves a complete old/new target and, after replacement,
         // a verified old backup. A kill before target rename cannot destroy the old target.
+        // The edit is saved by a child process; it rebuilds this document from these files.
+        const auto previousFile = dir.filePath("child-previous");
+        const auto nextFile = dir.filePath("child-next");
+        write(previousFile, previous);
+        write(nextFile, next);
+        const QStringList edit{previousFile, QString::number(id), nextFile};
         for (int stage = 0; stage < 3; ++stage) {
             write(path, previous);
-            const auto pid = fork();
-            require(pid >= 0, "fork");
-            if (!pid) {
-                directorySyncs = 0;
-                killFile = stage == 0;
-                killDirectory = stage;
-                saveDocument(doc, path);
-                _exit(90);
-            }
-            int status = 0;
-            require(waitpid(pid, &status, 0) == pid, "waitpid");
-            require(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL,
-                    "Injected kill reached boundary");
+            const int status =
+                runChild(QStringList{"stage", QString::number(stage)} + edit + QStringList{path});
+            require(killedBy(status, SIGKILL), "Injected kill reached boundary");
             require(read(path) == (stage == 2 ? next : previous), "Kill preserves complete target");
             if (stage > 0)
                 require(read(path + ".bak") == previous, "Kill preserves last good backup");
@@ -627,21 +618,13 @@ int main(int argc, char **argv) {
         require(::chmod(QFile::encodeName(dir.path()).constData(), 0755) == 0 &&
                     ::chmod(QFile::encodeName(locked).constData(), 0555) == 0,
                 "Fixture permissions");
-        const auto child = fork();
-        require(child >= 0, "Permission fork");
-        if (!child) {
-            if (geteuid() == 0 && setuid(65534) != 0)
-                _exit(91);
-            try {
-                saveDocument(doc, lockedPath);
-                _exit(92);
-            } catch (const std::exception &) {
-                _exit(doc.dirty() ? 0 : 93);
-            }
-        }
-        int permissionStatus = 0;
-        require(waitpid(child, &permissionStatus, 0) == child && WIFEXITED(permissionStatus) &&
-                    WEXITSTATUS(permissionStatus) == 0,
+        require(encodeContainer(doc) == next, "The child's edit is still this document's");
+        const int permissionStatus =
+            runChild(QStringList{"permission"} + edit + QStringList{lockedPath}, [] {
+                if (geteuid() == 0 && setuid(65534) != 0)
+                    _exit(91);
+            });
+        require(exitedWith(permissionStatus, 0),
                 "Permission denial is reported without acknowledging save");
         require(read(lockedPath) == previous, "Permission denial preserves previous file");
         require(::chmod(QFile::encodeName(locked).constData(), 0755) == 0,

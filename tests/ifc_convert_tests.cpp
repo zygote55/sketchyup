@@ -81,9 +81,13 @@ IfcPackageMesh quadMesh(std::vector<Vec3> v, std::vector<std::array<std::uint32_
 // surface, where every triangle is its own face. Each mesh is moved by `m` so the bodies do not overlap.
 IfcPackageMesh roughGrid(std::uint32_t n, std::uint32_t m) {
     IfcPackageMesh mesh;
+    // The heights are rounded to a nanometre: sin and cos may differ in their last bit between C
+    // libraries (glibc and macOS's), and the pinned encodings must not see that.
     for (std::uint32_t j = 0; j <= n; ++j)
-        for (std::uint32_t i = 0; i <= n; ++i)
-            mesh.vertices.push_back({10.0 * m + i, double(j), 0.05 * std::sin(0.9 * i + m) * std::cos(0.7 * j)});
+        for (std::uint32_t i = 0; i <= n; ++i) {
+            const double height = 0.05 * std::sin(0.9 * i + m) * std::cos(0.7 * j);
+            mesh.vertices.push_back({10.0 * m + i, double(j), std::round(height * 1e9) / 1e9});
+        }
     const auto at = [n](std::uint32_t i, std::uint32_t j) { return j * (n + 1) + i; };
     for (std::uint32_t j = 0; j < n; ++j)
         for (std::uint32_t i = 0; i < n; ++i) {
@@ -608,7 +612,7 @@ int main(int argc, char **argv) {
                   "thirty bodies (294,000 faces) fit, and the one after them is refused with the face limit named");
             const std::string roughHash = encodingHash(roughResult.document);
             const std::string sampleHash = encodingHash(import(samplePackage()).document);
-            const std::string pinnedRough = "db291571713ba7ed1aaf345d9c45c41902d87dfb186ca20f61cc4080a337bb46",
+            const std::string pinnedRough = "1987ce56d43e4beb0e59fbd3a01ea990c7695e256b03239883c4d60c12b798bd",
                               pinnedSample = "5b7ea80f1a6205a09e04013afa5bacb3d491fedc26173e3566916b5648df7f8c";
             if (pinnedRough != roughHash || pinnedSample != sampleHash)
                 throw std::runtime_error("pinned encodings differ: rough " + roughHash + ", sample " + sampleHash);

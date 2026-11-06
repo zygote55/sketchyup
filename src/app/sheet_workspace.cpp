@@ -3,6 +3,7 @@
 #include "app/keyboard_navigation.hpp"
 #include "app/sheet_text.hpp"
 #include "core/drawing_sheets.hpp"
+#include "io/preferences.hpp"
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QScopedValueRollback>
@@ -61,7 +62,7 @@ SheetWorkspace::SheetWorkspace(const Document &doc, DrawingViewRenderCache &cach
     topLayout->addWidget(paper_, 1);
     grid_ = new QCheckBox("Snap to grid 5 mm");
     grid_->setObjectName("sheetGridToggle");
-    grid_->setChecked(QSettings("SketchyUp", "SketchyUp").value("sheets/grid", true).toBool());
+    grid_->setChecked(Preferences().value("sheets/grid", true).toBool());
     topLayout->addWidget(grid_);
     fit_ = new QPushButton("Fit page");
     fit_->setObjectName("sheetFitPage");
@@ -73,7 +74,7 @@ SheetWorkspace::SheetWorkspace(const Document &doc, DrawingViewRenderCache &cach
     canvas_->setGrid(grid_->isChecked());
     connect(grid_, &QCheckBox::toggled, this, [this](bool on) {
         canvas_->setGrid(on);
-        QSettings("SketchyUp", "SketchyUp").setValue("sheets/grid", on);
+        Preferences().setValue("sheets/grid", on);
     });
     layout->addWidget(canvas_, 1);
     auto *bar = new QWidget;

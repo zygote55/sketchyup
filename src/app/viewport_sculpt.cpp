@@ -21,9 +21,10 @@
 #include "automation/terrain_commands.hpp"
 #include "core/material_records.hpp"
 #include "core/terrain_display.hpp"
-#include "core/terrain_sculpt.hpp"
 #include "core/terrain_drape.hpp"
+#include "core/terrain_sculpt.hpp"
 #include "core/terrain_stamp.hpp"
+#include "io/preferences.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLineF>
@@ -126,7 +127,7 @@ void Viewport::setTerrainOptions(const TerrainToolOptions &input) {
     const bool scopeChanged = options.scope != terrainOptions_.scope;
     // R096.f2: the pad offset (a slab build-up) is typed once and remembered (UX §15.4).
     if (options.padOffset != terrainOptions_.padOffset)
-        QSettings("SketchyUp", "SketchyUp").setValue("terrainPadOffset", options.padOffset);
+        Preferences().setValue("terrainPadOffset", options.padOffset);
     terrainOptions_ = options;
     // R096.f2: a pad's or a drape's preview follows the strip.
     if (tool_ == Tool::Pad && !padTool_.footprint.isEmpty()) {

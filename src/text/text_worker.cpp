@@ -26,16 +26,22 @@ void require(bool value, const char *message) {
 // The rule: a folder outside the home directory is accepted only when it came from XDG_DATA_HOME,
 // the user's own choice. The default folders are inside HOME by construction, so only the XDG one
 // can lie outside it. A relative XDG_DATA_HOME is ignored, as the XDG specification says.
+// On macOS the user's folder is ~/Library/Fonts, the one the system's font list reads for the user.
 QStringList userFontFolders(const QProcessEnvironment &environment) {
     const auto home = environment.value("HOME");
-    const auto dataHome = environment.value("XDG_DATA_HOME");
     QStringList candidates;
+#ifdef Q_OS_MACOS
+    if (QDir::isAbsolutePath(home))
+        candidates << home + "/Library/Fonts";
+#else
+    const auto dataHome = environment.value("XDG_DATA_HOME");
     if (QDir::isAbsolutePath(dataHome))
         candidates << dataHome + "/fonts";
     else if (QDir::isAbsolutePath(home))
         candidates << home + "/.local/share/fonts";
     if (QDir::isAbsolutePath(home))
         candidates << home + "/.fonts";
+#endif
     QStringList folders;
     for (const auto &candidate : candidates) {
         const QFileInfo info(candidate);
@@ -44,6 +50,7 @@ QStringList userFontFolders(const QProcessEnvironment &environment) {
     }
     return folders;
 }
+#ifndef Q_OS_MACOS
 // The fontconfig file the helper reads (FONTCONFIG_FILE): the system configuration, one <dir> for
 // each user folder, and the cache in the private directory. The helper cannot write there, so
 // fontconfig cannot keep a cache for these folders and scans them again on each call.
@@ -68,6 +75,7 @@ void writeFontConfiguration(const QString &file, const QStringList &folders, con
     output.close();
     require(output.error() == QFileDevice::NoError, "Text worker font configuration is incomplete");
 }
+#endif
 void fields(const QJsonObject &o, const QStringList &keys) {
     require(o.size() == keys.size(), "Text protocol has missing or unknown fields");
     for (const auto &key : keys)
@@ -252,10 +260,13 @@ TextGeometry runTextWorker(const TextGeometrySettings &settings, const TextWorke
     const auto fontFolders = userFontFolders(environment);
     QStringList arguments;
     if (!fontFolders.isEmpty()) {
+#ifndef Q_OS_MACOS
+        // macOS has no fontconfig: the folders alone are passed, and the helper adds their fonts.
         const auto configuration = privateDirectory.path() + "/fonts.conf";
         writeFontConfiguration(configuration, fontFolders, privateDirectory.path());
         environment.insert("FONTCONFIG_FILE", configuration);
         arguments << "--font-config=" + configuration;
+#endif
         for (const auto &folder : fontFolders)
             arguments << "--font-dir=" + folder;
     }

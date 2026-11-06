@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <csignal>
 #include <cstdlib>
 #include <fstream>
 #include <future>
@@ -299,7 +300,14 @@ int fake(const QString &stated, const QStringList &args) {
     // stand-in with SIGSYS, which the job reports as sandboxViolation. abort: an ordinary crash,
     // which stays a crash.
     if (mode == "violate") {
+#ifdef __linux__
         ptrace(PTRACE_TRACEME, 0, nullptr, nullptr);
+#else
+        // macOS: Seatbelt refuses an action with EPERM and never kills (blender_sandbox_tests
+        // checks the refusals), so the stand-in ends itself with the signal Linux's filter sends,
+        // and the job's classes are checked the same way.
+        raise(SIGSYS);
+#endif
         return 0;
     }
     if (mode == "abort")

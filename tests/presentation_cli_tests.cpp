@@ -90,6 +90,13 @@ int main(int argc, char **argv) {
         const auto data = files.filePath("data");
         auto env = QProcessEnvironment::systemEnvironment();
         env.insert("XDG_DATA_HOME", data);
+#ifdef Q_OS_MACOS
+        // macOS's QStandardPaths follows CFFIXED_USER_HOME, not XDG_DATA_HOME.
+        env.insert("CFFIXED_USER_HOME", data);
+        const auto appData = data + "/Library/Application Support/SketchyUp/SketchyUp";
+#else
+        const auto appData = data + "/SketchyUp/SketchyUp";
+#endif
         env.insert("PATH", bin + ":/usr/bin:/bin");
         blenderLauncher(bin + "/blender");
         const auto request = [&](const QString &name, const QByteArray &body) {
@@ -112,7 +119,7 @@ int main(int argc, char **argv) {
         check(QFileInfo(files.filePath("export/orbit/manifest.json")).isFile() &&
                   QFileInfo(files.filePath("export/orbit/02-Check/frames/frame-0006.png")).isFile(),
               "The CLI writes the frame sequence and manifest");
-        check(QDir(data + "/SketchyUp/SketchyUp/presentation-jobs").exists(),
+        check(QDir(appData + "/presentation-jobs").exists(),
               "The CLI uses the application's presentation job directory");
         check(read(native) == nativeBytes, "The CLI leaves the native model unchanged");
 
@@ -196,7 +203,7 @@ int main(int argc, char **argv) {
                   !QFileInfo::exists(stoppedOutput + "/01-Draft/frames/frame-0002.png"),
               "A SIGTERM stop keeps the finished frame and writes none of the one in flight");
         {
-            PresentationJobStore stored(data + "/SketchyUp/SketchyUp/presentation-jobs");
+            PresentationJobStore stored(appData + "/presentation-jobs");
             bool recorded = false;
             for (const auto &[id, job] : stored.jobs())
                 recorded = recorded || (job.output == stoppedOutput &&

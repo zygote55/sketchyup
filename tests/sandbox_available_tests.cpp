@@ -10,8 +10,12 @@
 //      must fail with EACCES, which shows that the Landlock ruleset restricts the process. A layer
 //      that cannot be installed is named on stderr, and the child exits 70.
 // The checks that change the process run in forked children, so this process stays unrestricted.
+// On macOS the sandbox is one Seatbelt profile: checks 1 to 3 are Linux's, and check 4 installs the
+// profile and expects the open to fail with EPERM, Seatbelt's refusal.
 #include "sandbox/sandbox.hpp"
+#ifdef __linux__
 #include "sandbox/syscalls_x86_64.hpp"
+#endif
 
 #include <cerrno>
 #include <cstdint>
@@ -19,10 +23,12 @@
 #include <fcntl.h>
 #include <functional>
 #include <iostream>
-#include <linux/seccomp.h>
 #include <string>
+#ifdef __linux__
+#include <linux/seccomp.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
+#endif
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -50,15 +56,16 @@ int inChild(const std::function<int()> &body) {
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
-bool seccompActionAvailable(std::uint32_t action) {
-    std::uint32_t value = action;
-    return syscall(kSysSeccomp, SECCOMP_GET_ACTION_AVAIL, 0, &value) == 0;
-}
-
 void reportKernel() {
     utsname names{};
     uname(&names);
     std::cout << "sandbox_available: kernel " << names.release << " " << names.machine << "\n";
+}
+
+#ifdef __linux__
+bool seccompActionAvailable(std::uint32_t action) {
+    std::uint32_t value = action;
+    return syscall(kSysSeccomp, SECCOMP_GET_ACTION_AVAIL, 0, &value) == 0;
 }
 
 void checkLandlock() {
@@ -87,6 +94,18 @@ void checkNoNewPrivileges() {
     });
     report(status == 0, "PR_SET_NO_NEW_PRIVS is accepted");
 }
+#endif
+
+#ifdef __APPLE__
+// Seatbelt's refusal of an open outside the grants.
+constexpr int kRefusedOpen = EPERM;
+constexpr const char *kInstalled = "the sandbox installs (a Seatbelt profile), and it refuses an "
+                                   "open outside its grants";
+#else
+constexpr int kRefusedOpen = EACCES;
+constexpr const char *kInstalled = "the sandbox installs (no_new_privs, Landlock and seccomp), and "
+                                   "Landlock refuses an open outside its grants";
+#endif
 
 void checkInstall() {
     const int status = inChild([] {
@@ -101,13 +120,12 @@ void checkInstall() {
             writeUnavailableLine(*failure);
             return 70;
         }
-        // The policy grants no file, so Landlock refuses the open of the root directory.
+        // The policy grants no file, so the open of the root directory is refused.
         const int fd = ::open("/", O_RDONLY | O_DIRECTORY);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == kRefusedOpen) ? 0 : 1;
     });
     if (status == 0)
-        report(true, "the sandbox installs (no_new_privs, Landlock and seccomp), and Landlock "
-                     "refuses an open outside its grants");
+        report(true, kInstalled);
     else if (status == 70)
         report(false,
                "the sandbox cannot be installed on this runner (the line above names the layer)");
@@ -120,9 +138,11 @@ void checkInstall() {
 
 int main() {
     reportKernel();
+#ifdef __linux__
     checkLandlock();
     checkSeccomp();
     checkNoNewPrivileges();
+#endif
     checkInstall();
     if (failures == 0)
         std::cout << "sandbox_available: passed\n";

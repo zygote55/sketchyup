@@ -7,6 +7,7 @@
 #include "core/tags.hpp"
 #include "io/assets.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QDialog>
@@ -105,7 +106,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     preferences.setValue("defaultUnits", "mm");
     preferences.setValue("recoverySeconds", 0);
     Window window;

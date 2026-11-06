@@ -9,7 +9,9 @@
 #include <sstream>
 #include <thread>
 #include <tuple>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -397,7 +399,9 @@ void diagnoseTasks(RunInputs& in, const std::vector<std::vector<int>>& tasks, bo
     const pid_t child = ::fork();
     if (child < 0) return ChildOutcome::Yielded;  // cannot try: end the search
     if (child == 0) {
+#ifdef __linux__
       ::prctl(PR_SET_PDEATHSIG, SIGKILL);
+#endif
       if (::getppid() != parent) ::_exit(3);
       int code = 3;
       try {

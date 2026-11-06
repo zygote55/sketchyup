@@ -8,6 +8,10 @@
 // (fail closed, ADR 0183 section 7). The library has no dependency: the BPF program and the
 // Landlock calls are written here against the kernel's ABI.
 //
+// On macOS the three layers are one Seatbelt profile (seatbelt.cpp), built from the same policy:
+// the file rules as they are, and the syscall rules as the kinds of call they allow (fork, exec,
+// network and signals). A refused action fails with EPERM there instead of killing the helper.
+//
 // A helper that is started by fork (the Blender job, ADR 0183 section 4.1) uses PreparedPolicy
 // instead: the parent prepares everything that allocates or opens files, and the child calls
 // enter(), which issues only system calls.
@@ -21,9 +25,10 @@
 
 namespace sketchyup::sandbox {
 
-enum class Layer { noNewPrivileges, landlock, seccomp };
+enum class Layer { noNewPrivileges, landlock, seccomp, seatbelt };
 
-// The name a refusal gives the layer: "no_new_privs", "landlock" or "seccomp filter".
+// The name a refusal gives the layer: "no_new_privs", "landlock", "seccomp filter" or, on macOS,
+// "seatbelt".
 const char *layerName(Layer layer);
 
 // How the policy treats one system call. A call the policy does not name is killed (the kill

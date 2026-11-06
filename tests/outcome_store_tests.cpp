@@ -1,5 +1,7 @@
+#include "child_process.hpp"
 #include "core/assets.hpp"
 #include "core/components.hpp"
+#include "io/document_io.hpp"
 #include "io/native_limits.hpp"
 #include "io/outcome_store.hpp"
 #include <QCoreApplication>
@@ -13,7 +15,6 @@
 #include <cmath>
 #include <csignal>
 #include <iostream>
-#include <sys/wait.h>
 #include <unistd.h>
 using namespace sketchy;
 void check(bool ok, const char *message) {
@@ -116,8 +117,33 @@ int measureCommit(const QString &model) {
               << peakMiB() << " MiB after it\n";
     return 0;
 }
+// A killed writer: --child <root> <document> <request> <payload> <phase> <before> <after>
+// <result>. It commits the parent's documents (their containers, in files) and is killed at the
+// phase's durability boundary.
+int killedWriter(const QStringList &arguments) {
+    const auto beforeBytes = read(arguments[5]), afterBytes = read(arguments[6]);
+    const auto before = decodeContainer(beforeBytes), after = decodeContainer(afterBytes);
+    if (encodeContainer(before) != beforeBytes || encodeContainer(after) != afterBytes ||
+        QString::fromStdString(before.identity()) != arguments[1])
+        return 4; // not the parent's documents
+    const auto phase = OutcomeStore::Phase(arguments[4].toInt());
+    const auto result = QJsonDocument::fromJson(arguments[7].toUtf8()).object();
+    try {
+        OutcomeStore store(arguments[0], arguments[1], {}, QDateTime::currentDateTimeUtc,
+                           [&](auto value) {
+                               if (value == phase)
+                                   ::kill(::getpid(), SIGKILL);
+                           });
+        store.commit(arguments[2], arguments[3], before, after, result);
+    } catch (...) {
+        return 2;
+    }
+    return 3;
+}
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (const auto child = childArguments())
+        return killedWriter(*child);
     try {
         if (app.arguments().value(1) == "--measure-commit")
             return measureCommit(app.arguments().value(2));
@@ -395,24 +421,14 @@ int main(int argc, char **argv) {
                 OutcomeStore store(killedRoot, doc);
                 id = store.begin(before, payload)["requestId"].toString();
             }
-            const auto child = ::fork();
-            check(child >= 0, "Fork killed writer");
-            if (child == 0) {
-                try {
-                    OutcomeStore store(killedRoot, doc, {}, QDateTime::currentDateTimeUtc,
-                                       [&](auto value) {
-                                           if (value == phase)
-                                               ::kill(::getpid(), SIGKILL);
-                                       });
-                    store.commit(id, payload, before, after, result);
-                } catch (...) {
-                    ::_exit(2);
-                }
-                ::_exit(3);
-            }
-            int status = 0;
-            check(::waitpid(child, &status, 0) == child && WIFSIGNALED(status) &&
-                      WTERMSIG(status) == SIGKILL,
+            const auto beforeFile = files.path() + "/killed-before";
+            const auto afterFile = files.path() + "/killed-after";
+            write(beforeFile, encodeContainer(before));
+            write(afterFile, encodeContainer(after));
+            const int status = runChild(
+                {killedRoot, doc, id, payload, QString::number(int(phase)), beforeFile, afterFile,
+                 QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact))});
+            check(killedBy(status, SIGKILL),
                   "Writer must be killed at requested durability boundary");
             OutcomeStore recovered(killedRoot, doc);
             const auto expected =

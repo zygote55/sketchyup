@@ -13,7 +13,7 @@
 
 L1  Only sketchyup-skp-worker links the parser (OpenSKP and its miniz). Its symbols (static link;
     install mode) or its DT_NEEDED entry (shared build) identify the link; no other installed
-    executable has either.
+    executable has either. On macOS the Mach-O load commands (otool -L) stand for DT_NEEDED.
 L2  The worker's DT_NEEDED entries are the C and C++ runtime, and in a package every library it
     loads resolves outside the package's private lib/sketchyup directory (ldd). A shared build names the parser library, so its closure is
     checked in the static package only.
@@ -32,22 +32,37 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKER = "sketchyup-skp-worker"
-PARSER_LIBRARY = re.compile(r"libsketchyup_openskp\.so")
-PARSER_SYMBOL = re.compile(r"_ZN7openskp|\bmz_zip_")
-RUNTIME = ("libc.so.", "libm.so.", "libgcc_s.so.", "libstdc++.so.")
+PARSER_LIBRARY = re.compile(r"libsketchyup_openskp\.(so|dylib)")
+# Mach-O writes C names with a leading underscore (_mz_zip_...); C++ names match either way.
+PARSER_SYMBOL = re.compile(r"_ZN7openskp|^_?mz_zip_")
+# On macOS, libsandbox is the operating system's sandbox (the helper's Seatbelt layer), as Landlock
+# and seccomp are the kernel's on Linux: it ships with the system and is not a third-party library.
+RUNTIME = ("libc.so.", "libm.so.", "libgcc_s.so.", "libstdc++.so.",
+           "/usr/lib/libSystem.B.dylib", "/usr/lib/libc++.1.dylib", "/usr/lib/libsandbox.1.dylib")
+ELF = b"\x7fELF"
+MACH_O = (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe", b"\xca\xfe\xba\xbe")
 PIN = "23a15e8742e936694bf14aa029cb0e2862dce5b9"
 ARCHIVE_SHA = "5b304cc024b2d72504ac5a6676968166fdd300f180d3f1078efe8b959951e1a5"
 
 
-def is_elf(path):
+def magic(path):
     try:
         with open(path, "rb") as handle:
-            return handle.read(4) == b"\x7fELF"
+            return handle.read(4)
     except OSError:
-        return False
+        return b""
+
+
+def is_binary(path):
+    return magic(path) == ELF or magic(path) in MACH_O
 
 
 def needed(path):
+    """The libraries the binary names: its DT_NEEDED entries, or its Mach-O load commands."""
+    if magic(path) in MACH_O:
+        out = subprocess.run(["otool", "-L", str(path)], capture_output=True, text=True).stdout
+        # The first line names the file itself; each line after it is "\t<install name> (...)".
+        return [line.strip().split(" (")[0] for line in out.splitlines()[1:]]
     out = subprocess.run(["readelf", "-d", str(path)], capture_output=True, text=True).stdout
     return re.findall(r"\(NEEDED\)\s+Shared library: \[([^\]]*)\]", out)
 
@@ -63,10 +78,10 @@ def executables(prefix):
     bin_dir = prefix / "bin"
     if bin_dir.is_dir():
         found += [p for p in sorted(bin_dir.iterdir())
-                  if p.name.startswith("sketchyup") and p.is_file() and not p.is_symlink() and is_elf(p)]
+                  if p.name.startswith("sketchyup") and p.is_file() and not p.is_symlink() and is_binary(p)]
     private = prefix / "lib" / "sketchyup"
     if private.is_dir():
-        found += [p for p in sorted(private.iterdir()) if p.is_file() and not p.is_symlink() and is_elf(p)]
+        found += [p for p in sorted(private.iterdir()) if p.is_file() and not p.is_symlink() and is_binary(p)]
     return found
 
 

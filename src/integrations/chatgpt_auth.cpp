@@ -1,6 +1,7 @@
 #include "integrations/chatgpt_auth.hpp"
 #include "integrations/credential_store.hpp"
 #include "integrations/openai_provider.hpp"
+#include "io/preferences.hpp"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -65,8 +66,7 @@ bool validSecret(const QString &token) {
 }
 QString field(const QJsonObject &object, const char *name) { return object.value(name).toString(); }
 QJsonArray savedAccounts() {
-    return QJsonDocument::fromJson(
-               QSettings("SketchyUp", "SketchyUp").value("assistant/chatgptAccounts").toByteArray())
+    return QJsonDocument::fromJson(Preferences().value("assistant/chatgptAccounts").toByteArray())
         .array();
 }
 void saveAccount(const QJsonObject &account) {
@@ -82,7 +82,7 @@ void saveAccount(const QJsonObject &account) {
         require(saved.size() < 32, "Too many saved ChatGPT accounts.");
         saved.append(account);
     }
-    QSettings prefs("SketchyUp", "SketchyUp");
+    Preferences prefs;
     prefs.setValue("assistant/chatgptAccounts",
                    QJsonDocument(saved).toJson(QJsonDocument::Compact));
     prefs.sync();
@@ -353,7 +353,7 @@ struct ChatGptAuth::Impl {
         state = randomValue();
         nonce = randomValue();
         verifier = randomValue();
-        QSettings prefs("SketchyUp", "SketchyUp");
+        Preferences prefs;
         auto host = prefs.value("assistant/chatgptHostId").toString();
         if (host.isEmpty()) {
             host = "urn:uuid:" + QUuid::createUuid().toString(QUuid::WithoutBraces);

@@ -89,7 +89,7 @@ done
 // The end of a successful --import body: the parse and package phases, the package copied to
 // --output, and the helper's own line.
 QString successTail(const QString &package) {
-    return QString("echo 'P phase parse'\necho 'P phase package'\n/usr/bin/cp '") + package +
+    return QString("echo 'P phase parse'\necho 'P phase package'\n/bin/cp '") + package +
            QString("' \"$out\" || exit 1\necho 'R {\"status\":\"ok\",\"bytes\":900}'\nexit 0\n");
 }
 

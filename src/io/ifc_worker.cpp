@@ -15,7 +15,9 @@
 #include <cerrno>
 #include <csignal>
 #include <fcntl.h>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -163,7 +165,9 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
     process.setChildProcessModifier([] {
         // Its own session, and it dies with the application.
         ::setsid();
+#ifdef __linux__
         ::prctl(PR_SET_PDEATHSIG, SIGKILL);
+#endif
     });
     process.start(QIODevice::ReadOnly);
     if (!process.waitForStarted(10000)) {

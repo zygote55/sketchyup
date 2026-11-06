@@ -32,7 +32,12 @@ sketchyup::sandbox::Policy extensionSandboxPolicy() {
     // trace also opened the gconv modules, the locale message catalogue and OpenSSL's
     // configuration; a run with those denied gave the same bytes, so they are not granted (ADR 0183
     // implementation notes, S3 and S4). Read only. A path that does not exist grants nothing.
-    const QStringList readOnly{QStringLiteral("/usr/lib/locale")};
+    // On macOS the C library reads C.UTF-8 from /usr/share/locale/C.UTF-8 instead.
+    const QStringList readOnly{QStringLiteral("/usr/lib/locale"),
+#ifdef Q_OS_MACOS
+                               QStringLiteral("/usr/share/locale/C.UTF-8")
+#endif
+    };
     for (const QString &path : readOnly)
         policy.files.push_back({path.toStdString(), FileAccess::readOnly});
 

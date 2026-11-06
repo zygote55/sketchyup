@@ -1,5 +1,6 @@
 #include "app/scenes_panel.hpp"
 #include "core/scenes.hpp"
+#include "io/preferences.hpp"
 #include "io/scenes_io.hpp"
 #include <QAction>
 #include <QCheckBox>
@@ -31,13 +32,14 @@ ScenesPanel::ScenesPanel(Document &doc, Viewport &view, QWidget *parent)
         "Camera transition duration in milliseconds");
     duration->setRange(0, 10000);
     duration->setSuffix(" ms");
-    duration->setValue(std::clamp(QSettings().value("sceneTransitionMs", 160).toInt(), 0, 10000));
+    duration->setValue(
+        std::clamp(ApplicationPreferences().value("sceneTransitionMs", 160).toInt(), 0, 10000));
     view_.setSceneTransitionDuration(duration->value());
     timing->addRow("Camera transition", duration);
     layout->addLayout(timing);
     connect(duration, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
         view_.setSceneTransitionDuration(value);
-        QSettings().setValue("sceneTransitionMs", value);
+        ApplicationPreferences().setValue("sceneTransitionMs", value);
     });
     list_ = new QListWidget;
     list_->setObjectName("savedScenesList");

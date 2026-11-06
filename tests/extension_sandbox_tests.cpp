@@ -14,11 +14,14 @@
 //     a crash (SIGABRT) as a crash; the host passes the worker only PATH and LANG (C.UTF-8);
 //   - a user locale that is not installed does not stop the worker.
 // Needs sketchyup-extension-worker (EXTENSION_WORKER_PATH). Landlock must be available: the checks
-// fail, not skip, when it is not (ADR 0183 decision 9).
+// fail, not skip, when it is not (ADR 0183 decision 9). On macOS the layers are one Seatbelt
+// profile: the probes expect its refusals (EPERM, never a kill; tests/sandbox_platform.hpp), and
+// the real refusal is the worker started inside another profile.
 #include "automation/extension_sandbox_policy.hpp"
 #include "automation/extension_worker.hpp"
 #include "sandbox/sandbox.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
+#include "sandbox_platform.hpp"
 
 #include <QByteArray>
 #include <QDir>
@@ -37,15 +40,20 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <netinet/in.h>
+#include <string>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#ifdef __linux__
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <pty.h>
-#include <string>
 #include <sys/prctl.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/wait.h>
+#else
+#include <util.h>
+#endif
 #include <unistd.h>
 #include <vector>
 
@@ -95,11 +103,10 @@ Outcome inChild(const std::string &stdoutFile, const std::function<int()> &body)
     return outcome;
 }
 
+#ifdef __linux__
 // The filter a test installs in a child before exec: the calls in refused fail with refusedErrno,
 // the others are allowed (the test's own refusal of the layer's calls, ADR 0183 section 6.7).
-void installRefusal(const std::vector<long> &refused, int refusedErrno) {
-    if (refused.empty())
-        return;
+bool installRefusal(const std::vector<long> &refused, int refusedErrno) {
     std::vector<sock_filter> filter;
     const std::size_t count = refused.size();
     filter.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0));
@@ -111,8 +118,13 @@ void installRefusal(const std::vector<long> &refused, int refusedErrno) {
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | static_cast<unsigned>(refusedErrno)));
     prctl(PR_SET_NO_NEW_PRIVS, 1UL, 0UL, 0UL, 0UL);
     sock_fprog program{static_cast<unsigned short>(filter.size()), filter.data()};
-    syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0UL, &program);
+    return syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0UL, &program) == 0;
 }
+
+std::function<bool()> refusing(std::vector<long> refused, int refusedErrno) {
+    return [refused, refusedErrno] { return installRefusal(refused, refusedErrno); };
+}
+#endif
 
 // The stdio setups of ADR 0183 section 4.5 that the worker meets in production and in the tests.
 enum class Stdio { pipes, files, terminal, devNull };
@@ -125,10 +137,9 @@ struct Direct {
 };
 
 // Runs the worker directly, with the request on stdin, in the given stdio setup. stderr goes to a
-// file.
+// file. An optional step runs in the child before exec: the test's own refusal of the sandbox.
 Direct runDirect(Stdio mode, const std::string &requestPath, const std::string &scratch,
-                 const std::string &stem, const std::vector<long> &refused = {},
-                 int refusedErrno = 0) {
+                 const std::string &stem, const std::function<bool()> &beforeExec = {}) {
     const std::string worker = EXTENSION_WORKER_PATH;
     const std::string request = readAll(requestPath);
     const std::string errorFile = scratch + "/" + stem + ".stderr";
@@ -169,12 +180,12 @@ Direct runDirect(Stdio mode, const std::string &requestPath, const std::string &
         if (err >= 0)
             dup2(err, 2);
         // The environment the host gives the worker: PATH and LANG, nothing else.
-        clearenv();
-        setenv("PATH", "/usr/bin:/bin", 1);
-        setenv("LANG", "C.UTF-8", 1);
-        installRefusal(refused, refusedErrno);
+        char *const environment[] = {const_cast<char *>("PATH=/usr/bin:/bin"),
+                                     const_cast<char *>("LANG=C.UTF-8"), nullptr};
+        if (beforeExec && !beforeExec())
+            _exit(99);
         char *const argv[] = {const_cast<char *>(worker.c_str()), nullptr};
-        execv(worker.c_str(), argv);
+        execve(worker.c_str(), argv, environment);
         _exit(98);
     }
 
@@ -288,29 +299,46 @@ void testFixturesIdentical(const std::string &scratch, const QByteArray &panel) 
 
 void testPolicyRefusesAttacks(const std::string &scratch) {
     const Outcome socketCall = armed(scratch + "/attack-socket.out", [] {
-        return socket(AF_INET, SOCK_STREAM, 0) == -1 && errno == EPERM ? 0 : 1;
+        const int fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd == -1)
+            return errno == EPERM ? 0 : 1;
+        // macOS: Seatbelt refuses the socket's use, not the socket. Nothing listens on the discard
+        // port, so a connect that reached the network would be ECONNREFUSED.
+        sockaddr_in loopback{};
+        loopback.sin_family = AF_INET;
+        loopback.sin_port = htons(9);
+        loopback.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        return connect(fd, reinterpret_cast<sockaddr *>(&loopback), sizeof loopback) == -1 &&
+                       errno == EPERM
+                   ? 0
+                   : 1;
     });
     check(!socketCall.signaled && socketCall.code == 0,
-          "the extension worker cannot create a socket (EPERM)");
+          "the extension worker cannot use a socket (EPERM)");
 
     const Outcome execCall = armed(scratch + "/attack-exec.out", [] {
-        char *const argv[] = {const_cast<char *>("/bin/true"), nullptr};
-        execv("/bin/true", argv);
-        return 0;
+        // /bin/sh: a program on every platform, so a refusal is not a missing file; if it ran,
+        // it would exit 7, not the probe's 0
+        char *const argv[] = {const_cast<char *>("/bin/sh"), const_cast<char *>("-c"),
+                              const_cast<char *>("exit 7"), nullptr};
+        execv("/bin/sh", argv);
+        return errno == EPERM ? 0 : 1;
     });
-    check(execCall.signaled && execCall.signal == SIGSYS,
-          "the extension worker cannot exec another program (killed with SIGSYS)");
+    check(sandbox_platform::unlistedRefused(execCall.signaled, execCall.signal, execCall.code),
+          std::string("the extension worker cannot exec another program (") +
+              sandbox_platform::unlistedRefusal + ")");
 
     // The worker's policy has no clone (the ADR's row says it creates no thread), so a fork is
-    // killed.
+    // killed on Linux and refused on macOS.
     const Outcome forkCall = armed(scratch + "/attack-fork.out", [] {
         const pid_t pid = fork();
         if (pid == 0)
             _exit(0);
         return (pid == -1 && errno == EPERM) ? 0 : 1;
     });
-    check(forkCall.signaled && forkCall.signal == SIGSYS,
-          "the extension worker's fork is killed with SIGSYS (its policy has no clone)");
+    check(sandbox_platform::unlistedRefused(forkCall.signaled, forkCall.signal, forkCall.code),
+          std::string("the extension worker's fork is ") + sandbox_platform::unlistedRefusal +
+              " (its policy has no clone)");
 
     const Outcome abortCall = armed(scratch + "/attack-abort.out", [] {
         std::abort();
@@ -321,20 +349,22 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
 
     const Outcome readPasswd = armed(scratch + "/attack-passwd.out", [] {
         const int fd = open("/etc/passwd", O_RDONLY);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!readPasswd.signaled && readPasswd.code == 0,
-          "the extension worker cannot read /etc/passwd (EACCES)");
+          std::string("the extension worker cannot read /etc/passwd (") +
+              sandbox_platform::refusedPathName + ")");
 
     const Outcome writeOutside = armed(scratch + "/attack-write.out", [&] {
         const int fd = open((scratch + "/escaped.txt").c_str(), O_WRONLY | O_CREAT, 0600);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!writeOutside.signaled && writeOutside.code == 0,
-          "the extension worker cannot create a file (EACCES): it has no write rule");
+          std::string("the extension worker cannot create a file (") +
+              sandbox_platform::refusedPathName + "): it has no write rule");
 
     const Outcome readLocale = armed(scratch + "/attack-locale.out", [] {
-        const int fd = open("/usr/lib/locale/C.utf8/LC_CTYPE", O_RDONLY);
+        const int fd = open(sandbox_platform::localeFile, O_RDONLY);
         return fd >= 0 ? 0 : 1;
     });
     check(!readLocale.signaled && readLocale.code == 0,
@@ -363,9 +393,22 @@ void testRefusalsFailClosed(const std::string &scratch, const std::string &panel
                   " failure refuses with sandboxUnavailable");
     }
 
+#ifdef __APPLE__
+    // The real worker inside another Seatbelt profile, which refuses the worker's own.
+    const Direct nested = runDirect(Stdio::files, panelRequest, scratch, "nested",
+                                    sandbox_platform::enterOuterProfile);
+    check(!nested.signaled && nested.code == extensionSandboxUnavailableExit,
+          "the extension worker that cannot install its profile exits " +
+              std::to_string(extensionSandboxUnavailableExit) + " (code " +
+              std::to_string(nested.code) + ")");
+    check(nested.out.find("\"error\":\"" + sandbox_platform::outerRefusal + "\"") !=
+              std::string::npos,
+          "the extension worker that cannot install its profile names the layer and replies with "
+          "no commands");
+#else
     // The real worker, with a filter that refuses the layer's calls.
-    const Direct noLandlock =
-        runDirect(Stdio::files, panelRequest, scratch, "no-landlock", {444, 445, 446}, ENOSYS);
+    const Direct noLandlock = runDirect(Stdio::files, panelRequest, scratch, "no-landlock",
+                                        refusing({444, 445, 446}, ENOSYS));
     check(!noLandlock.signaled && noLandlock.code == extensionSandboxUnavailableExit,
           "the extension worker without Landlock exits " +
               std::to_string(extensionSandboxUnavailableExit) + " (code " +
@@ -376,13 +419,14 @@ void testRefusalsFailClosed(const std::string &scratch, const std::string &panel
           "the extension worker without Landlock names the layer and replies with no commands");
 
     const Direct noSeccomp =
-        runDirect(Stdio::files, panelRequest, scratch, "no-seccomp", {317}, EPERM);
+        runDirect(Stdio::files, panelRequest, scratch, "no-seccomp", refusing({317}, EPERM));
     check(!noSeccomp.signaled && noSeccomp.code == extensionSandboxUnavailableExit,
           "the extension worker without a seccomp filter exits " +
               std::to_string(extensionSandboxUnavailableExit));
     check(noSeccomp.out.find("sandboxUnavailable: seccomp filter (Operation not permitted)") !=
               std::string::npos,
           "the extension worker without a seccomp filter names the layer");
+#endif
 }
 
 // A stand-in worker: a shell script that reads its request and ends the way the test needs.
@@ -413,7 +457,7 @@ std::string hostMessage(const ExtensionManifest &manifest, const std::string &ex
 
 void testHostClassifies(const std::string &scratch, const ExtensionManifest &manifest) {
     const std::string violation =
-        hostMessage(manifest, standIn(scratch, "sigsys-worker.sh", "kill -31 $$"));
+        hostMessage(manifest, standIn(scratch, "sigsys-worker.sh", "kill -SYS $$"));
     check(violation.find("sandboxViolation") != std::string::npos,
           "a worker killed by SIGSYS is sandboxViolation, not a crash (got: " + violation + ")");
 

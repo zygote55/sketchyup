@@ -5,6 +5,7 @@
 #include "automation/commands.hpp"
 #include "core/entity_measure.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -80,7 +81,7 @@ int main(int argc, char **argv) {
         // Copy public account metadata only. Native preferences and the user's model are untouched.
         QVariantMap publicSettings;
         {
-            QSettings original("SketchyUp", "SketchyUp");
+            Preferences original;
             for (auto key : {"assistant/chatgptAccount", "assistant/chatgptAccounts",
                              "assistant/chatgptHostId"})
                 publicSettings[key] = original.value(key);
@@ -88,8 +89,8 @@ int main(int argc, char **argv) {
         check(!publicSettings["assistant/chatgptAccount"].toString().isEmpty(),
               "Configure ChatGPT in native Preferences first");
         qputenv("XDG_CONFIG_HOME", settings.path().toUtf8());
-        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settings.path());
-        QSettings prefs("SketchyUp", "SketchyUp");
+        QSettings::setPath(preferencesFormat, QSettings::UserScope, settings.path());
+        Preferences prefs;
         check(prefs.fileName().startsWith(settings.path()), "Isolated native trial preferences");
         for (auto it = publicSettings.cbegin(); it != publicSettings.cend(); ++it)
             prefs.setValue(it.key(), it.value());

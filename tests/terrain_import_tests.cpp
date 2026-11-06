@@ -1040,7 +1040,7 @@ void everyFixtureTwice() {
          [] { return parseDxfTerrain(fixture::terrainContoursUsft(), {terrainUnit("usft"), 0.05}); },
          siteOptions(),
          importCommand(fixture::terrainContoursUsft(), "dxf", {{"roles", siteRoles}, {"units", "usft"}}),
-         "d0159b4896285dc4634f851d096a6901bcf2a91fd6257abb5e5afdad4fe56f6e"},
+         "09ef257416e3914f5b2c32f30b96678c3b5f1c183334f7e3608e389041730aa3"},
         {"terrain-utm.dxf", [] { return parseDxfTerrain(fixture::terrainUtm()); }, siteOptions(),
          importCommand(fixture::terrainUtm(), "dxf", {{"roles", siteRoles}}), "3cb8d78bc064bab623680bcdaa2d1a803c7bdd5288ac34882d3898ff3af11c3d"},
         {"terrain-utm.xyz", [&] { return parseTerrainPoints(fixture::terrainXyz(true), xyz); }, {},

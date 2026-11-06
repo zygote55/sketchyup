@@ -2,6 +2,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QFile>
@@ -58,7 +59,7 @@ int main(int argc, char **argv) {
         std::cout << QJsonDocument(desktopInspectionCapabilities()).toJson().toStdString();
         return 0;
     }
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     Window window;
     window.resize(1280, 850);
     auto &doc = window.document();

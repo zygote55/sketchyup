@@ -25,7 +25,8 @@ void test() {
           "Soft stroke suppression prunes only the edge, preserving face selection");
     selection.reveal(doc);
     check(selection.hidden(doc, ref), "Transient reveal never clears persistent edge flags");
-    const auto revision = doc.revision(), history = doc.history().total;
+    const auto revision = doc.revision();
+    const auto history = doc.history().total;
     selection.showHidden(doc, true);
     check(selection.selectable(doc, ref) && selection.pickTarget(doc, ref) == ref,
           "Explicit hidden-geometry mode exposes the same authoritative edge");

@@ -5,6 +5,9 @@
 #include <QFileInfo>
 
 #include <initializer_list>
+#ifdef Q_OS_MACOS
+#include <mach-o/dyld.h>
+#endif
 
 namespace sketchy::blender_sandbox {
 
@@ -22,9 +25,51 @@ const char *const kSandboxDirectories[] = {"home",     "tmp",       "xdg/cache",
 // loader's search paths, and Blender's and Python's own paths are either useless to a child with no
 // socket or reach outside the attempt. The rest of the caller's environment passes through.
 const char *const kRemovedVariables[] = {
-    "DISPLAY",    "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "PYTHONPATH",
-    "PYTHONHOME", "LD_PRELOAD",      "LD_LIBRARY_PATH",
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XDG_RUNTIME_DIR",
+    "PYTHONPATH",
+    "PYTHONHOME",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+#ifdef Q_OS_MACOS
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "DYLD_FRAMEWORK_PATH",
+#endif
 };
+
+#ifdef Q_OS_MACOS
+// macOS (the Seatbelt layer): the system paths the loader and the C library read, read only, in
+// place of Linux's. The loader maps the system libraries from the shared cache. A Blender
+// application is a bundle: its libraries, Python and data are inside it, so the bundle is read. The
+// libraries this process runs are read too: the tests' stand-in Blender is a copy of a test binary
+// and loads them (Homebrew's Qt and its dependencies), as on Linux it loads them from /usr/lib.
+template <typename Grant> void grantMacSystem(const Layout &layout, const Grant &grant) {
+    for (const char *path :
+         {"/usr/lib", "/usr/share/locale", "/System/Library", "/System/Cryptexes",
+          "/System/Volumes/Preboot/Cryptexes", "/Library/Apple/System/Library",
+          "/private/var/db/timezone", "/private/etc/localtime", "/dev/urandom", "/dev/random"})
+        grant(QString::fromLatin1(path), FileAccess::readOnly);
+    grant("/dev/null", FileAccess::readWrite);
+    const int bundle = layout.executable.lastIndexOf(".app/Contents/MacOS/");
+    if (bundle > 0)
+        grant(layout.executable.left(bundle + 4), FileAccess::readOnly);
+    QStringList directories;
+    for (uint32_t i = 0; i < _dyld_image_count(); ++i) {
+        const QString image =
+            QFileInfo(QString::fromUtf8(_dyld_get_image_name(i))).canonicalFilePath();
+        if (image.isEmpty() || image.startsWith("/usr/lib/") || image.startsWith("/System/"))
+            continue;
+        const QString directory = QFileInfo(image).absolutePath();
+        if (!directories.contains(directory))
+            directories.append(directory);
+    }
+    for (const QString &directory : directories)
+        grant(directory, FileAccess::readOnly);
+}
+#endif
 
 } // namespace
 
@@ -38,6 +83,9 @@ sketchyup::sandbox::Policy policy(const Layout &layout) {
     // The one program the child may execute, and the dynamic loader the kernel opens to start it.
     // Nothing else has the execute right, so /bin/sh and every other program are refused (EACCES).
     grant(layout.executable, FileAccess::readExecute);
+#ifdef Q_OS_MACOS
+    grantMacSystem(layout, grant);
+#else
     grant(QFileInfo("/lib64/ld-linux-x86-64.so.2").canonicalFilePath(), FileAccess::readExecute);
 
     // System paths, read only. Libraries (and the Python standard library they ship with),
@@ -55,6 +103,7 @@ sketchyup::sandbox::Policy policy(const Layout &layout) {
     // makes).
     grant("/dev/dri/renderD128", FileAccess::readWrite);
     grant("/dev/null", FileAccess::readWrite);
+#endif
 
     // The render snapshot and the frames of a video, read only; the attempt directory, read and
     // write. These are the only places the child may write: HOME, the XDG directories, TMPDIR, the

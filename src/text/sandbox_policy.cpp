@@ -48,10 +48,17 @@ std::optional<std::string> parseTextFontArguments(int argc, char **argv, TextFon
             return "Text worker does not take that argument";
         }
     }
+#ifdef Q_OS_MACOS
+    // macOS has no fontconfig: the helper adds the folders' fonts itself (worker_main.cpp), and
+    // the host gives no configuration.
+    if (!grants.configuration.empty())
+        return "Text font configuration is not used on macOS";
+#else
     // The host gives both or neither: a folder that the configuration does not name is granted for
     // nothing, and a configuration that names no folder grants nothing the helper needs.
     if (grants.folders.empty() != grants.configuration.empty())
         return "Text font folders and their configuration come together";
+#endif
     return std::nullopt;
 }
 
@@ -71,13 +78,20 @@ sketchyup::sandbox::Policy textSandboxPolicy(const TextFontGrants &fonts) {
     // locale from /usr/lib/locale. /etc/ssl is not granted: OpenSSL opens its configuration, the
     // open is refused, and the output does not change (ADR 0183 implementation notes, S3 and S4). A
     // path that does not exist grants nothing.
-    const QStringList readOnly{QLibraryInfo::path(QLibraryInfo::PluginsPath),
-                               QStringLiteral("/etc/fonts"),
-                               QStringLiteral("/usr/share/fontconfig"),
-                               QStringLiteral("/usr/share/fonts"),
-                               QStringLiteral("/usr/local/share/fonts"),
-                               QStringLiteral("/var/cache/fontconfig"),
-                               QStringLiteral("/usr/lib/locale")};
+    const QStringList readOnly{
+        QLibraryInfo::path(QLibraryInfo::PluginsPath), QStringLiteral("/etc/fonts"),
+        QStringLiteral("/usr/share/fontconfig"), QStringLiteral("/usr/share/fonts"),
+        QStringLiteral("/usr/local/share/fonts"), QStringLiteral("/var/cache/fontconfig"),
+        QStringLiteral("/usr/lib/locale"),
+#ifdef Q_OS_MACOS
+        // macOS: the C library's C.UTF-8, and the system's font folders.
+        // CoreText draws a font it cannot read with its last-resort glyphs,
+        // and still names the requested family, so without these the
+        // geometry is wrong and nothing says so.
+        QStringLiteral("/usr/share/locale/C.UTF-8"), QStringLiteral("/System/Library/Fonts"),
+        QStringLiteral("/Library/Fonts")
+#endif
+    };
     for (const QString &path : readOnly)
         policy.files.push_back({path.toStdString(), FileAccess::readOnly});
 

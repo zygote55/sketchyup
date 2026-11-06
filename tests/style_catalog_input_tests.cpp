@@ -8,18 +8,19 @@
 #include "app/catalog_dialog.hpp"
 #include "app/catalog_export_dialog.hpp"
 #include "app/catalog_report.hpp"
+#include "app/style_dialogs.hpp"
+#include "app/styles_panel.hpp"
 #include "app/surface_format.hpp"
 #include "app/viewport.hpp"
 #include "app/window.hpp"
 #include "catalog_fixtures.hpp"
+#include "core/assets.hpp"
 #include "core/components.hpp"
+#include "io/assets.hpp"
 #include "io/catalog_io.hpp"
 #include "io/library_bundle.hpp"
-#include "app/style_dialogs.hpp"
-#include "app/styles_panel.hpp"
-#include "core/assets.hpp"
-#include "io/assets.hpp"
 #include "io/model_style_io.hpp"
+#include "io/preferences.hpp"
 #include "io/style_bundle.hpp"
 #include "io/texture_image.hpp"
 
@@ -61,7 +62,9 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#if QT_CONFIG(wayland)
 #include <wayland-client.h>
+#endif
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -299,7 +302,7 @@ QString libraryFolder() { return catalogLibraryFolder(); }
 // written as `<fixture>.sketchycat`.
 void resetLibrary(const QTemporaryDir &files, const QMap<QString, QByteArray> &fixtures,
                   const QStringList &catalogs) {
-    QSettings("SketchyUp", "SketchyUp").remove("catalogFolder");
+    Preferences().remove("catalogFolder");
     QDir(libraryFolder()).removeRecursively();
     QDir().mkpath(libraryFolder());
     for (const auto &name : catalogs)
@@ -365,12 +368,11 @@ void libraryFolderRemembered(Window &window, const QTemporaryDir &files,
         [&](QDialog &dialog) {
             check(child<QLabel>(dialog, "catalogFolder")->text() == libraryFolder(),
                   "The folder starts at the default catalogs folder");
-            check(!QSettings("SketchyUp", "SketchyUp").contains("catalogFolder"),
+            check(!Preferences().contains("catalogFolder"),
                   "No folder is remembered before a choice");
             modal([&] { child<QPushButton>(dialog, "catalogChooseFolder")->click(); },
                   [&](QDialog &chooser) { chooseFolder(chooser, other); });
-            check(QSettings("SketchyUp", "SketchyUp").value("catalogFolder").toString() ==
-                      QDir(other).absolutePath(),
+            check(Preferences().value("catalogFolder").toString() == QDir(other).absolutePath(),
                   "Choose folder… is remembered in preferences");
             check(child<QLabel>(dialog, "catalogFolder")->text() == QDir(other).absolutePath(),
                   "The dialog shows the chosen folder");
@@ -385,7 +387,7 @@ void libraryFolderRemembered(Window &window, const QTemporaryDir &files,
                   "The component from the chosen folder is inserted");
         },
         false);
-    QSettings("SketchyUp", "SketchyUp").remove("catalogFolder");
+    Preferences().remove("catalogFolder");
 }
 
 // §18.5: the grouped entry list with its states and reasons, a refused catalog, and Refresh
@@ -910,7 +912,7 @@ void exportAssetCatalog(Window &window, const QTemporaryDir &files) {
 // §18.7: at 200 % text, Insert stays inside the dialog; a narrow dialog stacks the list above its
 // details, and a wide one puts them side by side.
 void largeText(const QTemporaryDir &files, const QMap<QString, QByteArray> &fixtures) {
-    QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 200);
+    Preferences().setValue("interfaceTextPercent", 200);
     {
         Window large;
         large.resize(1280, 900);
@@ -932,14 +934,17 @@ void largeText(const QTemporaryDir &files, const QMap<QString, QByteArray> &fixt
                   "At 200% the list stacks above its details");
             // At 100 % the list sits beside its details when the dialog is wide, and stacks when
             // narrow.
-            QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 100);
-            dialog.resize(1020, 700); // a size change, so the layout is decided again
-            dialog.resize(1040, 700);
+            Preferences().setValue("interfaceTextPercent", 100);
+            // A size change, so the layout is decided again: two wide sizes, both above the
+            // dialog's minimum, which follows the platform's font (wider on macOS).
+            const int wide = std::max(1040, dialog.minimumWidth() + 20);
+            dialog.resize(wide - 20, 700);
+            dialog.resize(wide, 700);
             check(QTest::qWaitFor([&] { return split->orientation() == Qt::Horizontal; }, 3000),
                   "At 100% a wide dialog puts the list beside its details");
         });
     }
-    QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 100);
+    Preferences().setValue("interfaceTextPercent", 100);
 }
 
 // The library folder's files, by name, with their bytes: a cancelled insert must leave them as they were.
@@ -1253,6 +1258,9 @@ void selectionBudget(Window &window, const QTemporaryDir &files) {
 // new-id proxy, and libwayland leaks it when it releases the queue (D-072). Off Wayland there is
 // nothing to drain.
 bool drainWaylandEvents() {
+#if !QT_CONFIG(wayland)
+    return true;
+#else
     auto *native = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>();
     if (!native)
         return true;
@@ -1267,6 +1275,7 @@ bool drainWaylandEvents() {
     wl_callback_add_listener(callback, &listener, &answered);
     wl_display_flush(native->display());
     return QTest::qWaitFor([&] { return answered; }, 5000);
+#endif
 }
 } // namespace
 
@@ -1630,7 +1639,7 @@ void missingTextureState() {
 // applies one labelled step and says so, and a file that cannot be read cannot be selected.
 void libraryStates() {
     QTemporaryDir folder;
-    QSettings("SketchyUp", "SketchyUp").remove("styleFolder");
+    Preferences().remove("styleFolder");
     check(folder.isValid(), "A temporary folder");
     setStyleLibraryPreference(folder.path());
     write(folder.filePath("Style A.sketchystyle"),
@@ -2347,7 +2356,7 @@ int main(int argc, char **argv) {
     // platform chooser has no widgets to drive, and its selection is not the test's to set.
     qputenv("QT_QPA_PLATFORMTHEME", "generic");
     QApplication app(argc, argv);
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     preferences.setValue("recoverySeconds", 0);
     preferences.setValue("render/blenderPath", files.path() + "/absent");
     const auto fixtures = catalog_fixture::fixtures();

@@ -2,6 +2,7 @@
 #include "app/viewport.hpp"
 #include "core/presentation_records.hpp"
 #include "integrations/blender_job.hpp"
+#include "io/preferences.hpp"
 #include "io/presentation_io.hpp"
 #include <QBoxLayout>
 #include <QCheckBox>
@@ -404,7 +405,7 @@ void PresentationBatchDialog::stackForText() {
 }
 
 QString PresentationBatchDialog::executable() const {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     const auto configured = preferences.value("render/blenderPath").toString().trimmed();
     return configured.isEmpty() ? QStandardPaths::findExecutable("blender") : configured;
 }
@@ -616,8 +617,7 @@ void PresentationBatchDialog::setBlenderState() {
     setup_->setVisible(problem);
     group_->setEnabled(!problem);
     if (blenderMissing_) {
-        const auto configured =
-            QSettings("SketchyUp", "SketchyUp").value("render/blenderPath").toString();
+        const auto configured = Preferences().value("render/blenderPath").toString();
         const auto detected =
             configured.trimmed().isEmpty()
                 ? QString("Detected: Not found on PATH")
@@ -635,7 +635,7 @@ void PresentationBatchDialog::chooseExecutable() {
     const auto selected = QFileDialog::getOpenFileName(this, "Choose Blender 5.2 LTS");
     if (selected.isEmpty())
         return;
-    QSettings("SketchyUp", "SketchyUp").setValue("render/blenderPath", selected);
+    Preferences().setValue("render/blenderPath", selected);
     probeDevices();
     refreshVideo(false);
 }

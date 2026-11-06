@@ -123,13 +123,23 @@ inline QString metres(std::int64_t q) {
 }
 struct Writer {
     std::array<std::int64_t, 3> offset{}; // quanta added before writing
-    double unitMetres{1};                 // write value / unitMetres at 6 decimals when != 1
+    // Metres per unit as an exact ratio. Other than 1/1, a value is written in the unit at 6
+    // decimals, rounded half away from zero in integers: the same text on every platform (a
+    // long double quotient rounded differently on x86_64 and arm64).
+    std::int64_t unitMetresNumerator{1}, unitMetresDenominator{1};
     QString value(std::int64_t q, int axis) const {
         const auto shifted = q + offset[axis];
-        if (unitMetres == 1)
+        if (unitMetresNumerator == unitMetresDenominator)
             return metres(shifted);
-        return QString::number(double((long double)shifted / 10000.0L / (long double)unitMetres),
-                               'f', 6);
+        // shifted is in 1e-4 m, so the value in millionths of the unit is
+        // shifted * 100 * denominator / numerator.
+        const std::int64_t scaled = shifted * 100 * unitMetresDenominator;
+        const std::int64_t magnitude =
+            ((scaled < 0 ? -scaled : scaled) * 2 + unitMetresNumerator) / (2 * unitMetresNumerator);
+        return QString("%1%2.%3")
+            .arg(scaled < 0 && magnitude ? "-" : "")
+            .arg(magnitude / 1000000)
+            .arg(magnitude % 1000000, 6, 10, QChar('0'));
     }
 };
 
@@ -242,7 +252,8 @@ inline QByteArray terrainContoursMetres(bool shuffled = false) {
 }
 inline QByteArray terrainContoursUsft() {
     Writer writer;
-    writer.unitMetres = 1200.0 / 3937.0;
+    writer.unitMetresNumerator = 1200; // the US survey foot is 1200/3937 m
+    writer.unitMetresDenominator = 3937;
     return dxf(site(), writer, std::nullopt); // unitless: needs the explicit unit
 }
 inline QByteArray terrainUtm() { return dxf(site(), {utmOffset, 1}, 6); }

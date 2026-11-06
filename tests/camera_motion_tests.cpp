@@ -1,7 +1,6 @@
 #include "core/camera_motion.hpp"
-#include "core/component_parameter_records.hpp"
-#include <array>
-#include <iomanip>
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -12,15 +11,31 @@ void check(bool value, const char *message) {
         throw std::runtime_error(message);
 }
 void near(Vec3 a, Vec3 b, const char *message) { check(length(a - b) < 1e-8, message); }
-// The SHA-256 of one planned frame's index, scene, keyframe flag and camera, at 17 significant digits.
-std::string poseDigest(const CameraFrame &frame) {
-    std::ostringstream text;
-    text << std::setprecision(17) << frame.index << ' ' << frame.sceneIndex << ' '
-         << frame.keyframe << ' ' << frame.camera.target.x << ' ' << frame.camera.target.y << ' '
-         << frame.camera.target.z << ' ' << frame.camera.yaw << ' ' << frame.camera.pitch << ' '
-         << frame.camera.distance << ' ' << frame.camera.fieldOfView << ' '
-         << frame.camera.orthographic;
-    return digestHex(sha256Digest(text.str()));
+// One transition's midpoint as ADR 0173 defines the motion: the target, pitch and field of view
+// move linearly, the yaw turns the short way round, and the distance moves logarithmically (its
+// midpoint is the geometric mean).
+SceneCamera midpoint(const SceneCamera &from, const SceneCamera &to) {
+    double turn = std::fmod(to.yaw - from.yaw, 360.0);
+    if (turn > 180)
+        turn -= 360;
+    else if (turn < -180)
+        turn += 360;
+    return {(from.target + to.target) * .5,
+            from.yaw + turn / 2,
+            (from.pitch + to.pitch) / 2,
+            std::sqrt(from.distance * to.distance),
+            (from.fieldOfView + to.fieldOfView) / 2,
+            from.orthographic};
+}
+// Equal headings may differ by a whole turn (180 and -180).
+bool sameYaw(double a, double b) {
+    const double difference = std::fmod(std::abs(a - b), 360.0);
+    return std::min(difference, 360 - difference) < 1e-9;
+}
+bool samePose(const SceneCamera &a, const SceneCamera &b) {
+    return length(a.target - b.target) < 1e-9 && sameYaw(a.yaw, b.yaw) &&
+           std::abs(a.pitch - b.pitch) < 1e-9 && std::abs(a.distance - b.distance) < 1e-9 &&
+           std::abs(a.fieldOfView - b.fieldOfView) < 1e-9 && a.orthographic == b.orthographic;
 }
 template <class F> void rejects(F f) {
     try {
@@ -74,31 +89,41 @@ int main() {
         rejects([&] { lookAround(camera, std::numeric_limits<double>::infinity(), 0); });
         rejects([&] { walkCamera(camera, 10001, 0, 0); });
         rejects([&] { interpolateSceneCamera(from, to, -.1); });
-        // ADR 0173 §6: a four-scene path with pinned per-frame pose digests. The second transition
-        // turns the yaw across 180 degrees and takes the short way round.
+        // ADR 0173 §6: a four-scene path, each frame against the motion the ADR defines. The second
+        // transition turns the yaw across 180 degrees and takes the short way round.
         {
             const std::vector<SceneCamera> fixture{{{0, 0, 0}, -45, 35, 14, 45, false},
                                                    {{10, 0, 0}, 90, 20, 12, 50, false},
                                                    {{10, 10, 2}, 170, 60, 9, 40, false},
                                                    {{0, 10, 0}, -170, 10, 16, 35, false}};
-            const std::array<const char *, 11> pinned{
-                "801ca383a2bb2e6cf7e29e0954d3e93007cd5eb4480a40d876970608cc581ebe",
-                "93ca9389e343e7500b9406cf363f0909690f0f8bb809b986f7df491a9af52e9b",
-                "8f78fb6b065a6e12063295598ecfbba3b447bc78b7198eae2137d2754b1056d5",
-                "901a03d6a1c9b764e3a11272f9a60bb5ee263c2cecc47dafb894ad5625cc9edc",
-                "aa8bebd12070a2c1064340b3bc0e47a3da887f8a487ee25477a8024951f2bb8d",
-                "17082672c888789c75124f0e60576d46737258ed9388225309b3374981461b08",
-                "a37fd5a97f479944584bf4b97666cd47188992ad04aefdeb3e42befafe0dd88c",
-                "74f6e1863e8d84d08ef0d3f295bed310bd49d78704bc140a339a26cd7cd1623a",
-                "4c51446a2358fcfb5971ae66158ddaf26450de74b3d7184dcf111247ef532dd8",
-                "c7d0f581f0151d85034cc1b313b4340cb2dd4e35c7f19e0161ec112de9e4940a",
-                "70ddb0556f4fdb36e30aa7b57802a1e84ef4784a5042397dcb08d60e9ab9a125"
+            // Two transition steps and one hold: each scene is its keyframe, then its hold, then
+            // the midpoint of the transition to the next scene (none after the last).
+            struct Expected {
+                SceneCamera camera;
+                size_t sceneIndex;
+                bool keyframe;
             };
+            std::vector<Expected> expected;
+            for (size_t scene = 0; scene < fixture.size(); ++scene) {
+                expected.push_back({fixture[scene], scene, true});
+                expected.push_back({fixture[scene], scene, false});
+                if (scene + 1 < fixture.size())
+                    expected.push_back({midpoint(fixture[scene], fixture[scene + 1]), scene, false});
+            }
             const auto frames = planCameraFrames(fixture, {24, 2, 1});
-            check(frames.size() == pinned.size(), "The four-scene fixture plans eleven frames");
-            for (size_t i = 0; i < frames.size(); ++i)
-                check(poseDigest(frames[i]) == pinned[i],
-                      "A planned pose matches its pinned digest");
+            check(frames.size() == expected.size(), "The four-scene fixture plans eleven frames");
+            for (size_t i = 0; i < frames.size(); ++i) {
+                check(frames[i].index == int(i) && frames[i].sceneIndex == expected[i].sceneIndex &&
+                          frames[i].keyframe == expected[i].keyframe,
+                      "A planned frame keeps its scene and keyframe flag");
+                if (expected[i].keyframe)
+                    check(frames[i].camera == expected[i].camera,
+                          "A keyframe is its scene's camera exactly");
+                else
+                    check(samePose(frames[i].camera, expected[i].camera),
+                          "A planned pose follows the ADR's motion");
+            }
+            check(sameYaw(frames[8].camera.yaw, 180), "The yaw takes the short way across 180");
         }
         std::cout << "Fixed-eye look, horizontal walking and bounded camera timelines passed\n";
         return 0;

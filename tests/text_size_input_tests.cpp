@@ -5,6 +5,7 @@
 #include "app/window.hpp"
 #include "component_parameter_fixture.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
     try {
-        QSettings settings;
+        ApplicationPreferences settings;
         settings.setValue("interfaceTextPercent", 900);
         settings.setValue("futureNamespace/data", QByteArray("preserve"));
         settings.sync();

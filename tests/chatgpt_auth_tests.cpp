@@ -1,5 +1,6 @@
 #include "integrations/chatgpt_auth.hpp"
 #include "integrations/openai_provider.hpp"
+#include "io/preferences.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -256,8 +257,7 @@ int main(int argc, char **argv) {
         QSettings::setDefaultFormat(QSettings::IniFormat);
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, files.path());
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, files.path());
-        check(QSettings("SketchyUp", "SketchyUp").fileName().startsWith(files.path()),
-              "Isolated preferences required");
+        check(Preferences().fileName().startsWith(files.path()), "Isolated preferences required");
         const auto helper = files.path() + "/secret-fixture";
         write(helper, ("#!/bin/sh\nexec " + quote(QCoreApplication::applicationFilePath()) +
                        " --secret " + quote(files.path()) + " \"$@\"\n")
@@ -319,7 +319,7 @@ int main(int argc, char **argv) {
         check(record.value("subject") == network.subject &&
                   record.value("access_token") == network.access,
               "Session stored in separate credential record");
-        const auto settings = QSettings("SketchyUp", "SketchyUp").fileName();
+        const auto settings = Preferences().fileName();
         check(!read(settings).contains(network.access.toUtf8()) &&
                   !read(settings).contains(network.refresh.toUtf8()) &&
                   !read(settings).contains("id_token"),

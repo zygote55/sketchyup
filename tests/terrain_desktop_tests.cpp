@@ -20,6 +20,7 @@
 #include "core/groups.hpp"
 #include "core/tags.hpp"
 #include "core/terrain.hpp"
+#include "io/preferences.hpp"
 #include "native_dialog_audit.hpp"
 #include "terrain_import_fixtures.hpp"
 #include "terrain_run_hold.hpp"
@@ -39,20 +40,20 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSettings>
-#include <QTemporaryDir>
 #include <QSignalSpy>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QTreeWidget>
-#include <bit>
-#include <tuple>
-#include <set>
-#include <iterator>
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <iostream>
+#include <iterator>
 #include <limits>
+#include <set>
+#include <tuple>
 using namespace sketchy;
 namespace {
 QString shots;
@@ -1228,7 +1229,7 @@ int main(int argc, char **argv) {
         if (QString(argv[i]) == "--screenshots")
             shots = argv[i + 1];
         if (QString(argv[i]) == "--text-percent")
-            QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
+            Preferences().setValue("interfaceTextPercent", QString(argv[i + 1]).toInt());
     }
     Window window;
     window.resize(1280, 860);

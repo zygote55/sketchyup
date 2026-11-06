@@ -1,12 +1,12 @@
 #pragma once
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QPushButton>
 #include <QSettings>
 namespace sketchy {
 inline int interfaceTextPercent() {
     bool valid = false;
-    const auto value =
-        QSettings("SketchyUp", "SketchyUp").value("interfaceTextPercent", 100).toInt(&valid);
+    const auto value = Preferences().value("interfaceTextPercent", 100).toInt(&valid);
     return valid && value >= 75 && value <= 200 && value % 25 == 0 ? value : 100;
 }
 inline int interfaceExtent(int logicalPixels, int percent) {

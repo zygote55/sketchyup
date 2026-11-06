@@ -1,6 +1,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QDialog>
@@ -225,7 +226,7 @@ int main(int argc, char **argv) {
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
     try {
-        QSettings settings;
+        ApplicationPreferences settings;
         // Private UI-only configuration enables the composer; no prompt is submitted.
         settings.setValue("assistant/provider", "Ollama");
         settings.setValue("assistant/localModel", "unused-shortcut-fixture");
@@ -425,7 +426,7 @@ int main(int argc, char **argv) {
             editor(window, [&](QDialog &dialog) {
                 choose(dialog, "tool.1", "Ctrl+Alt+R");
                 click(dialog, "shortcutAssign");
-                QSettings external;
+                ApplicationPreferences external;
                 external.setValue(
                     "shortcuts/v1",
                     QByteArray("{\"apiVersion\":1,\"bindings\":{},\"external\":true}"));

@@ -9,6 +9,7 @@
 #include "core/shading_normals.hpp"
 #include "core/terrain_display.hpp"
 #include "core/terrain_sculpt.hpp"
+#include "io/preferences.hpp"
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLocale>
@@ -18,8 +19,8 @@
 #include <QPainter>
 #include <QRegularExpression>
 #include <QSettings>
-#include <QTimer>
 #include <QTabBar>
+#include <QTimer>
 #include <QVector2D>
 #include <QWheelEvent>
 #include <algorithm>
@@ -82,8 +83,8 @@ Viewport::Viewport(Document &doc, QWidget *parent)
     setMinimumSize(160, 160);
     setAccessibleName("3D model viewport");
     // R096.f2 (UX §15.4): the pad offset is remembered across sessions.
-    terrainOptions_.padOffset = std::clamp(
-        QSettings("SketchyUp", "SketchyUp").value("terrainPadOffset", 0.0).toDouble(), 0.0, 100.0);
+    terrainOptions_.padOffset =
+        std::clamp(Preferences().value("terrainPadOffset", 0.0).toDouble(), 0.0, 100.0);
     // R096.f2 (ADR 0169 §5): contour edits, stamps and drapes plan on a one-thread worker.
     terrainWorker_ = new TerrainPreviewWorker(this);
     terrainEditPaintWait_ = new QTimer(this);

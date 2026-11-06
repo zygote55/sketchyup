@@ -65,17 +65,32 @@ QString checkedMcpSocketPath(const QString &path, bool existing) {
     return result;
 }
 void checkMcpPeer(int descriptor) {
+#ifdef __linux__
     ucred credentials{};
     socklen_t size = sizeof(credentials);
     if (getsockopt(descriptor, SOL_SOCKET, SO_PEERCRED, &credentials, &size) != 0 ||
         size != sizeof(credentials) || credentials.uid != geteuid())
         fail("MCP peer must belong to the current user");
+#else
+    uid_t uid{};
+    gid_t gid{};
+    if (getpeereid(descriptor, &uid, &gid) != 0 || uid != geteuid())
+        fail("MCP peer must belong to the current user");
+#endif
 }
 int bridgeMcpStdio(const QString &path) {
     const auto endpoint = QFile::encodeName(checkedMcpSocketPath(path, true));
+#ifdef __linux__
     Descriptor socket{::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)};
     if (socket.value < 0)
         fail("Cannot create MCP bridge socket");
+#else
+    // No SOCK_CLOEXEC or SOCK_NONBLOCK on macOS: the flags are set after the socket is created.
+    Descriptor socket{::socket(AF_UNIX, SOCK_STREAM, 0)};
+    if (socket.value < 0 || fcntl(socket.value, F_SETFD, FD_CLOEXEC) != 0 ||
+        fcntl(socket.value, F_SETFL, fcntl(socket.value, F_GETFL) | O_NONBLOCK) != 0)
+        fail("Cannot create MCP bridge socket");
+#endif
     sockaddr_un address{};
     address.sun_family = AF_UNIX;
     std::memcpy(address.sun_path, endpoint.constData(), endpoint.size());

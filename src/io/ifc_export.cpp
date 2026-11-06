@@ -27,7 +27,9 @@
 #include <cstring>
 #include <optional>
 #include <set>
+#ifdef __linux__
 #include <sys/prctl.h>
+#endif
 #include <unistd.h>
 #include <variant>
 

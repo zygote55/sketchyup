@@ -1,6 +1,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/assets.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -43,7 +44,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QApplication app(argc, argv);
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     Window window;
     window.resize(1280, 850);
     try {
@@ -166,7 +167,7 @@ int main(int argc, char **argv) {
         timer.start();
         window.findChild<QAction *>("file.recoverySettings")->trigger();
         check(handled && controller->interval() == 5 &&
-                  QSettings("SketchyUp", "SketchyUp").value("recoverySeconds").toInt() == 5,
+                  Preferences().value("recoverySeconds").toInt() == 5,
               "Recovery preference persists");
         controller->setInterval(0);
         mode = Mode::Saved;

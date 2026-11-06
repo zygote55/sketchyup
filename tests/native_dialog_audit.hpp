@@ -18,6 +18,7 @@
 #include "integrations/glb_export.hpp"
 #include "integrations/render_snapshot.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
@@ -340,7 +341,7 @@ inline QPushButton *defaultButton(QWidget &dialog) {
     return nullptr;
 }
 inline QJsonObject settingsSnapshot() {
-    QSettings settings("SketchyUp", "SketchyUp");
+    Preferences settings;
     settings.sync();
     QJsonObject result;
     for (const auto &k : settings.allKeys())

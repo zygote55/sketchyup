@@ -1,9 +1,11 @@
 #include "app/components_tab.hpp"
 #include "app/collapsible_section.hpp"
+#include "app/item_activation.hpp"
 #include "app/parameter_value_field.hpp"
 #include "automation/component_parameter_commands.hpp"
 #include "io/component_library.hpp"
 #include "io/library_catalog.hpp"
+#include "io/preferences.hpp"
 #include <QApplication>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -264,6 +266,7 @@ ComponentsTab::ComponentsTab(Document &doc, Viewport &view, QWidget *parent)
         if (!detached_)
             refresh();
     });
+    activateOnReturn(cards_);
     connect(cards_, &QListView::activated, this, [this](const QModelIndex &index) {
         start(index.data(CardRole).toInt());
     });
@@ -371,7 +374,7 @@ void ComponentsTab::scan() {
     std::stable_sort(entries_.begin(), entries_.end(),
                      [&](const Card &a, const Card &b) { return rank(a) < rank(b); });
     if (filter_->currentIndex() == 1)
-        add(QSettings("SketchyUp", "SketchyUp")
+        add(Preferences()
                 .value("libraryFolder",
                        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
                            "/library")

@@ -1,4 +1,5 @@
 #include "app/presentation_scene_picker.hpp"
+#include "app/item_activation.hpp"
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
@@ -30,6 +31,7 @@ PresentationScenePicker::PresentationScenePicker(const QString &pathName,
     }
     if (list_->count())
         list_->setCurrentRow(0);
+    activateOnReturn(list_);
     connect(list_, &QListWidget::itemActivated, this,
             [this](QListWidgetItem *item) { addCurrent(item); });
     connect(list_, &QListWidget::itemDoubleClicked, this,

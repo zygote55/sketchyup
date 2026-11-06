@@ -2,6 +2,7 @@
 #include "app/sheet_workspace.hpp"
 #include "app/shortcut_bindings.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -132,7 +133,7 @@ void Window::initializeShortcuts() {
             action->setProperty("shortcutScope", int(ShortcutScope::Model));
     }
     try {
-        QSettings settings("SketchyUp", "SketchyUp");
+        Preferences settings;
         ShortcutBindings bindings(
             defaults(publicActions_), settings.value(settingsKey).toByteArray(),
             panelGuard(publicActions_, organization_), scopes(publicActions_));
@@ -149,7 +150,7 @@ void Window::initializeShortcuts() {
     }
 }
 void Window::shortcutSettings() {
-    QSettings settings("SketchyUp", "SketchyUp");
+    Preferences settings;
     settings.sync();
     if (settings.status() != QSettings::NoError)
         throw std::runtime_error("Cannot read shortcut preferences");

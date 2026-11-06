@@ -2,6 +2,7 @@
 #include "app/window.hpp"
 #include "automation/commands.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QPlainTextEdit>
@@ -51,7 +52,7 @@ int main(int argc, char **argv) {
     QTemporaryDir files;
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     QApplication app(argc, argv);
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     Window window;
     window.resize(1280, 850);
     auto &doc = window.document();

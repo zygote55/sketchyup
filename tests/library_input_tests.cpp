@@ -3,6 +3,7 @@
 #include "core/components.hpp"
 #include "core/scenes.hpp"
 #include "io/library_bundle.hpp"
+#include "io/preferences.hpp"
 #include "io/texture_image.hpp"
 #include <QAction>
 #include <QApplication>
@@ -63,7 +64,7 @@ int main(int argc, char **argv) {
         check(broken.open(QIODevice::WriteOnly), "Malformed library file");
         broken.write("invalid");
         broken.close();
-        QSettings("SketchyUp", "SketchyUp").setValue("libraryFolder", files.path());
+        Preferences().setValue("libraryFolder", files.path());
         Window window;
         window.resize(1180, 850);
         auto &doc = window.document();

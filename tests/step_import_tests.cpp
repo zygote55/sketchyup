@@ -446,9 +446,8 @@ int main(int argc, char **argv) {
         // E6: a helper over RLIMIT_AS. The stand-in applies the limit the application passes (--rlimit-as) and then asks for
         // more memory than that, as an allocation of the helper would; its log tail says so, as the helper's does.
         {
-            const QString memory = executable(
-                root.path(), "worker-as",
-                standIn("{\"ok\":true}", QStringLiteral(R"(
+            const QString memory =
+                executable(root.path(), "worker-as", standIn("{\"ok\":true}", QStringLiteral(R"(
     limit=""
     prev=""
     for arg in "$@"; do
@@ -456,6 +455,15 @@ int main(int argc, char **argv) {
         prev="$arg"
     done
     echo 'P phase tessellate'
+    system=$(uname)
+    if [ "$system" = Darwin ]; then
+        # macOS does not enforce RLIMIT_AS, so the stand-in holds the request to the limit itself.
+        if [ -n "$limit" ] && [ "$limit" -lt $((512 * 1024 * 1024)) ]; then
+            echo 'std::bad_alloc: the address space limit was reached' >&2
+            exit 1
+        fi
+        exit 0
+    fi
     ulimit -v $((limit / 1024))
     python3 -c 'import sys
 try:

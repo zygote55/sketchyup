@@ -18,6 +18,7 @@
 #include "core/scenes.hpp"
 #include "core/terrain.hpp"
 #include "integrations/chatgpt_auth.hpp"
+#include "io/preferences.hpp"
 #include "native_dialog_audit.hpp"
 #include <QBuffer>
 #include <QDoubleSpinBox>
@@ -344,7 +345,7 @@ inline void typeName(QWidget &dialog) {
 // Ctrl+J toggles the assistant; start each assistant case with it closed.
 inline void hideAssistant(Context &context) {
     fresh(context);
-    QSettings settings("SketchyUp", "SketchyUp");
+    Preferences settings;
     for (const auto *key :
          {"assistant/provider", "assistant/openaiModel", "assistant/consentOpenAI"})
         settings.remove(key);
@@ -471,7 +472,7 @@ inline std::vector<Case> cases(Context &ctx) {
     add({"welcome-units", "settings", "Welcome to SketchyUp (first-run units)",
          "Opens itself at first start with keyboard focus", fresh,
          [](Context &context) {
-             QSettings("SketchyUp", "SketchyUp").remove("defaultUnits");
+             Preferences().remove("defaultUnits");
              context.opener = focused();
              context.openerId = identity(focused());
              QTimer::singleShot(0, &context.window, [&context] { context.window.startUnits(); });
@@ -1478,7 +1479,7 @@ inline std::vector<Case> cases(Context &ctx) {
          "Assistant composer: type a request, then Send (Tab, Space)",
          [](Context &context) {
              hideAssistant(context);
-             QSettings settings("SketchyUp", "SketchyUp");
+             Preferences settings;
              settings.setValue("assistant/provider", "OpenAI");
              settings.setValue("assistant/openaiModel", "audit-model");
          },
@@ -1529,7 +1530,7 @@ inline std::vector<Case> cases(Context &ctx) {
          "Opens itself in Assistant preferences when a ChatGPT sign-in completes",
          [](Context &context) {
              hideAssistant(context);
-             QSettings("SketchyUp", "SketchyUp").remove("assistant/chatgptWelcomed");
+             Preferences().remove("assistant/chatgptWelcomed");
          },
          [](Context &context) {
              QTest::keyClick(focused(), Qt::Key_J, Qt::ControlModifier);

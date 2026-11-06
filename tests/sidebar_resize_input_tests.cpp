@@ -5,6 +5,7 @@
 #include "app/surface_format.hpp"
 #include "app/theme.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -94,7 +95,7 @@ struct Fixture {
     }
 };
 int stored(const char *key) {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     preferences.sync();
     return preferences.value(key, -1).toInt();
 }
@@ -159,7 +160,7 @@ int main(int argc, char **argv) {
     try {
         {
             // Corrupt and out-of-range stored widths fall back to the defaults.
-            QSettings preferences("SketchyUp", "SketchyUp");
+            Preferences preferences;
             preferences.setValue("sidebarTrayWidth", "wide");
             preferences.setValue("sidebarTabbedWidth", 5000);
             preferences.setValue("sidebarAssistantWidth", 12);
@@ -322,7 +323,7 @@ int main(int argc, char **argv) {
         }
         {
             // A stored width larger than the window allows is clamped on launch.
-            QSettings("SketchyUp", "SketchyUp").setValue("sidebarTrayWidth", 700);
+            Preferences().setValue("sidebarTrayWidth", 700);
             Fixture f(1100);
             f.checkGeometry("Launch at 1100 px");
             check(f.width(f.side) == f.splitter->width() - 400 - f.splitter->handleWidth(),
@@ -332,7 +333,7 @@ int main(int argc, char **argv) {
         }
         {
             // Interface text size keeps the width in proportion (stored at 100% text).
-            QSettings preferences("SketchyUp", "SketchyUp");
+            Preferences preferences;
             preferences.setValue("sidebarTrayWidth", 300);
             preferences.setValue("interfaceTextPercent", 150);
             preferences.sync();
@@ -345,7 +346,7 @@ int main(int argc, char **argv) {
             f.key(Qt::Key_BracketRight);
             check(f.width(f.side) == 420, "The keyboard step scales with text (60 px at 150%)");
             check(stored("sidebarTrayWidth") == 280, "Widths are stored at 100% text");
-            QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 100);
+            Preferences().setValue("interfaceTextPercent", 100);
         }
         std::cout << "Native sidebar resize: drag, bounds, window shrink, keyboard, double-click "
                      "and menu reset, persistence, columns/tabbed, Sheets, text size passed; DPR="

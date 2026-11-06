@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
         const auto malformed = helper(scratch, "malformed", "printf 'invalid'");
         const auto flood = helper(scratch, "flood", "exec /usr/bin/head -c 110000 /dev/zero");
         const auto errorFlood = helper(scratch, "stderr", "/usr/bin/head -c 10000 /dev/zero >&2");
-        const auto sleeper = helper(scratch, "sleep", "exec /usr/bin/sleep 3");
+        const auto sleeper = helper(scratch, "sleep", "exec /bin/sleep 3");
         for (const auto &path :
              {failure, killed, malformed, flood, errorFlood, scratch.filePath("absent")})
             rejects([&] { runExtensionWorker(manifest, "create-panel", {}, {path, 1000}); });
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
         output.write(QJsonDocument(reply).toJson());
         output.close();
         const auto forged =
-            helper(scratch, "forged", "exec /usr/bin/cat '" + outputPath.toUtf8() + "'");
+            helper(scratch, "forged", "exec /bin/cat '" + outputPath.toUtf8() + "'");
         rejects([&] { runExtensionWorker(manifest, "create-panel", {}, {forged, 1000}); });
         std::cout << "Extension worker: real helper, exact output, failure, crash, timeout, "
                      "cancellation and bounded malformed output passed\n";

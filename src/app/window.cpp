@@ -1,4 +1,3 @@
-#include "app/terrain_replay_job.hpp"
 #include "app/window.hpp"
 #include "app/accessible_names.hpp"
 #include "app/component_drivers_section.hpp"
@@ -9,6 +8,7 @@
 #include "app/focus_ring.hpp"
 #include "app/inspection_service.hpp"
 #include "app/interface_preferences.hpp"
+#include "app/item_activation.hpp"
 #include "app/keyboard_navigation.hpp"
 #include "app/keypad_decimal.hpp"
 #include "app/presentations_dialog.hpp"
@@ -17,19 +17,21 @@
 #include "app/settled_dialog.hpp"
 #include "app/sheet_evaluation.hpp"
 #include "app/sheet_export_dialog.hpp"
-#include "app/terrain_import_dialog.hpp"
-#include "app/terrain_tool_strip.hpp"
 #include "app/sheet_workspace.hpp"
 #include "app/sheets_tray.hpp"
+#include "app/terrain_import_dialog.hpp"
+#include "app/terrain_replay_job.hpp"
+#include "app/terrain_tool_strip.hpp"
 #include "app/unit_display.hpp"
 #include "automation/measurements.hpp"
 #include "io/document_io.hpp"
+#include "io/preferences.hpp"
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
-#include <QCursor>
 #include <QColorDialog>
+#include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
@@ -53,16 +55,18 @@
 #include <QStyle>
 #include <QStyleHints>
 #include <QTabBar>
-#include <QWidgetAction>
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
+#include <QWidgetAction>
 #include <QWindow>
 #include <QtGui/qguiapplication_platform.h>
 #include <map>
 #include <tuple>
+#if QT_CONFIG(wayland)
 #include <wayland-client.h>
+#endif
 namespace sketchy {
 namespace {
 class ElidedLabel final : public QLabel {
@@ -98,6 +102,7 @@ void resizeContextLabels(QWidget *window) {
         hint->setMinimumHeight(hint->heightForWidth(hint->width()));
     }
 }
+#if QT_CONFIG(wayland)
 class WindowUnmapBarrier final : public QObject {
     wl_callback *callback_{};
     std::function<void()> finish_;
@@ -137,6 +142,7 @@ class WindowUnmapBarrier final : public QObject {
             wl_callback_destroy(callback_);
     }
 };
+#endif
 // R091.h: a modal prompt or the file-operation surface owned by the window hands activation
 // back to it when it closes. Without a window manager (X11 under Xvfb) nothing else does: the
 // application is left with no active window and no focus widget, so keys go nowhere. The
@@ -208,7 +214,7 @@ QAction *Window::action(const QString &id, const QString &title, const QKeySeque
 }
 Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     : QMainWindow(parent), doc_(preferredUnits(), preferredPrecision()) {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     recentFiles_ = preferences.value("recentFiles").toStringList().mid(0, 10);
     themeMode_ = std::clamp(preferences.value("theme", 0).toInt(), 0, 2);
     setWindowTitle("SketchyUp — Native modeling");
@@ -941,11 +947,10 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
     auto *siteOrigin = action("view.siteOrigin", "Site origin", {}, [this] {
         const bool shown = findChild<QAction *>("view.siteOrigin")->isChecked();
         viewport_->setSiteOriginVisible(shown);
-        QSettings("SketchyUp", "SketchyUp").setValue("siteOriginVisible", shown);
+        Preferences().setValue("siteOriginVisible", shown);
     });
     siteOrigin->setCheckable(true);
-    siteOrigin->setChecked(
-        QSettings("SketchyUp", "SketchyUp").value("siteOriginVisible", false).toBool());
+    siteOrigin->setChecked(Preferences().value("siteOriginVisible", false).toBool());
     viewport_->setSiteOriginVisible(siteOrigin->isChecked());
     view->addAction(siteOrigin);
     view->addAction(
@@ -978,7 +983,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         if (input.exec() == QDialog::Accepted) {
             const auto degrees = input.doubleValue();
             viewport_->setFieldOfView(degrees);
-            QSettings("SketchyUp", "SketchyUp").setValue("fieldOfView", degrees);
+            Preferences().setValue("fieldOfView", degrees);
         }
     }));
     auto *projection = new QActionGroup(this);
@@ -998,13 +1003,13 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             action(trackpad ? "view.trackpad" : "view.mouse", trackpad ? "Trackpad" : "Mouse", {},
                    [this, trackpad] {
                        viewport_->setTrackpadNavigation(trackpad);
-                       QSettings("SketchyUp", "SketchyUp").setValue("trackpadNavigation", trackpad);
+                       Preferences().setValue("trackpadNavigation", trackpad);
                    });
         item->setCheckable(true);
         navigationGroup->addAction(item);
         navigation->addAction(item);
     }
-    const QSettings navigationSettings("SketchyUp", "SketchyUp");
+    const Preferences navigationSettings;
     const bool trackpad = navigationSettings.value("trackpadNavigation", false).toBool();
     findChild<QAction *>(trackpad ? "view.trackpad" : "view.mouse")->setChecked(true);
     viewport_->setTrackpadNavigation(trackpad);
@@ -1056,7 +1061,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
                            [showPanel] { showPanel(&OrganizationPanel::showComponents); }));
     auto *reducedMotion = action("view.reduced_motion", "Reduced camera motion", {}, [this] {
         const auto enabled = findChild<QAction *>("view.reduced_motion")->isChecked();
-        QSettings().setValue("reducedMotion", enabled);
+        ApplicationPreferences().setValue("reducedMotion", enabled);
         viewport_->setReducedMotion(enabled);
     });
     reducedMotion->setCheckable(true);
@@ -1097,7 +1102,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
             QInputDialog::getItem(this, "Interface text size", "Text size", sizes,
                                   (interfaceTextPercent() - 75) / 25, false, &accepted);
         if (accepted) {
-            QSettings preferences("SketchyUp", "SketchyUp");
+            Preferences preferences;
             preferences.setValue("interfaceTextPercent", 75 + 25 * sizes.indexOf(choice));
             preferences.sync();
             if (preferences.status() != QSettings::NoError)
@@ -1114,7 +1119,7 @@ Window::Window(QWidget *parent, AssistantPanel::HostServices assistantServices)
         auto *entry =
             action("view.theme." + QString::number(mode), themeNames[mode], {}, [this, mode] {
                 themeMode_ = mode;
-                QSettings("SketchyUp", "SketchyUp").setValue("theme", mode);
+                Preferences().setValue("theme", mode);
                 applyTheme();
             });
         entry->setCheckable(true);
@@ -2000,7 +2005,7 @@ void Window::rememberPath(const QString &path) {
     recentFiles_.removeAll(absolute);
     recentFiles_.prepend(absolute);
     recentFiles_ = recentFiles_.mid(0, 10);
-    QSettings("SketchyUp", "SketchyUp").setValue("recentFiles", recentFiles_);
+    Preferences().setValue("recentFiles", recentFiles_);
 }
 void Window::palette() {
     QDialog dialog(this);
@@ -2085,6 +2090,7 @@ void Window::palette() {
         dialog.accept();
     };
     connect(query, &QLineEdit::returnPressed, &dialog, accept);
+    activateOnReturn(list);
     connect(list, &QListWidget::itemActivated, &dialog, [&](QListWidgetItem *) { accept(); });
     query->setFocus();
     if (dialog.exec() == QDialog::Accepted && chosen) {

@@ -1,5 +1,6 @@
 #include "app/unit_display.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -10,24 +11,21 @@
 namespace sketchy {
 DisplayUnit Window::preferredUnits() {
     try {
-        return parseDisplayUnit(QSettings("SketchyUp", "SketchyUp")
-                                    .value("defaultUnits", "m")
-                                    .toString()
-                                    .toStdString());
+        return parseDisplayUnit(Preferences().value("defaultUnits", "m").toString().toStdString());
     } catch (const std::exception &) {
         return DisplayUnit::Meters;
     }
 }
 int Window::preferredPrecision() {
     // Stored as "full" or a decimal-place count valid for the preferred units.
-    const auto stored = QSettings("SketchyUp", "SketchyUp").value("defaultPrecision", "full");
+    const auto stored = Preferences().value("defaultPrecision", "full");
     bool valid = false;
     const auto precision = stored.toString().toInt(&valid);
     return valid && validDisplayPrecision(preferredUnits(), precision) ? precision
                                                                        : fullDisplayPrecision;
 }
 void Window::startUnits() {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     bool chosen = false;
     try {
         parseDisplayUnit(preferences.value("defaultUnits").toString().toStdString());
@@ -109,7 +107,7 @@ void Window::unitsSettings(bool firstRun) {
             } else if (!firstRun)
                 doc_.setDisplayUnits(selected, places);
             if (makeDefault->isChecked()) {
-                QSettings preferences("SketchyUp", "SketchyUp");
+                Preferences preferences;
                 preferences.setValue("defaultUnits", QString::fromLatin1(unitCode(selected).data()));
                 preferences.setValue("defaultPrecision", places == fullDisplayPrecision
                                                              ? QString("full")

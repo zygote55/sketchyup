@@ -9,6 +9,7 @@
 #include "app/surface_format.hpp"
 #include "app/theme.hpp"
 #include "app/window.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -65,7 +66,7 @@ bool near(const QColor &a, const QColor &b, int tolerance = 2) {
            std::abs(a.blue() - b.blue()) <= tolerance;
 }
 int stored(const char *key) {
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     preferences.sync();
     return preferences.value(key, -1).toInt();
 }
@@ -519,7 +520,7 @@ void resizing(Fixture &f) {
     f.key(Qt::Key_J, Qt::ControlModifier);
     f.settle();
     f.resize(900);
-    QSettings("SketchyUp", "SketchyUp").remove("sidebarTabbedWidth");
+    Preferences().remove("sidebarTabbedWidth");
     window.findChild<QAction *>("view.sidebar.reset")->trigger();
     f.settle();
 }
@@ -1290,7 +1291,7 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings("SketchyUp", "SketchyUp").setValue("recoverySeconds", 0);
+    Preferences().setValue("recoverySeconds", 0);
     const auto directory = argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString();
     if (!directory.isEmpty())
         QDir().mkpath(directory);

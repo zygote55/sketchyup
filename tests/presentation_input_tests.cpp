@@ -11,6 +11,7 @@
 #include "app/window.hpp"
 #include "core/presentation_records.hpp"
 #include "core/scenes.hpp"
+#include "io/preferences.hpp"
 #include "io/scenes_io.hpp"
 #include "shortcut_focus.hpp"
 #include <QAccessible>
@@ -191,7 +192,7 @@ int main(int argc, char **argv) {
     qputenv("XDG_CONFIG_HOME", files.path().toUtf8());
     qputenv("XDG_DATA_HOME", files.path().toUtf8());
     QApplication app(argc, argv);
-    QSettings preferences("SketchyUp", "SketchyUp");
+    Preferences preferences;
     preferences.setValue("recoverySeconds", 0);
     preferences.setValue("render/blenderPath", files.path() + "/absent");
     try {
@@ -656,7 +657,7 @@ int main(int argc, char **argv) {
         // Text size (§17.10): the Interface text size setting is read when a window is built, so a
         // window built at 200% shows the dialog at that size. There the list stacks above its
         // editor and the footer stays inside the dialog.
-        QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 200);
+        Preferences().setValue("interfaceTextPercent", 200);
         {
             Window large;
             large.resize(1280, 900);
@@ -693,7 +694,7 @@ int main(int argc, char **argv) {
             QTest::keyClick(big, Qt::Key_Escape);
             check(!big->isVisible(), "Escape closes the 200% dialog");
         }
-        QSettings("SketchyUp", "SketchyUp").setValue("interfaceTextPercent", 100);
+        Preferences().setValue("interfaceTextPercent", 100);
         check(!dialog->isVisible(), "The first dialog stays closed");
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

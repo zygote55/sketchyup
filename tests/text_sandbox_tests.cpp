@@ -25,9 +25,13 @@
 // Needs sketchyup-text-worker (TEXT_WORKER_PATH) and DejaVu Sans and DejaVu Serif under
 // /usr/share/fonts, both from ttf-dejavu, the package's only font dependency (the
 // user-font tests copy it). Landlock must be available: the checks fail, not skip, when it is not
-// (ADR 0183 decision 9).
+// (ADR 0183 decision 9). On macOS the layers are one Seatbelt profile: the probes expect its
+// refusals (EPERM, never a kill; tests/sandbox_platform.hpp), the real refusal is the helper
+// started inside another profile, the fonts are the system's own (kSans), and the user's folder is
+// ~/Library/Fonts with no fontconfig file.
 #include "sandbox/sandbox.hpp"
 #include "sandbox/syscalls_x86_64.hpp"
+#include "sandbox_platform.hpp"
 #include "text/sandbox_policy.hpp"
 #include "text/text_geometry.hpp"
 #include "text/text_worker.hpp"
@@ -51,15 +55,19 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <linux/filter.h>
-#include <linux/seccomp.h>
+#include <memory>
+#include <netinet/in.h>
 #include <optional>
 #include <string>
-#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/wait.h>
+#ifdef __linux__
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#endif
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -70,6 +78,27 @@ namespace fs = std::filesystem;
 namespace {
 
 int failures = 0;
+
+// The system fonts the checks shape text with. Linux: DejaVu Sans and DejaVu Serif from
+// ttf-dejavu. macOS ships no DejaVu (a user's copy is in ~/Library/Fonts, a user folder these
+// checks keep out), so its own Arial and Times New Roman stand in, and the user font is made from
+// Courier New, whose family name has the same length as DejaVu Sans. systemFontFile is a file of
+// the system's font setup the helper must be able to read.
+#ifdef __APPLE__
+const QString kSans = QStringLiteral("Arial");
+const QString kSerif = QStringLiteral("Times New Roman");
+constexpr const char *kSourceFamily = "Courier New";
+constexpr const char *kSystemFontFile = "/System/Library/Fonts/Supplemental/Arial.ttf";
+#else
+const QString kSans = QStringLiteral("DejaVu Sans");
+const QString kSerif = QStringLiteral("DejaVu Serif");
+constexpr const char *kSourceFamily = "DejaVu Sans";
+constexpr const char *kSystemFontFile = "/etc/fonts/fonts.conf";
+#endif
+
+// This test program, which a baseline child runs again (plainGeometry): macOS stops a forked child
+// of this multithreaded process that starts Qt's GUI before exec.
+std::string selfPath;
 
 void check(bool ok, const std::string &message) {
     if (!ok) {
@@ -111,24 +140,32 @@ Outcome inChild(const std::string &stdoutFile, const std::function<int()> &body)
     return outcome;
 }
 
-// The text helper, with the request in a file on stdin, as a child process. An optional filter is
-// installed in the child before exec: the test's own refusal of some calls (the layer's calls, for
-// the fail-closed check).
+#ifdef __linux__
+// A filter that refuses the given calls with refusedErrno, installed in the child before exec: the
+// test's own refusal of a layer's calls. The program is built here, before the fork.
+std::function<bool()> refusing(const std::vector<long> &refused, int refusedErrno) {
+    // [0] load the call number; one jump per refused call to the refusal; then allow; then refuse.
+    auto filter = std::make_shared<std::vector<sock_filter>>();
+    const std::size_t count = refused.size();
+    filter->push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0));
+    for (std::size_t i = 0; i < count; ++i)
+        filter->push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<unsigned>(refused[i]),
+                                   static_cast<unsigned char>(count - i), 0));
+    filter->push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
+    filter->push_back(
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | static_cast<unsigned>(refusedErrno)));
+    return [filter] {
+        prctl(PR_SET_NO_NEW_PRIVS, 1UL, 0UL, 0UL, 0UL);
+        sock_fprog program{static_cast<unsigned short>(filter->size()), filter->data()};
+        return syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0UL, &program) == 0;
+    };
+}
+#endif
+
+// The text helper, with the request in a file on stdin, as a child process. An optional step runs
+// in the child before exec: the test's own refusal of the sandbox, for the fail-closed check.
 Outcome runHelper(const std::string &stdoutFile, const std::string &requestFile,
-                  const std::vector<long> &refused = {}, int refusedErrno = 0) {
-    std::vector<sock_filter> filter;
-    if (!refused.empty()) {
-        // [0] load the call number; one jump per refused call to the refusal; then allow; then
-        // refuse.
-        const std::size_t count = refused.size();
-        filter.push_back(BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 0));
-        for (std::size_t i = 0; i < count; ++i)
-            filter.push_back(BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, static_cast<unsigned>(refused[i]),
-                                      static_cast<unsigned char>(count - i), 0));
-        filter.push_back(BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW));
-        filter.push_back(
-            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | static_cast<unsigned>(refusedErrno)));
-    }
+                  const std::function<bool()> &beforeExec = {}) {
     std::string helper = TEXT_WORKER_PATH;
     char *const argv[] = {helper.data(), nullptr};
     // The environment the host gives the helper: one empty private directory for HOME, the XDG
@@ -146,12 +183,8 @@ Outcome runHelper(const std::string &stdoutFile, const std::string &requestFile,
             setenv(name, home.c_str(), 1);
         setenv("LANG", "C.UTF-8", 1);
         setenv("LC_ALL", "C.UTF-8", 1);
-        if (!filter.empty()) {
-            prctl(PR_SET_NO_NEW_PRIVS, 1UL, 0UL, 0UL, 0UL);
-            sock_fprog program{static_cast<unsigned short>(filter.size()), filter.data()};
-            if (syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0UL, &program) != 0)
-                return 99;
-        }
+        if (beforeExec && !beforeExec())
+            return 99;
         execv(helper.c_str(), argv);
         return 98;
     });
@@ -186,35 +219,53 @@ TextGeometrySettings latin(const QString &text, const QString &family) {
 }
 
 // The same code the helper runs (shapeTextGeometry and the encoder), unsandboxed, in a child
-// process with the environment the host gives the helper. Its geometry is written to a file.
+// process with the environment the host gives the helper. Its geometry is written to a file. The
+// child is this program again (plainMain), started by fork and exec.
+int plainMain(const std::string &settingsPath, const std::string &home,
+              const std::string &jsonPath) {
+    qputenv("HOME", home.c_str());
+    qputenv("XDG_CACHE_HOME", home.c_str());
+    qputenv("XDG_CONFIG_HOME", home.c_str());
+    qputenv("XDG_DATA_HOME", home.c_str());
+    qputenv("TMPDIR", home.c_str());
+    qputenv("LANG", "C.UTF-8");
+    qputenv("LC_ALL", "C.UTF-8");
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    qputenv("QT_QPA_PLATFORMTHEME", "generic");
+    qputenv("QT_IM_MODULE", "compose");
+    try {
+        const QJsonObject request =
+            QJsonDocument::fromJson(QByteArray::fromStdString(readAll(settingsPath))).object();
+        int argc = 1;
+        char name0[] = "text-sandbox-baseline";
+        char *argv[] = {name0, nullptr};
+        QGuiApplication app(argc, argv);
+        const QByteArray bytes =
+            QJsonDocument(encodeTextGeometry(shapeTextGeometry(
+                              decodeTextSettings(request["settings"].toObject()))))
+                .toJson(QJsonDocument::Compact);
+        std::ofstream(jsonPath, std::ios::binary).write(bytes.constData(), bytes.size());
+        return 0;
+    } catch (const std::exception &) {
+        return 1;
+    }
+}
+
 bool plainGeometry(const std::string &scratch, const std::string &name,
                    const TextGeometrySettings &settings, QJsonObject &result) {
     const std::string jsonPath = scratch + "/" + name + ".plain.json";
+    const std::string settingsPath = scratch + "/" + name + ".plain-request.json";
     const std::string home = scratch + "/plain-home";
     fs::create_directories(home);
+    writeRequest(settingsPath, settings);
+    std::vector<std::string> arguments{selfPath, "--plain", settingsPath, home, jsonPath};
+    std::vector<char *> argv;
+    for (std::string &argument : arguments)
+        argv.push_back(argument.data());
+    argv.push_back(nullptr);
     const Outcome outcome = inChild(scratch + "/" + name + ".plain.out", [&] {
-        qputenv("HOME", home.c_str());
-        qputenv("XDG_CACHE_HOME", home.c_str());
-        qputenv("XDG_CONFIG_HOME", home.c_str());
-        qputenv("XDG_DATA_HOME", home.c_str());
-        qputenv("TMPDIR", home.c_str());
-        qputenv("LANG", "C.UTF-8");
-        qputenv("LC_ALL", "C.UTF-8");
-        qputenv("QT_QPA_PLATFORM", "offscreen");
-        qputenv("QT_QPA_PLATFORMTHEME", "generic");
-        qputenv("QT_IM_MODULE", "compose");
-        try {
-            int argc = 1;
-            char name0[] = "text-sandbox-baseline";
-            char *argv[] = {name0, nullptr};
-            QGuiApplication app(argc, argv);
-            const QByteArray bytes = QJsonDocument(encodeTextGeometry(shapeTextGeometry(settings)))
-                                         .toJson(QJsonDocument::Compact);
-            std::ofstream(jsonPath, std::ios::binary).write(bytes.constData(), bytes.size());
-            return 0;
-        } catch (const std::exception &) {
-            return 1;
-        }
+        execv(selfPath.c_str(), argv.data());
+        return 98;
     });
     if (outcome.signaled || outcome.code != 0)
         return false;
@@ -235,9 +286,9 @@ void testFixturesIdentical(const std::string &scratch) {
     for (int i = 0; i < 24; ++i)
         lines << QStringLiteral("Line %1 cafe").arg(i, 2, 10, QLatin1Char('0'));
     const std::vector<std::pair<std::string, TextGeometrySettings>> requests = {
-        {"latin-a", latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans"))},
-        {"latin-b", latin(QStringLiteral("Hello world"), QStringLiteral("DejaVu Serif"))},
-        {"large", latin(lines.join('\n'), QStringLiteral("DejaVu Sans"))},
+        {"latin-a", latin(QStringLiteral("SketchyUp 1"), kSans)},
+        {"latin-b", latin(QStringLiteral("Hello world"), kSerif)},
+        {"large", latin(lines.join('\n'), kSans)},
     };
     for (const auto &[name, settings] : requests) {
         QJsonObject plain;
@@ -255,8 +306,7 @@ void testFixturesIdentical(const std::string &scratch) {
     // (ADR 0183 section 6.3), so the check is the return code and a non-empty result.
     TextWorkerOptions options;
     options.executable = TEXT_WORKER_PATH;
-    TextGeometrySettings mixed =
-        latin(QString::fromUtf8("O café\nلا"), QStringLiteral("DejaVu Sans"));
+    TextGeometrySettings mixed = latin(QString::fromUtf8("O café\nلا"), kSans);
     mixed.allowSubstitution = true;
     const TextGeometry mixedGeometry = runTextWorker(mixed, options);
     check(!mixedGeometry.regions.empty() && mixedGeometry.lines == 2,
@@ -273,11 +323,15 @@ void testFixturesIdentical(const std::string &scratch) {
               std::to_string(direct.code) + ", signal " + std::to_string(direct.signal) + ")");
 }
 
-// The policy the helper applies, before any of the attacks (the same call the helper makes).
+// The policy the helper applies, before any of the attacks. It is built and prepared here and
+// entered in the child (apply() is prepare followed by enter): building it asks Qt for its plugin
+// path, and macOS stops a forked child of this multithreaded process that does so before exec.
 Outcome armed(const std::string &stdoutFile, const std::function<int()> &attack,
               const TextFontGrants &fonts = {}) {
+    sketchyup::sandbox::PreparedPolicy prepared;
+    const bool ready = !prepared.prepare(textSandboxPolicy(fonts));
     return inChild(stdoutFile, [&, attack] {
-        if (applyTextSandbox(fonts))
+        if (!ready || prepared.enter())
             return 3;
         return attack();
     });
@@ -288,18 +342,34 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
     fs::create_directories(home);
 
     const Outcome socketCall = armed(scratch + "/attack-socket.out", [] {
-        return (socket(AF_INET, SOCK_STREAM, 0) == -1 && errno == EPERM) ? 0 : 1;
+        const int fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd == -1)
+            return errno == EPERM ? 0 : 1;
+        // macOS: Seatbelt refuses the socket's use, not the socket. Nothing listens on the discard
+        // port, so a connect that reached the network would be ECONNREFUSED.
+        sockaddr_in loopback{};
+        loopback.sin_family = AF_INET;
+        loopback.sin_port = htons(9);
+        loopback.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        return connect(fd, reinterpret_cast<sockaddr *>(&loopback), sizeof loopback) == -1 &&
+                       errno == EPERM
+                   ? 0
+                   : 1;
     });
     check(!socketCall.signaled && socketCall.code == 0,
-          "the text helper cannot create a socket (EPERM)");
+          "the text helper cannot use a socket (EPERM)");
 
     const Outcome execCall = armed(scratch + "/attack-exec.out", [] {
-        char *const argv[] = {const_cast<char *>("/bin/true"), nullptr};
-        execv("/bin/true", argv);
-        return 0;
+        // /bin/sh: a program on every platform, so a refusal is not a missing file; if it ran,
+        // it would exit 7, not the probe's 0
+        char *const argv[] = {const_cast<char *>("/bin/sh"), const_cast<char *>("-c"),
+                              const_cast<char *>("exit 7"), nullptr};
+        execv("/bin/sh", argv);
+        return errno == EPERM ? 0 : 1;
     });
-    check(execCall.signaled && execCall.signal == SIGSYS,
-          "the text helper cannot exec another program (killed with SIGSYS)");
+    check(sandbox_platform::unlistedRefused(execCall.signaled, execCall.signal, execCall.code),
+          std::string("the text helper cannot exec another program (") +
+              sandbox_platform::unlistedRefusal + ")");
 
     const Outcome forkCall = armed(scratch + "/attack-fork.out", [] {
         const pid_t pid = fork();
@@ -318,43 +388,55 @@ void testPolicyRefusesAttacks(const std::string &scratch) {
 
     const Outcome readPasswd = armed(scratch + "/attack-passwd.out", [] {
         const int fd = open("/etc/passwd", O_RDONLY);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!readPasswd.signaled && readPasswd.code == 0,
-          "the text helper cannot read /etc/passwd (EACCES)");
+          "the text helper cannot read /etc/passwd (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome writeOutside = armed(scratch + "/attack-write.out", [&] {
         const int fd = open((scratch + "/escaped.txt").c_str(), O_WRONLY | O_CREAT, 0600);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!writeOutside.signaled && writeOutside.code == 0,
-          "the text helper cannot create a file outside its private directory (EACCES)");
+          "the text helper cannot create a file outside its private directory (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome writeHome = armed(scratch + "/attack-home.out", [&] {
         const int fd = open((home + "/inside.txt").c_str(), O_WRONLY | O_CREAT, 0600);
-        return (fd < 0 && errno == EACCES) ? 0 : 1;
+        return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
     });
     check(!writeHome.signaled && writeHome.code == 0,
           "the text helper cannot write into its private directory: the text policy has no write "
-          "rule (EACCES)");
+          "rule (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome readFontconfig = armed(scratch + "/attack-fontconfig.out", [] {
-        const int fd = open("/etc/fonts/fonts.conf", O_RDONLY);
+        const int fd = open(kSystemFontFile, O_RDONLY);
         return fd >= 0 ? 0 : 1;
     });
     check(!readFontconfig.signaled && readFontconfig.code == 0,
-          "the text helper can read the fontconfig configuration");
+          std::string("the text helper can read the system's font setup (") + kSystemFontFile +
+              ")");
 }
 
 void testRefusalsFailClosed(const std::string &scratch) {
     // In process: each layer that cannot be installed is named, and nothing is applied after it.
+    // The policy is built here, as in armed(), and applied in the child; applyTextSandbox is that
+    // call, checked here with the Landlock failure, which prepare() reports before anything is
+    // installed.
+    const auto simulatedLandlock = applyTextSandbox(
+        {}, {sketchyup::sandbox::Failure{sketchyup::sandbox::Layer::landlock, ENOSYS}});
+    check(simulatedLandlock && simulatedLandlock->layer == sketchyup::sandbox::Layer::landlock,
+          "applyTextSandbox returns the simulated Landlock failure");
+    const sketchyup::sandbox::Policy policy = textSandboxPolicy();
     for (const sketchyup::sandbox::Layer layer :
          {sketchyup::sandbox::Layer::noNewPrivileges, sketchyup::sandbox::Layer::landlock,
           sketchyup::sandbox::Layer::seccomp}) {
         const Outcome outcome = inChild(scratch + "/simulate.out", [&] {
             sketchyup::sandbox::ApplyOptions options;
             options.simulate = sketchyup::sandbox::Failure{layer, ENOSYS};
-            const auto failure = applyTextSandbox({}, options);
+            const auto failure = sketchyup::sandbox::apply(policy, options);
             if (!failure || failure->layer != layer)
                 return 1;
             return refuseTextSandbox(*failure) == textSandboxUnavailableExit ? 0 : 2;
@@ -371,9 +453,22 @@ void testRefusalsFailClosed(const std::string &scratch) {
     // The real helper, with a filter that refuses the layer's calls (the measured method of ADR
     // 0183 6.7).
     const std::string request = scratch + "/refusal.request.json";
-    writeRequest(request, latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans")));
+    writeRequest(request, latin(QStringLiteral("SketchyUp 1"), kSans));
+#ifdef __APPLE__
+    // The real helper inside another Seatbelt profile, which refuses the helper's own.
+    const Outcome nested =
+        runHelper(scratch + "/nested.out", request, sandbox_platform::enterOuterProfile);
+    check(!nested.signaled && nested.code == textSandboxUnavailableExit,
+          "the text helper that cannot install its profile exits " +
+              std::to_string(textSandboxUnavailableExit) + " (code " + std::to_string(nested.code) +
+              ")");
+    check(nested.out.find("\"error\":\"" + sandbox_platform::outerRefusal + "\"") !=
+              std::string::npos,
+          "the text helper that cannot install its profile names the layer and replies with no "
+          "geometry");
+#else
     const Outcome noLandlock =
-        runHelper(scratch + "/no-landlock.out", request, {444, 445, 446}, ENOSYS);
+        runHelper(scratch + "/no-landlock.out", request, refusing({444, 445, 446}, ENOSYS));
     check(!noLandlock.signaled && noLandlock.code == textSandboxUnavailableExit,
           "the text helper without Landlock exits " + std::to_string(textSandboxUnavailableExit) +
               " (code " + std::to_string(noLandlock.code) + ")");
@@ -382,13 +477,15 @@ void testRefusalsFailClosed(const std::string &scratch) {
               std::string::npos,
           "the text helper without Landlock names the layer and replies with no geometry");
 
-    const Outcome noSeccomp = runHelper(scratch + "/no-seccomp.out", request, {317}, EPERM);
+    const Outcome noSeccomp =
+        runHelper(scratch + "/no-seccomp.out", request, refusing({317}, EPERM));
     check(!noSeccomp.signaled && noSeccomp.code == textSandboxUnavailableExit,
           "the text helper without a seccomp filter exits " +
               std::to_string(textSandboxUnavailableExit));
     check(noSeccomp.out.find("sandboxUnavailable: seccomp filter (Operation not permitted)") !=
               std::string::npos,
           "the text helper without a seccomp filter names the layer");
+#endif
 }
 
 // A stand-in helper: a shell script that reads its request and ends the way the test needs.
@@ -409,7 +506,7 @@ std::string hostMessage(const std::string &executable) {
     options.executable = QString::fromStdString(executable);
     options.timeoutMs = 5000;
     try {
-        runTextWorker(latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans")), options);
+        runTextWorker(latin(QStringLiteral("SketchyUp 1"), kSans), options);
     } catch (const std::exception &error) {
         return error.what();
     }
@@ -417,7 +514,7 @@ std::string hostMessage(const std::string &executable) {
 }
 
 void testHostClassifies(const std::string &scratch) {
-    const std::string violation = hostMessage(standIn(scratch, "sigsys-helper.sh", "kill -31 $$"));
+    const std::string violation = hostMessage(standIn(scratch, "sigsys-helper.sh", "kill -SYS $$"));
     check(violation.find("sandboxViolation") != std::string::npos,
           "a helper killed by SIGSYS is sandboxViolation, not a crash (got: " + violation + ")");
 
@@ -478,8 +575,8 @@ void testMissingUserLocale() {
     options.executable = TEXT_WORKER_PATH;
     bool ok = false;
     try {
-        const TextGeometry geometry = runTextWorker(
-            latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans")), options);
+        const TextGeometry geometry =
+            runTextWorker(latin(QStringLiteral("SketchyUp 1"), kSans), options);
         ok = !geometry.regions.empty();
     } catch (const std::exception &error) {
         std::cerr << error.what() << "\n";
@@ -491,18 +588,22 @@ void testMissingUserLocale() {
 
 // R109 S4 (ADR 0183 implementation notes): the user's font folders. The family of the test font is
 // not installed on any system, so a request for it resolves only through a user folder. The repo
-// ships no font, so the font is a copy of the system's DejaVu Sans with its family renamed. The new
-// name has the same length, so the font's table offsets hold.
+// ships no font, so the font is a copy of a system font (kSourceFamily) with its family renamed.
+// The new name has the same length, so the font's table offsets hold.
 constexpr const char *kUserFamily = "UserFontTst";
 
-// Writes the renamed copy of DejaVu Sans to destination. Returns false when no DejaVu Sans is
-// installed or the copy cannot be written.
+// Writes the renamed copy of the source font to destination. Returns false when the source font is
+// not installed or the copy cannot be written.
 bool makeUserFont(const std::string &destination) {
+#ifdef __APPLE__
+    QFile source(QStringLiteral("/System/Library/Fonts/Supplemental/Courier New.ttf"));
+#else
     QDirIterator found("/usr/share/fonts", {"DejaVuSans.ttf"}, QDir::Files,
                        QDirIterator::Subdirectories);
     if (!found.hasNext())
         return false;
     QFile source(found.next());
+#endif
     if (!source.open(QIODevice::ReadOnly))
         return false;
     QByteArray bytes = source.readAll();
@@ -515,7 +616,7 @@ bool makeUserFont(const std::string &destination) {
         return encoded;
     };
     const std::vector<std::pair<QByteArray, QByteArray>> renames = {
-        {"DejaVu Sans", kUserFamily}, {utf16("DejaVu Sans"), utf16(kUserFamily)}};
+        {kSourceFamily, kUserFamily}, {utf16(kSourceFamily), utf16(kUserFamily)}};
     int renamed = 0;
     for (const auto &[from, to] : renames) {
         check(from.size() == to.size(), "the renamed family has the same length");
@@ -560,16 +661,21 @@ void testUserFontFolders(const std::string &scratch) {
         std::string name, home, dataHome, folder;
     };
     const std::vector<Layout> layouts = {
+#ifdef __APPLE__
+        // macOS: the one user folder the system's font list reads; its name has XML characters,
+        // as the Linux XDG folder's does.
+        {"~/Library/Fonts", scratch + "/mac & <home>", "", scratch + "/mac & <home>/Library/Fonts"},
+#else
         {"XDG_DATA_HOME", scratch + "/xdg-home", scratch + "/xdg & <data>",
          scratch + "/xdg & <data>/fonts"},
         {"~/.fonts", scratch + "/dot-fonts-home", "", scratch + "/dot-fonts-home/.fonts"},
         {"~/.local/share/fonts", scratch + "/local-home", "",
          scratch + "/local-home/.local/share/fonts"},
+#endif
     };
     const TextGeometrySettings user =
         latin(QStringLiteral("SketchyUp 1"), QString::fromLatin1(kUserFamily));
-    const TextGeometrySettings system =
-        latin(QStringLiteral("SketchyUp 1"), QStringLiteral("DejaVu Sans"));
+    const TextGeometrySettings system = latin(QStringLiteral("SketchyUp 1"), kSans);
     for (const Layout &layout : layouts) {
         fs::create_directories(layout.folder);
         check(makeUserFont(layout.folder + "/user-font.ttf"),
@@ -585,7 +691,7 @@ void testUserFontFolders(const std::string &scratch) {
         TextGeometry systemGeometry;
         const std::string systemError =
             resolveAs(layout.home, layout.dataHome, system, systemGeometry);
-        check(systemError.empty() && systemGeometry.actualFamily == "DejaVu Sans" &&
+        check(systemError.empty() && systemGeometry.actualFamily == kSans &&
                   !systemGeometry.substituted && !systemGeometry.fallback,
               layout.name + ": a system font still resolves with the user's folder present (" +
                   systemError + ")");
@@ -627,41 +733,45 @@ void testUserFontFolderIsReadOnly(const std::string &scratch) {
         out + "-beside.out",
         [&] {
             const int fd = open(sibling.c_str(), O_RDONLY);
-            return (fd < 0 && errno == EACCES) ? 0 : 1;
+            return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
         },
         grants);
     check(!beside.signaled && beside.code == 0,
-          "the helper cannot read a file beside its user folder (EACCES)");
+          "the helper cannot read a file beside its user folder (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome above = armed(
         out + "-above.out",
         [&] {
             const int fd = open(parent.c_str(), O_RDONLY | O_DIRECTORY);
-            return (fd < 0 && errno == EACCES) ? 0 : 1;
+            return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
         },
         grants);
     check(!above.signaled && above.code == 0,
-          "the helper cannot open the parent of its user folder (EACCES)");
+          "the helper cannot open the parent of its user folder (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome overwrite = armed(
         out + "-overwrite.out",
         [&] {
             const int fd = open(font.c_str(), O_WRONLY);
-            return (fd < 0 && errno == EACCES) ? 0 : 1;
+            return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
         },
         grants);
     check(!overwrite.signaled && overwrite.code == 0,
-          "the helper cannot write a font in its user folder (EACCES)");
+          "the helper cannot write a font in its user folder (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome create = armed(
         out + "-create.out",
         [&] {
             const int fd = open((folder + "/new.ttf").c_str(), O_WRONLY | O_CREAT, 0600);
-            return (fd < 0 && errno == EACCES) ? 0 : 1;
+            return (fd < 0 && errno == sandbox_platform::refusedPath) ? 0 : 1;
         },
         grants);
     check(!create.signaled && create.code == 0,
-          "the helper cannot create a file in its user folder (EACCES)");
+          "the helper cannot create a file in its user folder (" +
+              std::string(sandbox_platform::refusedPathName) + ")");
 
     const Outcome remove = armed(
         out + "-remove.out",
@@ -724,11 +834,21 @@ void testFontArguments(const std::string &scratch) {
     };
 
     TextFontGrants grants;
+#ifdef __APPLE__
+    // macOS has no fontconfig: a folder alone is accepted, and a configuration is refused.
+    check(!parse({"--font-dir=" + folder}, grants), "a folder is accepted");
+    check(grants.folders == std::vector<std::string>{folder} && grants.configuration.empty(),
+          "the folder is the one given");
+    check(refused({"--font-dir=" + folder, "--font-config=" + configuration}),
+          "a configuration is refused");
+    check(refused({"--font-config=" + configuration}), "a configuration alone is refused");
+#else
     check(!parse({"--font-dir=" + folder, "--font-config=" + configuration}, grants),
           "a folder and its configuration are accepted");
     check(grants.folders == std::vector<std::string>{folder} &&
               grants.configuration == configuration,
           "the folder and the configuration are the ones given");
+#endif
 
     TextFontGrants none;
     check(!parse({}, none) && none.folders.empty() && none.configuration.empty(),
@@ -742,16 +862,21 @@ void testFontArguments(const std::string &scratch) {
           "a relative folder is refused");
     check(refused({"--font-config=" + scratch + "/missing.conf", "--font-dir=" + folder}),
           "a configuration that does not exist is refused");
+#ifndef __APPLE__
     check(refused({"--font-dir=" + folder}), "a folder without its configuration is refused");
     check(refused({"--font-config=" + configuration}),
           "a configuration without folders is refused");
+#endif
     check(refused({"--font-dir=" + folder, "--font-config=" + configuration, "--other"}),
           "any other argument is refused");
 }
 
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
+    if (argc == 5 && std::string(argv[1]) == "--plain")
+        return plainMain(argv[2], argv[3], argv[4]);
+    selfPath = fs::absolute(argv[0]).string();
     qunsetenv("DISPLAY");
     qunsetenv("WAYLAND_DISPLAY");
     QTemporaryDir temporary;

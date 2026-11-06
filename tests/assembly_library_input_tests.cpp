@@ -13,6 +13,7 @@
 #include "app/surface_format.hpp"
 #include "app/window.hpp"
 #include "core/hosted_components.hpp"
+#include "io/preferences.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -470,9 +471,9 @@ int main(int argc, char **argv) {
     QApplication app(argc, argv);
     app.setOrganizationName("SketchyUp");
     app.setApplicationName("SketchyUp");
-    QSettings().setValue("recoverySeconds", 0);
+    ApplicationPreferences().setValue("recoverySeconds", 0);
     // An empty user library: All components adds nothing to the assemblies.
-    QSettings("SketchyUp", "SketchyUp").setValue("libraryFolder", files.filePath("library"));
+    Preferences().setValue("libraryFolder", files.filePath("library"));
     Window window;
     window.resize(1280, 900);
     try {
