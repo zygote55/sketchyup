@@ -1,5 +1,113 @@
 # SketchyUp release notes
 
+## 1.8.0
+
+SketchyUp 1.8.0 is a minor release. It raises the read-snapshot budget and the GLB visible-face cap (R112, [ADR 0005](decisions/0005-document-protocol.md#r112-snapshot-and-glb-limits-180) and [ADR 0032](decisions/0032-glb-snapshots.md#r112-note-caps)), so a model within the published limits can be exported to GLB, rendered and inserted from a library. It fixes the Select tool's hint overlap (D-094), and it changes the error for a missing entity: a command or query that names a body, material, tag or component definition the document does not hold now fails with `NOT_FOUND` and names it (D-095, D-096). It changes no document schema: 1.8.0 reads document versions 1 through 35 and writes 35 at most, as 1.7.0 does. The release is gated through its [M10 acceptance](M10_ACCEPTANCE.md#the-180-release); its record is [verification/G-1.8.0.md](verification/G-1.8.0.md), written at the release candidate.
+
+**The one rule to know.** A file that 1.8.0 writes opens in 1.7.0, because the format does not change. But 1.7.0 still refuses a GLB export of more than 100,000 visible faces, and an export or a catalog import of a model over its 256 MiB read-snapshot budget. Export such a model from 1.8.0, or keep it within the 1.7.0 limits until every machine that exports it runs 1.8.0. See [Downgrade](#downgrade-to-170).
+
+Existing commands, queries and schemas keep their shapes, except the error code for a missing entity below. A model within the 1.7.0 limits is written with the bytes 1.7.0 writes, except the writer string, which now names 1.8.0.
+
+### Raised export limits (R112)
+
+| Limit | 1.7.0 | 1.8.0 |
+| --- | --- | --- |
+| Read-snapshot budget (`readSnapshotBytes`): every export, render and library or bundle insert that takes a snapshot | 256 MiB (268,435,456 bytes) | 512 MiB (536,870,912 bytes), one budget |
+| GLB visible modelling faces (`glbVisibleFaces`) | 100,000 | 600,000, the materialized face limit |
+| GLB manifest | 128 MiB (134,217,728 bytes) | 192 MiB (201,326,592 bytes) |
+| GLB triangles, face-vertex references, binary and JSON chunk | 1,000,000; 2,000,000; 256 MiB; 16 MiB | unchanged |
+| Render snapshot (bodies) | 20,000 | unchanged |
+| Model, file, unique, materialized and component definition limits, undo budget | as in 1.7.0 | unchanged |
+
+The capability output reports the two new values, `limits.readSnapshotBytes` and `limits.glbVisibleFaces`, beside `packagedModelBytes`. No refusal for the read-snapshot budget states a number. `sketchyup-cli --version` prints `sketchyup-cli 1.8.0`.
+
+**Why the old limits blocked models within the published limits.** A component's geometry is charged twice, once in its definition and once in each placement. The 256 MiB budget was a literal written at eleven sites when the GLB export was added, and it was never derived from the model limits. So a model within the published limits (up to 300,000 unique faces and 600,000 materialized faces) was refused by the GLB, OBJ, STL, DXF and IFC exports, by render, and by the component library and bundle inserts ([D-097](verification/R089a-defect-triage.md)). The GLB export also refused more than 100,000 visible faces, so such a model could not be exported to GLB or sent to Blender ([D-098](verification/R089a-defect-triage.md)). The manifest bound of 128 MiB would have refused a 600,000-face export too, at about 175 MiB.
+
+### Memory and the 8 GiB ceiling (R112)
+
+The memory evidence is [R082w v4](verification/R082w-memory-budget-v4.md). It was measured in software only, in the pinned image with a Release command-line build and the 4 GiB job cap:
+
+- the smooth worst case, with 64 MiB of assets, charges 464.9 MiB, which fits the 512 MiB budget by 47.1 MiB;
+- a 600,000-face export takes 22.1 s and peaks at 1,326 MiB, and it adds about 278 MiB above the loaded model; its manifest is 175.2 MiB;
+- a model with every face coloured (528.8 MiB) or textured (540.9 MiB), measured on the strips shape, is over the budget, and its export refuses by name ([D-100](#known-limitations)).
+
+The modelled worst case with a GLB export on top of a loaded viewport is 3.99 GiB. That was over the 3.75 GiB ceiling set on 2026-11-01 by about 242 MiB, so the work stopped until the owner decided. **On 2026-11-06 the owner raised the modelled ceiling to 8 GiB** (8,589,934,592 bytes). The 4 GiB cap on test and measurement jobs is a separate operational limit and is unchanged. The modelled worst case is about 14 MiB under it, so a change that adds to that worst case must be measured again against the record.
+
+Three things the evidence does not show. **The desktop viewport was modelled, not measured:** the desktop build was not compiled for it, so the viewport's own resident memory is an estimate from the earlier record. The export's transient was measured on the command-line export, which runs the same `exportGlb` and `writeGlbExport` code as the desktop render path. **Hardware evidence is open:** [D-091](verification/R089a-defect-triage.md) stays open, and the [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md) waiver still applies. **The higher ceiling raises no model limit:** the published vertex, face, edge, placement and byte limits are as they were.
+
+### Missing entities fail with `NOT_FOUND` (D-095, D-096)
+
+This changes an error code that callers can see.
+
+- A scripted command, or a read-only query, that names a body, material, tag or component definition the document does not hold fails with `NOT_FOUND` and names it. For example, `sketchyup-cli --script` with a `tag.assign` to body 7 fails with `{"code":"NOT_FOUND","error":"Body #7 does not exist"}`, and `sketchyup-cli --query geometry.inspect --context 999` fails with `NOT_FOUND`, "Body #999 does not exist". In 1.7.0 both failed with `INVALID_OPERATION` and the C++ text `map::at`.
+- A `tag.assign` to a tag that does not exist fails with `NOT_FOUND` ("Tag #9 does not exist"). In 1.7.0 it failed with `INVALID_OPERATION` and "Entity tag must reference a tag, not a folder".
+- Successful commands and queries are unchanged. A caller that matched `INVALID_OPERATION`, or the text `map::at`, must match `NOT_FOUND`.
+
+### Fixes
+
+- Select tool hint (D-094, Minor, [#569](https://github.com/zygote55/sketchyup/pull/569)): with saved-scene tabs visible, the Select tool's hint no longer overlaps the status line at the bottom left of the viewport.
+- Missing entities (D-095, [#571](https://github.com/zygote55/sketchyup/pull/571); D-096, [#573](https://github.com/zygote55/sketchyup/pull/573)): see the section above.
+- Export of a model at the published limits (D-097 and D-098, Minor): fixed by the R112 limits above.
+- Documentation ([#570](https://github.com/zygote55/sketchyup/pull/570), [#572](https://github.com/zygote55/sketchyup/pull/572)): the README is a short overview with screenshots, and [docs/README.md](README.md) is the documentation index.
+
+### Known limitations
+
+- **Imported UVs (D-099, Limitation).** A model with imported UVs reaches the 96 MiB model limit at about 136,000 faces, because each textured face stores about 528 bytes of mapping (front and back). The workaround is to import the model with colours only, then give the material a repeating texture with `material.edit` (`asset` and `textureSize`). The workaround covers repeating textures only, not atlases.
+- **Colours and textures at the limits (D-100, Limitation).** A model the published limits admit can exceed the 512 MiB budget when its faces carry per-face colours or texture mappings. Such a model opens, edits and saves, but its exports refuse by name. Measured: colours on every face give 528.8 MiB; textures on 302,000 face copies give 540.9 MiB; each colour costs 84 bytes per charged face copy and each mapping 264 bytes.
+- **Smooth edges.** The 600,000 materialized face limit is unchanged. With smooth edges the 900,000 edge limit binds first, at about 498,000 faces (measured: 498,000 faces and 896,003 edges).
+- **Render snapshot.** The 20,000-body render snapshot limit is unchanged.
+- **Carried from 1.7.0.** The memory evidence is software only ([D-091](verification/R089a-defect-triage.md)). A bulk transaction over the 128 MiB staging budget is refused, so split it ([D-090](verification/R089a-defect-triage.md)). A `.skp` definition over the component limit loses its geometry past the limit ([D-092](verification/R089a-defect-triage.md)). The inline form of a native document, at its 256 MiB file bound, has unmeasured parse memory ([D-093](verification/R089a-defect-triage.md)).
+- **Defects.** The triage lists 29 open defects at this preparation: none is release-blocking or Major (8 Minor, 21 Limitations). D-087 (Minor, a retained render re-rendered from a manifest written before the in-view credit rule can burn a terrain's source notice for a terrain outside its view) stays open.
+
+### Upgrade from 1.7.0-1
+
+Run `pacman -U sketchyup-1.8.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install `sketchyup-ifc-1.8.0-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a 1.7.0-1 package built from the release source to 1.8.0-1. Preferences, data and cache are kept, as package acceptance checks.
+
+### Downgrade to 1.7.0
+
+- **What 1.7.0 still opens.** Every file that 1.8.0 writes, because the format is unchanged. The package acceptance checks two of them: the published 1.7.0-1 CLI opens, unchanged and valid, a 153,000-vertex model that 1.8.0 writes, and it opens the schema-35 reference-image save unchanged.
+- **What 1.7.0 refuses.** A GLB export of a model with more than 100,000 visible faces. The package acceptance checks this with a model of 153,000 visible faces (17 placements of a 9,000-sided prism): 1.8.0 exports it, and the published 1.7.0-1 CLI refuses the export with `{"code":"INVALID_OPERATION","error":"GLB has too many visible faces","status":"failed"}` and exit status 1, creating no directory and leaving the file unchanged. A model over its 256 MiB read-snapshot budget is refused by 1.7.0 for exports and catalog imports. The text of that refusal was not measured for this preparation, because no cheap model over the budget was found.
+- **The rule.** Keep a model within the 1.7.0 export limits (100,000 visible faces, 256 MiB of read snapshot) until every machine that exports it runs 1.8.0. A file over those limits opens in 1.7.0 and is refused for export there, not damaged.
+
+### Split-package rollback
+
+The optional `sketchyup-ifc` package requires the exact `sketchyup` version, so pacman refuses to install `sketchyup-1.7.0-1` while `sketchyup-ifc-1.8.0-1` is installed, and it changes nothing (D-071). Remove the helper first, then install the application, as in [Rollback](#rollback-to-170-1).
+
+### Rollback to 1.7.0-1
+
+1. Remove `sketchyup-ifc` first if it is installed: `pacman -R sketchyup-ifc`.
+2. Install `sketchyup-1.7.0-1-x86_64.pkg.tar.zst` with `pacman -U`.
+3. Install `sketchyup-ifc-1.7.0-1-x86_64.pkg.tar.zst` if you want the IFC helper.
+
+A file that 1.8.0 wrote opens in 1.7.0 after the rollback. Exports and catalog imports of a model over the 1.7.0 limits are
+refused by 1.7.0 until 1.8.0 is installed again; nothing is changed by the refusal.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.8.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.8.0-1, x86_64; `sketchyup-ifc` 1.8.0-1 (optional, IFC and STEP helper) |
+| Native document | Schema 35 at most, in SKUPDOC container version 2; reads versions 1 through 35. Saves record the writer `SketchyUp/1.8.0`. No schema or version change |
+| Capability output | `limits.readSnapshotBytes` (536870912) and `limits.glbVisibleFaces` (600000) are new; no other field changed |
+| Errors | A missing body, material, tag or component definition named by a command or query is `NOT_FOUND`, not `INVALID_OPERATION` (see above) |
+| MCP, inspection, recipes and other public schemas | No shape changed. The generated references and all ten discovery schemas match the built CLI and desktop binaries |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, as in 1.7.0. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.8.0 writer. The assistant's tool surfaces did not change: the corpus v6 manifest pins eight trial entries with five distinct `toolsSha256` values. The offline checks pass: `provider_release_corpus`, `provider_release_score` and `assistant_tool_surface`. No live provider run was made in this preparation; the release candidate's record states the run it makes |
+| New third-party code | None |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.7.0.
+
+### File format
+
+1.8.0 reads document versions 1 through 35 and writes the schema each document needs, as 1.7.0 does. Nothing a file may hold has changed. A document with a georeferenced reference image is schema 35, and the 1.7.0 reader opens it unchanged.
+
+### Not in this release
+
+- The one-record UV storage change. The owner decided to leave it for a later release ([D-099](verification/R089a-defect-triage.md)).
+- R107.d (held), the deferred rows, and buildingSMART hosted validation of the IFC export, which is the owner's own task and not a gate for this release.
+- D-087 (open, Minor), and PR #574.
+- The 1.7.0 list still holds: Ruby extensions (C02), DWG (C05), collaboration (C07), `.skp` export, IFC2X3 and IFC4X3 export, STEP AP242 export, and any import format beyond those listed.
+
 ## 1.7.0
 
 SketchyUp 1.7.0 is a minor release. It raises the unique geometry limits about threefold (R110, [ADR 0005](decisions/0005-document-protocol.md#raised-unique-geometry-limits-r110-170)), so a larger model fits in one document, and it adds two scripting commands that remove unused component definitions, materials and assets (R111, [ADR 0005](decisions/0005-document-protocol.md#removing-unused-definitions-r111)). It changes no document schema: 1.7.0 reads document versions 1 through 35 and writes 35 at most, as 1.6.1 does. The release is gated through its [M10 acceptance](M10_ACCEPTANCE.md#the-170-release); its record is [verification/G-1.7.0.md](verification/G-1.7.0.md), written at the release candidate.

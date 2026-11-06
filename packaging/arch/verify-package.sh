@@ -31,9 +31,9 @@ package_release=$(sed -n 's/^pkgrel=\([0-9][0-9]*\)$/\1/p' PKGBUILD)
 # first pkgrel of x.y.0 upgrades from the newest earlier entry of released_packages
 # (1.0.0-1 from the development package 0.1.0-3, 1.1.0-1 from 1.0.1-1, 1.2.0-1 from
 # 1.1.1-1, 1.3.0-1 from 1.2.0-1, 1.4.0-1 from 1.3.0-1, 1.5.0-1 from 1.4.0-1, 1.6.0-1 from
-# 1.5.0-1, 1.6.1-1 from 1.6.0-1, and 1.7.0-1 from 1.6.1-1). Add each published release to
-# this table, oldest first.
-released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1 1.2.0-1 1.3.0-1 1.4.0-1 1.5.0-1 1.6.0-1 1.6.1-1)
+# 1.5.0-1, 1.6.1-1 from 1.6.0-1, 1.7.0-1 from 1.6.1-1, and 1.8.0-1 from 1.7.0-1). Add each
+# published release to this table, oldest first.
+released_packages=(0.1.0-3 1.0.0-1 1.0.1-1 1.1.0-1 1.1.1-1 1.2.0-1 1.3.0-1 1.4.0-1 1.5.0-1 1.6.0-1 1.6.1-1 1.7.0-1)
 for (( index = 1; index < ${#released_packages[@]}; index++ )); do
   (( $(vercmp "${released_packages[index]}" "${released_packages[index - 1]}") > 0 )) || {
     echo "released_packages is not in vercmp order at ${released_packages[index]}." >&2
@@ -85,6 +85,7 @@ declare -A known_release_sha256=(
   [sketchyup-1.5.0-1-x86_64.pkg.tar.zst]=92c36696e47eddfc5d3fba2d98f8dc56405f737779bc4fafe78f43b4951dd668
   [sketchyup-1.6.0-1-x86_64.pkg.tar.zst]=f701d61f7a45acd8efb243d56871344d0bf357f0cf0090ce0743b6c55baafcad
   [sketchyup-1.6.1-1-x86_64.pkg.tar.zst]=414e7851862af157353ccf1066acce94f4008952b86c06eaa1b7e0773fe05dc9
+  [sketchyup-1.7.0-1-x86_64.pkg.tar.zst]=8b51842e3ab746b9b766f0e489d7de5e1a9f9497eea98d316a54759b4cc3170d
 )
 prior_release_cli=
 if [[ -n ${SKETCHYUP_PRIOR_RELEASE_PACKAGE:-} ]]; then
@@ -292,10 +293,10 @@ PYVERSION
   cp "$reference_save" "$reference_save.before"
   runuser -u builder -- "$prior_release_cli" --validate-native "$reference_save" > /dev/null
   cmp "$reference_save" "$reference_save.before"
-  # The raised limits (R110, 1.7.0): a model over the released CLI's unique-geometry limit, which this package
-  # writes and the released CLI refuses with its own message and leaves unchanged. It is made here, not committed:
-  # one face of 9,000 points (under the 10,000-vertex loop limit) and a linear copy array of its body, 17 bodies
-  # and 153,000 unique vertices. The released 1.6.1 limit is 100,000 vertices.
+  # The raised limits (R110, 1.7.0): a model of 153,000 unique vertices, which this package writes and the
+  # released 1.7.0 CLI, whose unique limit is 300,000, must open and validate unchanged. It is made here, not
+  # committed: one face of 9,000 points (under the 10,000-vertex loop limit) and a linear copy array of its body,
+  # 17 bodies and 153,000 unique vertices. (1.6.1 refused this model at its 100,000-vertex limit; 1.7.0 does not.)
   over_script=/work/acceptance/prior-release/over-unique-limit.json
   over_save=/work/acceptance/prior-release/over-unique-limit.sketchyup
   python - "$over_script" <<'PYOVER'
@@ -316,14 +317,49 @@ PYOVER
   runuser -u builder -- sketchyup-cli --validate-native "$over_save" |
     jq -e '.valid and .bodies == 17 and .documentVersion == 26' > /dev/null
   cp "$over_save" "$over_save.before"
-  if runuser -u builder -- "$prior_release_cli" --validate-native "$over_save" > /dev/null 2> "$over_save.stderr"; then
-    echo "Prior release opened a model over its unique-geometry limit: $over_save" >&2
+  runuser -u builder -- "$prior_release_cli" --validate-native "$over_save" > /dev/null
+  cmp "$over_save" "$over_save.before"
+  printf '\nPrior release opened the 153,000-vertex model unchanged, within its 300,000-vertex unique limit.\n'
+  # The raised GLB visible-face cap (R112, 1.8.0): a model of 153,000 visible faces, over the 100,000 that 1.7.0
+  # exports. This package exports it, and the released CLI opens it unchanged and refuses the export with its own
+  # message, creating no directory. It is made here, not committed: a 9,000-sided prism (9,002 faces) placed 17
+  # times. (A model over the 256 MiB snapshot charge of 1.7.0 is not made: it needs hidden bodies and was not cheap.)
+  export_script=/work/acceptance/prior-release/over-visible-face-cap.json
+  export_save=/work/acceptance/prior-release/over-visible-face-cap.sketchyup
+  python - "$export_script" <<'PYEXPORT'
+import json, math, sys
+sides = 9000
+loop = []
+for point in range(sides):
+    angle = 2.0 * math.pi * point / sides
+    loop.append([round(100.0 * math.cos(angle), 4), round(100.0 * math.sin(angle), 4), 0])
+steps = [
+    {"command": "geometry.face", "name": "Prism", "loops": [loop]},
+    {"command": "geometry.push_pull", "body": "1", "face": str(sides + 1), "distance": 50},
+    {"command": "component.create", "body": "1", "name": "Prism"},
+]
+for index in range(17):
+    steps.append({"command": "component.instance", "definition": "1",
+                  "matrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 300.0 * index, 0, 0, 1]})
+with open(sys.argv[1], 'w') as handle:
+    json.dump(steps, handle)
+PYEXPORT
+  runuser -u builder -- sketchyup-cli --script "$export_script" --output "$export_save" > /dev/null
+  runuser -u builder -- sketchyup-cli --validate-native "$export_save" |
+    jq -e '.valid and .documentVersion == 26' > /dev/null
+  runuser -u builder -- sketchyup-cli --input "$export_save" --export-glb /work/acceptance/prior-release/over-visible-face-cap-glb > /dev/null
+  jq -e '.visibleTriangles > 100000' /work/acceptance/prior-release/over-visible-face-cap-glb/manifest.json > /dev/null
+  test -s /work/acceptance/prior-release/over-visible-face-cap-glb/scene.glb
+  cp "$export_save" "$export_save.before"
+  if runuser -u builder -- "$prior_release_cli" --input "$export_save" --export-glb /work/acceptance/prior-release/over-visible-face-cap-prior-glb > /dev/null 2> "$export_save.stderr"; then
+    echo "Prior release exported a model over its visible-face cap: $export_save" >&2
     exit 1
   fi
-  jq -e '.status == "failed" and .error == "Document load exceeds document unique geometry limits: vertices would be 153,000 of 100,000"' \
-    "$over_save.stderr" > /dev/null
-  cmp "$over_save" "$over_save.before"
-  printf '\nPrior release refused the 153,000-vertex model over its 100,000-vertex unique limit unchanged.\n'
+  jq -e '.status == "failed" and .error == "GLB has too many visible faces"' "$export_save.stderr" > /dev/null
+  [[ ! -e /work/acceptance/prior-release/over-visible-face-cap-prior-glb ]]
+  runuser -u builder -- "$prior_release_cli" --validate-native "$export_save" > /dev/null
+  cmp "$export_save" "$export_save.before"
+  printf 'Prior release opened the 17-placement prism model unchanged and refused its GLB export with "GLB has too many visible faces", creating no directory.\n'
   printf 'Prior release reads schemas up to %s: refused %s newer fixtures unchanged, opened unchanged this package'"'"'s schema-35 reference-image save, and accepted its sheet-free save.\n' \
     "$prior_reads" "$newer_fixtures"
 fi

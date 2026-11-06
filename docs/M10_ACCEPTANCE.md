@@ -276,3 +276,44 @@ record is accepted.
 | Accepted misses | No budget miss is recorded for the 1.7.0 items. The staging budget (D-090) and the hardware evidence at the raised limits (D-091) are recorded as open limits, not misses. The STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.1 as accepted or unmeasured limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
 | Triage | The triage holds 27 open defects (0 release-blocking, 0 Major, 8 Minor and 19 Limitation) after the D-090 to D-093 rows. D-087 stays open. The record gives the count at the RC |
 | Documentation | The release notes (their 1.7.0 section), the support matrix, the user guide, the changelog (its "1.7.0 — unreleased" heading set to the date at the tag), SCOPE (unchanged unless the RC finds a statement to change), the roadmap entry "1.7.0 release" and ADR 0162's notes match the record |
+
+## The 1.8.0 release
+
+SketchyUp 1.8.0 is a minor release of 1.7.0. It is one release with one record, `docs/verification/G-1.8.0.md`, written at its
+release candidate, in the form of the 1.7.0 record. It follows the gate above, with the differences below. It carries:
+
+- the raised read-snapshot and GLB limits (R112): a read-snapshot budget of 512 MiB (from 256 MiB), one constant for every
+  export, render and insert that takes a snapshot; a GLB visible-face cap of 600,000 (from 100,000); a GLB manifest bound of
+  192 MiB (from 128 MiB); and the capability fields `readSnapshotBytes` and `glbVisibleFaces`. The owner raised the modelled
+  memory ceiling from 3.75 GiB to 8 GiB on 2026-11-06 ([ADR 0005, R112](decisions/0005-document-protocol.md#r112-snapshot-and-glb-limits-180),
+  [ADR 0032](decisions/0032-glb-snapshots.md#r112-note-caps), [PR #575](https://github.com/zygote55/sketchyup/pull/575));
+- the fixes D-094 (the Select tool's hint, [#569](https://github.com/zygote55/sketchyup/pull/569)) and D-095 and D-096 (a missing
+  entity fails with `NOT_FOUND` that names it, instead of `INVALID_OPERATION` with the text `map::at`; [#571](https://github.com/zygote55/sketchyup/pull/571),
+  [#573](https://github.com/zygote55/sketchyup/pull/573)), which change an error code that callers see;
+- the documentation of the README rewrite and the documentation index ([#570](https://github.com/zygote55/sketchyup/pull/570), [#572](https://github.com/zygote55/sketchyup/pull/572));
+- no schema change. The highest schema stays 35. The downgrade window is 1.7.0-1, which opens every file 1.8.0 writes, but
+  refuses the exports and catalog imports of a model over its old limits.
+
+**Roadmap entries and records 1.8.0 rests on.** The roadmap entry "1.8.0 release" and its row R112 in
+[PR_ROADMAP.md](PR_ROADMAP.md); the memory evidence [R082w v4](verification/R082w-memory-budget-v4.md) for the raised limits and
+the 8 GiB ceiling; the implementation notes and the R112 section of [ADR 0005](decisions/0005-document-protocol.md#r112-snapshot-and-glb-limits-180)
+and the R112 note of [ADR 0032](decisions/0032-glb-snapshots.md#r112-note-caps); the defect triage rows D-094 to D-100 in
+[R089a](verification/R089a-defect-triage.md), which record the fixes and the limits that stay open (D-099 and D-100); and the
+prior release record [G-1.7.0](verification/G-1.7.0.md). Every merged head of those entries must have a green CI verdict (the
+fast tier) before the record is accepted.
+
+**What the 1.8.0 release record must show, in addition to the required evidence above:**
+
+| Area | Required for 1.8.0 |
+| --- | --- |
+| RC | Cut by the parent after the preparation PR merges, on the release branch it creates. `release-version.sh` prints `1.8.0`, `pkgver` is 1.8.0 and `pkgrel` is 1. The record gives the commit, the source-archive and package SHA-256 values and the image digest |
+| CI | The full tier passes at the RC (`full-ci` label, or `gh workflow run native.yml --ref <branch> -f tier=full`). Its Arch package acceptance uses the published 1.7.0-1 as the prior release (`SKETCHYUP_PRIOR_RELEASE_PACKAGE`, SHA-256 `8b51842e…`, pinned in `verify-package.sh` and `native.yml`). The split package's prior, `sketchyup-ifc-1.7.0-1` (SHA-256 `938bb054…`, in the 1.7.0 `SHA256SUMS`), is not pinned, because no script reads it |
+| Downgrade window | The published 1.7.0-1 CLI, in `verify-package.sh`: (a) opens, unchanged and valid, the 153,000-vertex model that the RC package writes at check time, which 1.7.0 accepts within its 300,000-vertex limit; (b) opens, unchanged, the schema-35 reference-image save and accepts its sheet-free save; (c) refuses, with its own message and exit status 1, the GLB export of a model of 153,000 visible faces (17 placements of a 9,000-sided prism) that 1.8.0 exports, and creates no directory and changes no byte of the file. The record gives the exit statuses, the unchanged bytes and the text `GLB has too many visible faces`. A check that 1.7.0 refuses a model over its 256 MiB read-snapshot budget is recorded as not done, with the reason: by estimate from the R112 figures, a model that charges over 256 MiB needs about 260,000 or more charged face copies, and 1.7.0's visible-face cap refuses such a model first unless most of its bodies are hidden; no cheap model of that kind was built |
+| Split-package rollback | With `sketchyup` and `sketchyup-ifc` 1.8.0-1 installed, `pacman -U` of `sketchyup-1.7.0-1` is refused by the dependency on `sketchyup=1.8.0` and changes nothing. The documented steps (remove `sketchyup-ifc` first, then install `sketchyup-1.7.0-1`) run on a machine with both packages installed, as D-071 requires. The record gives the pacman output |
+| Corpus | The corpus content (prompts, limits, instructions and the assistant tool surfaces, which the v6 manifest pins as eight trial entries with five distinct `toolsSha256` values) is unchanged from 1.7.0 (v6); only the eight `inputSha256` values in each manifest change, for the 1.8.0 writer. The offline checks (`provider_release_corpus`, `provider_release_score` and `assistant_tool_surface`) pass in CI at the RC. A live provider run of the supported profile against corpus v6 is made at the RC, and the record states its result. The owner decides whether any earlier run carries over; the record states the decision and its reason |
+| Limits | `unique_limits_acceptance`, `snapshot_glb_limits_acceptance` and the export suites pass in the sanitized run of the pinned image, with the peak RSS and time against the 4 GiB container cap. The record states the modelled worst case (3.99 GiB with a GLB export on a loaded viewport) against the 8 GiB ceiling, that the desktop viewport was modelled and not measured, that the 4 GiB job cap is unchanged with about 14 MiB of margin, and that the evidence is software only (D-091). The parent runs one private acceptance model through the RC package and reports aggregated figures only; no model is named in the record |
+| Clean machines | The RC package installs over 1.7.0-1, and opens migrated documents, on the pinned and fresh machines, as for 1.7.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
+| Accepted misses | No budget miss is recorded for the 1.8.0 items. A model with per-face colours or textures can exceed the 512 MiB budget (D-100): it opens and saves, and its exports refuse by name, which the release notes state as a limitation, not a miss. The staging budget (D-090), the hardware evidence at the raised limits (D-091), `.skp` definitions over the component limit (D-092) and the inline parse memory (D-093) stay open as limits. The STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.0 as accepted or unmeasured limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
+| Error codes | The `NOT_FOUND` tests of the command, history, scene-input and automation suites pass at the RC. The record gives one example of each code, before and after, from the installed packages (1.7.0 `INVALID_OPERATION` with `map::at`; 1.8.0 `NOT_FOUND` naming the entity) |
+| Triage | The triage holds 29 open defects (0 release-blocking, 0 Major, 8 Minor and 21 Limitation) after the D-094 to D-100 rows. D-087 stays open. The record gives the count at the RC |
+| Documentation | The release notes (their 1.8.0 section), the support matrix, the user guide, the changelog (its "1.8.0 — unreleased" heading set to the date at the tag), SCOPE (unchanged: it has no limit statement), the roadmap entry "1.8.0 release" and ADR 0162's notes match the record |
