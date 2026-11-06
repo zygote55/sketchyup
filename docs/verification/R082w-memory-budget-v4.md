@@ -1,4 +1,4 @@
-# R082.w v4: memory at the R112 limits (measured in software; the owner's decision on the ceiling is open)
+# R082.w v4: memory at the R112 limits (measured in software; within the owner's 8 GiB ceiling)
 
 Version four of the [memory calibration](R082w-memory-budget-v3.md), for the R112 limits of
 [ADR 0005](../decisions/0005-document-protocol.md#r112-snapshot-and-glb-limits-180): the read-snapshot
@@ -6,11 +6,11 @@ budget at 512 MiB (from 256 MiB) and the GLB visible-face cap at 600,000 (from 1
 manifest bound at 192 MiB (from 128 MiB). Versions one to three stay as they are. Its machine-readable
 record is [R082w-memory-budget-v4.json](R082w-memory-budget-v4.json).
 
-**Status: measured in software only, and stopped.** Every measured peak is under the 4 GiB job cap, and
-the snapshot budget and the cap do what R112 says. But the modeled worst case with a GLB export on top
-of a loaded viewport is **3.99 GiB**, over the owner's **3.75 GiB** ceiling by about 242 MiB, and under the
-4 GiB cap by about 14 MiB. The brief says to stop here, so the pull request is not opened. The owner decides
-(see [The decision](#the-decision-for-the-owner)). **Hardware evidence stays open:** D-091 is not closed by
+**Status: measured in software only. The modeled worst case fits the 8 GiB ceiling that the owner set on
+2026-11-06.** Every measured peak is under the 4 GiB job cap, and the snapshot budget and the cap do what R112
+says. The modeled worst case with a GLB export on top of a loaded viewport is **3.99 GiB**. That was over the
+earlier 3.75 GiB ceiling by about 242 MiB, so the work stopped until the owner raised the ceiling (see
+[The owner's decision](#the-owners-decision)). **Hardware evidence stays open:** D-091 is not closed by
 this record, and the [ADR 0161 waiver](../decisions/0161-m9-hardware-evidence-waiver.md) still applies.
 
 ## What R112 changes in the modeled worst case
@@ -27,15 +27,15 @@ now stands on top of the worst case.
 | v3 total, with the measured excess and the 150 MB hardware delta | 3,989,057,776 (3.72 GiB) | 3,989,057,776 |
 | GLB export at 600,000 visible faces, above the loaded model (measured, [below](#export-at-the-cap)) | not modeled | 278 MiB (291,504,128 B) |
 | **Total** | 3,989,057,776 (3.72 GiB) | **4,280,561,904 (3.99 GiB; 4,082 MiB)** |
-| Owner's modeled ceiling | 4,026,531,840 (3.75 GiB) | 4,026,531,840 (3.75 GiB) |
-| Margin to the ceiling | 37,474,064 B (35.7 MiB) | **−242 MiB (over)** |
+| Owner's modeled ceiling | 4,026,531,840 (3.75 GiB) | 8,589,934,592 (8 GiB) |
+| Margin to the ceiling | 37,474,064 B (35.7 MiB) | 4,309,372,688 B (about 4.01 GiB) |
 | Margin to the 4 GiB job cap | 305,909,520 B | about 14 MiB |
 
 Without the hardware delta (the software-only sum of v3, 3,839,057,776 B, plus the same 278 MiB) the total
-is 3,939 MiB, or 3.85 GiB, which is also over the ceiling by about 99 MiB.
+is 3,939 MiB, or 3.85 GiB.
 
-The export transient that would still fit the ceiling with the hardware delta is **35.7 MiB**. The measured
-transient is about 7.8 times that.
+The earlier 3.75 GiB ceiling left 35.7 MiB for an export, with the hardware delta. The measured transient is
+about 7.8 times that, which is why the ceiling had to change or the export had to be limited.
 
 **Does an export run on top of a loaded viewport in the desktop app?** Yes, through the render path. The
 Blender job (`src/integrations/blender_job.cpp`) calls `exportGlb` and `writeGlbExport` on the document
@@ -91,17 +91,17 @@ Both shapes are smooth (every edge soft and smooth, one appearance record each) 
 
 The textured variant holds 52,000 unique textured faces and 250,000 charged copies of them, so the
 measured charge is 79,728,000 bytes over 302,000 copies. That is **264.0 bytes per copy**, the figure
-in the brief. A painted face costs **84 bytes per copy** (67,032,000 bytes over 798,000 copies: 300,000
+in the model code. A painted face costs **84 bytes per copy** (67,032,000 bytes over 798,000 copies: 300,000
 unique and 498,000 materialized). Both are charged to the definition and to each placement, so a component
 placed many times multiplies its cost.
 
 The headroom under the smooth worst case is 49,408,182 bytes. That is enough for about 588,000 coloured face
 copies or about 187,000 textured face copies, and any mix that adds up to more refuses the export.
 
-**Keep 512 MiB, and say which documents exceed it.** The brief's smooth worst case fits: 464.9 MiB. The
+**Keep 512 MiB, and say which documents exceed it.** The smooth worst case fits: 464.9 MiB. The
 case with textures or colours does not, and it is inside the 96 MiB chunk bound. Those documents open, edit
 and save, but their exports refuse by name. This is the record of
-[D-100](R089a-defect-triage.md). The budget is not raised, as the brief asks.
+[D-100](R089a-defect-triage.md). The budget stays at the 512 MiB the owner approved.
 
 ## Export at the cap
 
@@ -165,24 +165,20 @@ took 336.9 s and peaked at 1,728 MiB (1,993 MiB with the container written).
 - Binary size at the triangle cap: about 72 bytes a triangle for positions and normals, so 1,000,000 triangles
   come to about 72 MB, under the 256 MiB binary bound. Estimated, not measured.
 
-## The decision for the owner
+## The owner's decision
 
-The R112 numbers are fixed by the owner's approval (512 MiB, 600,000 faces). The modeled ceiling is the
-open question. The options are the owner's, and none is taken here:
+The export at the cap went over the ceiling of the time, 3.75 GiB, so the work stopped and the owner was asked.
+The options offered were 600,000 faces on the command line only, 600,000 everywhere with a higher ceiling, or
+cutting the export's memory first. On 2026-11-06 the owner answered: "Raise the memory ceiling to 8GiB".
 
-1. **Accept the modeled peak over the ceiling.** The worst case with an export is 3.99 GiB, 14 MiB under the
-   4 GiB job cap. That would be a decision to run the job cap with almost no margin, which is not recommended.
-2. **Lower the GLB visible-face cap** so that the export transient fits the 35.7 MiB left under the ceiling.
-   The transient is roughly proportional to the faces, so that is about 77,000 faces, below the 100,000 cap
-   that R112 replaces.
-3. **Reduce the export transient.** The largest allocation is the 175 MiB indented manifest string, and its
-   tree sits beside it. A streamed writer, or a smaller per-face record, would cut it. A smaller record changes
-   the manifest format, which R112 does not do.
-4. **Keep 600,000 for the command-line export only,** and cap the desktop render path lower, so the viewport
-   and the export never stand together at the worst case. This needs an owner decision on the render path.
-
-The brief's rule for a 600,000-face export that cannot fit the memory cap (stop at 350,000 or more) does not
-apply: the export is under the 4 GiB cap at 600,000 faces. What is open is the modeled ceiling, not the cap.
+- **The modeled worst-case ceiling is 8 GiB** (8,589,934,592 bytes), from 3.75 GiB. The worst case with an export
+  is 3.99 GiB, about 4.01 GiB under it.
+- **The 600,000-face cap applies to every GLB export,** including renders started from the desktop app.
+- **The 4 GiB cap on test and measurement jobs is a separate operational limit and is unchanged.** Every measured
+  peak is well under it (the largest is 2,255 MiB). The modeled worst case is about 14 MiB under it, so a change
+  that adds to that worst case must be re-measured against this record.
+- **The higher ceiling raises no model limit.** The published vertex, face, edge, placement and byte limits stay
+  as they are.
 
 ## Relation to earlier versions
 

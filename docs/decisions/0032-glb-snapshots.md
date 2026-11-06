@@ -120,4 +120,4 @@ and the manifest bound is 192 MiB, not 128 MiB. The cap equals the materialized 
 visible exports in full. A 600,000-face export writes a 175.2 MiB manifest (measured). The 2,000,000
 face-vertex references and 1,000,000 triangles caps, the 256 MiB binary, the 16 MiB JSON and the 20,000-body
 render snapshot are unchanged. The export at the cap adds about 278 MiB above a loaded model; that transient
-is the open memory decision in [R082w v4](../verification/R082w-memory-budget-v4.md).
+is recorded in [R082w v4](../verification/R082w-memory-budget-v4.md), within the owner's 8 GiB ceiling.
