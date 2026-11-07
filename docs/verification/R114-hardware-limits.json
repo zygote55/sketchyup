@@ -11,8 +11,18 @@
     "harness": "tests/limits_hardware_benchmark.cpp",
     "campaign": "scripts/session-limits-campaign.sh",
     "summary": "scripts/summarize-limits-campaign.py",
-    "binarySha256": "6d945b46c11b4b49287fe95f6d59ee2cae8f1978c5b8065f0ed2e50c2e234cca",
-    "binarySameOnLaptopAndPc": true
+    "binarySha256": {
+      "final": "6d945b46c11b4b49287fe95f6d59ee2cae8f1978c5b8065f0ed2e50c2e234cca",
+      "finalUsedBy": [
+        "textures (64 to 1024 MiB)"
+      ],
+      "earlierPrefixes": {
+        "7718d57c": "placements, dense definitions, unique, dense bodies up to 400,000 faces, definitions",
+        "b1c61905": "dense body 800,000 faces"
+      },
+      "note": "The earlier builds were overwritten on the PC; only the printed prefixes are kept. Each family's pass is in load (start lines)."
+    },
+    "binarySameOnLaptopAndPcFinal": true
   },
   "machine": {
     "host": "sketchyup-gpu",
