@@ -280,7 +280,7 @@ record is accepted.
 ## The 1.8.0 release
 
 SketchyUp 1.8.0 is a minor release of 1.7.0. It is one release with one record, `docs/verification/G-1.8.0.md`, written at its
-release candidate, in the form of the 1.7.0 record. It follows the gate above, with the differences below. It carries:
+release candidate, and it was released on 2026-11-07 from RC1, in the form of the 1.7.0 record. It follows the gate above, with the differences below. It carries:
 
 - the raised read-snapshot and GLB limits (R112): a read-snapshot budget of 512 MiB (from 256 MiB), one constant for every
   export, render and insert that takes a snapshot; a GLB visible-face cap of 600,000 (from 100,000); a GLB manifest bound of
@@ -315,5 +315,5 @@ fast tier) before the record is accepted.
 | Clean machines | The RC package installs over 1.7.0-1, and opens migrated documents, on the pinned and fresh machines, as for 1.7.0 ([R087.u](verification/R087u-clean-machine-packages.md)) |
 | Accepted misses | No budget miss is recorded for the 1.8.0 items. A model with per-face colours or textures can exceed the 512 MiB budget (D-100): it opens and saves, and its exports refuse by name, which the release notes state as a limitation, not a miss. The staging budget (D-090), the hardware evidence at the raised limits (D-091), `.skp` definitions over the component limit (D-092) and the inline parse memory (D-093) stay open as limits. The STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.0 as accepted or unmeasured limits, and the record says so. Any budget miss the RC shows is recorded as a miss, and the owner decides it |
 | Error codes | The `NOT_FOUND` tests of the command, history, scene-input and automation suites pass at the RC. The record gives one example of each code, before and after, from the installed packages (1.7.0 `INVALID_OPERATION` with `map::at`; 1.8.0 `NOT_FOUND` naming the entity) |
-| Triage | The triage holds 29 open defects (0 release-blocking, 0 Major, 8 Minor and 21 Limitation) after the D-094 to D-100 rows. D-087 stays open. The record gives the count at the RC |
+| Triage | The triage holds 29 open defects (0 release-blocking, 0 Major, 8 Minor and 21 Limitation) after the D-094 to D-100 rows. D-087 stays open. The record gives the count at the RC. The gate added D-101, so the count at the RC was 30, not 29 |
 | Documentation | The release notes (their 1.8.0 section), the support matrix, the user guide, the changelog (its "1.8.0 — unreleased" heading set to the date at the tag), SCOPE (unchanged: it has no limit statement), the roadmap entry "1.8.0 release" and ADR 0162's notes match the record |

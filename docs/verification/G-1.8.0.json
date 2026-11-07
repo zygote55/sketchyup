@@ -3,8 +3,8 @@
   "date": "2026-11-06",
   "procedure": "docs/M10_ACCEPTANCE.md, The 1.8.0 release; the 1.8.0 table answered row by row; the form of G-1.7.0",
   "version": "1.8.0",
-  "recordComplete": "at RC1 (9cb8d7e2); the full tier (run 42311957245) passed on attempt 1; the tag and the release are made after this record merges",
-  "gateStatus": "release candidate complete; publication pending",
+  "recordComplete": "at RC1 (9cb8d7e2); the full tier (run 42311957245) passed on attempt 1; the tag and the release were made after this record merged (see publishedRelease)",
+  "gateStatus": "published",
   "ownerApproval": {
     "date": "2026-11-06",
     "decisions": [
@@ -20,9 +20,9 @@
     ],
     "source": "the parent's questions and the owner's answers as the brief records them; the owner's own message is not in the repository"
   },
-  "tagCreated": false,
-  "releaseCreated": false,
-  "published": false,
+  "tagCreated": true,
+  "releaseCreated": true,
+  "published": true,
   "features": [
     {
       "id": "R112",
@@ -694,9 +694,9 @@
     "Triage count: M10's Triage row says 29 open; the gate added D-101, so the RC count is 30.",
     "Harness label: glb/glb-checks.txt says bodies=17 for the 153,034-visible-face model; that is a literal in harness/smoke-180-glb.sh; the export has 36 bodies (18 geometry, 18 group).",
     "Rounding: the release notes and ADR 0162 say 153,000 visible faces for the 17-placement prism model; the model has 153,034 (17 x 9,002).",
-    "Roadmap: PR_ROADMAP's 1.8.0 release entry still reads In preparation at RC1; M10 requires the documentation to match the record; updated at publication.",
-    "Documentation at the RC that changes at publication: the support matrix's commit row says 'not yet released'; the screenshots Dockerfile default and docs/images/README.md name 1.7.0; the README's v=1.7.0 snippet and its current-release line; ADR 0162 lists them.",
-    "R089.a rows D-094 to D-096 say 'in this PR' (the branch that fixed them); noted in ADR 0162; not reworded.",
+    "Roadmap: PR_ROADMAP's 1.8.0 release entry still reads In preparation at RC1; M10 requires the documentation to match the record; updated at publication. Resolved by the publication PR: the entry reads as released.",
+    "Documentation at the RC that changes at publication: the support matrix's commit row says 'not yet released'; the screenshots Dockerfile default and docs/images/README.md name 1.7.0; the README's v=1.7.0 snippet and its current-release line; ADR 0162 lists them. Resolved by the publication PR, except the screenshots (the screenshot Dockerfile and docs/images/README.md still name 1.7.0; another PR completes that).",
+    "R089.a rows D-094 to D-098 said 'in this PR' or 'the R112 PR' (the branch or PR that fixed them); noted in ADR 0162 as not reworded. Resolved by the publication PR: the rows name #569, #571, #573 and #575.",
     "Site review: the 1.8.0 review says Site repeat 3 made two assert.measurement checks where R086.l recorded three in each run; the executed receipts agree (11 mentions against 15); the committed canonical hash of repeat 3 equals 1.7.0's; the cause is not traced.",
     "First-turn input: at 1.8.0 the provider-reported first-turn input differs between repeats in five tasks although each first request body is byte-identical; at 1.7.0 it did not differ; the cause is not traced (R086.m).",
     "Harness banner: the run-container banner says 6 CPUs; the code sets --cpus to 2 (inherited from 1.7.0).",
@@ -714,26 +714,37 @@
     "carried from G-1.7.0: the 1 s per-frame budget and the view test's cost; the frame credit for stills (no checkbox); the Qt range 6.8.0 to 6.12.0, where the orthophoto dialog and the guide viewer were not run on Qt 6.8"
   ],
   "followUpsForPublicationPr": [
-    "to do: the CHANGELOG heading to the release date",
-    "to do: PR_ROADMAP entry '1.8.0 release' reads as released; R112 reads 'Delivered (in 1.8.0)'",
-    "to do: R089.a has a line for the 1.8.0 release, with no count change",
-    "to do: the SUPPORT_MATRIX snapshot-budget wording 'not yet released' reads as released",
-    "to do: the screenshot Dockerfile default version, docs/images/README.md, and the README install snippet and current-release line name 1.8.0",
-    "to do: R089.a rows D-094 to D-096 reword 'in this PR'"
+    "screenshots: scripts/screenshots.Dockerfile defaults to SKETCHYUP_VERSION=1.7.0 and docs/images/README.md names the 1.7.0 image; another PR completes this (contradiction 5)"
   ],
   "publishedRelease": {
-    "tag": null,
-    "tagType": "annotated (to be created)",
-    "tagMessage": "SketchyUp 1.8.0 (to be created)",
+    "tag": "v1.8.0",
+    "tagType": "annotated",
+    "tagMessage": "SketchyUp 1.8.0",
+    "tagObject": "e1b6b02e133ba2b57d1ed8ac2f0f5ce925312a4a",
+    "taggerDate": "2026-11-07T05:52:53Z",
     "pointsAt": "9cb8d7e258d21faabd01f747549e07d4798b24db",
-    "url": null,
-    "title": null,
-    "publishedAt": null,
-    "latest": null,
-    "prerelease": null,
-    "draft": null,
-    "assets": null,
-    "fullTierRunOnTag": null,
-    "note": "to be filled at publication, after this record merges"
+    "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.8.0",
+    "title": "SketchyUp 1.8.0",
+    "publishedAt": "2026-11-07T05:52:58Z",
+    "latest": true,
+    "prerelease": false,
+    "draft": false,
+    "assets": {
+      "sketchyup-1.8.0.tar.gz": "aba17f526e549ef46a6c7d4923179f4ba9ca22e876ec47e58fdf81820e1792b4",
+      "sketchyup-1.8.0-1-x86_64.pkg.tar.zst": "d44e2f6632712232d889e5deec0e8178cc670df8def1502249a8fb571e21dd34",
+      "sketchyup-ifc-1.8.0-1-x86_64.pkg.tar.zst": "296e95c1b7552b9e82fa7f60a1bac34be0f896c83ad5e02fc84a9de3709fdb93",
+      "PKGBUILD": "c7ca5f7b7d59e4034d199e98da9b7e5d707fb2e95971668745583a561714eb86",
+      "SHA256SUMS": "3eb71e7af421a1ee6b89419619ca32da75df8dd53cf45fca842eef4189ad0b68",
+      "MANIFEST.json": "6076dc8cfc6d172407f06be739a9b3d1dc1772b21518c6c3f71ed88be4552fce",
+      "THIRD_PARTY_NOTICES": "228d2a789ae8d3983a598c945f02c2ac4bd5a7b5bdabe14ebcff411095a96c29"
+    },
+    "assetsVerified": "the parent downloaded every asset; sha256sum -c SHA256SUMS passes for the four files it lists (the archive, both packages and THIRD_PARTY_NOTICES); each downloaded file is byte-identical to the RC artifact; MANIFEST.json's digests match the files and its gitCommit is the RC commit. The digests of all seven assets are GitHub's asset digest field, read from the release when this record was written; for the four in the artifact manifest they equal its values; PKGBUILD, SHA256SUMS and MANIFEST.json have no value in the record to compare with",
+    "recordPr": "PR #577 (merge commit b835bebd) merged before the tag was made",
+    "fullTierRun": {
+      "run": 42344572529,
+      "headBranch": "v1.8.0",
+      "status": "in_progress when written",
+      "conclusion": null
+    }
   }
 }

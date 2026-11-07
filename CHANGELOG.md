@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.8.0 — unreleased
+## 1.8.0 — 2026-11-07
+
+Tag `v1.8.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.8.0).
 
 Raised read-snapshot and GLB visible-face limits (R112), defect fixes D-094 to D-098, with a changed error code for a missing entity (D-095, D-096), and the README and documentation index. No schema change: a file that 1.8.0 writes opens in 1.7.0, but 1.7.0 still refuses a GLB export or a catalog insert of a model over its old limits. The release notes are in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md#180).
 
