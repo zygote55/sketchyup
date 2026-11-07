@@ -1,5 +1,8 @@
 #include "io/dxf_export.hpp"
+#include "core/document_limits.hpp"
 #include "core/source_credits.hpp"
+#include "io/dxf_source.hpp"
+#include "io/format_limits.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -38,7 +41,7 @@ struct Writer {
     void loss(const QString &name, int n = 1) { losses[name] = losses[name].toInt() + n; }
     void field(int code, const QByteArray &value) {
         bytes += QByteArray::number(code) + '\n' + value + '\n';
-        require(bytes.size() <= 64 * 1024 * 1024, "DXF export exceeds 64 MiB");
+        require(bytes.size() <= dxfByteLimit, "DXF export exceeds 256 MiB");
     }
     void text(int code, const QString &value) {
         require(!value.contains('\n') && !value.contains('\r') && !value.contains(QChar(0)),
@@ -77,7 +80,8 @@ struct Writer {
         coordinate(y, (site ? p.y + site->northing : p.y) / scale);
     }
     void entity(const QString &type, const QString &layer) {
-        require(++entityCount <= 100000, "DXF export exceeds 100000 entities");
+        checkFormatCount("DXF export", "entities", ++entityCount, DocumentLimits::materialized.edges,
+                         "materialized");
         text(0, type);
         text(100, "AcDbEntity");
         text(8, layer);
@@ -128,8 +132,8 @@ struct Writer {
         ++arcCount;
     }
     void geometry(Id id, const Body &body) {
-        require(body.topology.edges.size() <= 100000 - edgeCount,
-                "DXF export exceeds 100000 source edges");
+        checkFormatCount("DXF export", "edges", edgeCount + body.topology.edges.size(),
+                         DocumentLimits::materialized.edges, "materialized");
         edgeCount += body.topology.edges.size();
         const auto world = doc.worldTransform(id);
         const auto layer = layers.at(body.tag);
@@ -139,7 +143,8 @@ struct Writer {
             checkPoint(q);
             require(std::abs(q.z) <= tolerance, "DXF export supports world XY only");
             points[v] = q;
-            require(++vertexCount <= 100000, "DXF export exceeds 100000 source vertices");
+            checkFormatCount("DXF export", "vertices", ++vertexCount,
+                             DocumentLimits::materialized.vertices, "materialized");
         }
         std::set<Id> used;
         for (const auto &[curveId, c] : body.curves) {
@@ -332,7 +337,7 @@ DxfExport exportDxf(const Document &document, double metresPerUnit, bool siteCoo
     return result;
 }
 void writeDxfExport(const DxfExport &result, const QString &path) {
-    require(!result.bytes.isEmpty() && result.bytes.size() <= 64 * 1024 * 1024 &&
+    require(!result.bytes.isEmpty() && result.bytes.size() <= dxfByteLimit &&
                 result.report["bytes"].toInteger() == result.bytes.size() &&
                 result.report["sha256"] == hash(result.bytes),
             "DXF bytes do not match export report");

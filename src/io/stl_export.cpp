@@ -1,4 +1,5 @@
 #include "io/stl_export.hpp"
+#include "io/format_limits.hpp"
 #include "core/source_credits.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
@@ -77,7 +78,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         for (const auto &[faceId, face] : body->surface.faces) {
             (void)face;
             for (const auto &t : body->surface.triangulate(faceId)) {
-                require(++count <= 100000, "STL export exceeds 100000 facets");
+                checkFormatCount("STL export", "facets", ++count, materializedCornerLimit, "materialized");
                 std::array<Vec3, 3> points{axis(transform.point(t.a)), axis(transform.point(t.b)),
                                            axis(transform.point(t.c))};
                 if (transform.determinant() < 0)

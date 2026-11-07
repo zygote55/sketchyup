@@ -809,6 +809,26 @@ int main(int argc, char **argv) {
         checkUndo("BanyanHarbor.skp", imported);
     }
 
+    // R113 reproduction (D-102): a file with more definitions than the native document takes. The
+    // package allows 100,000 definitions; the component definition records of one document take 1,024.
+    {
+        auto package = packageOf(fixture("component_instances.skp"), temp);
+        check(package.definitions.size() >= 2, "repro: the fixture has a definition to copy");
+        const auto source = package.definitions[1];
+        while (package.definitions.size() < 1100) {
+            auto copy = source;
+            copy.name = "Repro definition " + std::to_string(package.definitions.size());
+            package.definitions.push_back(copy);
+        }
+        try {
+            const auto imported = importSkpPackage(package);
+            std::cout << "R113 repro: imported " << imported.document.definitions().size()
+                      << " definitions\n";
+        } catch (const std::exception &error) {
+            std::cout << "R113 repro: refused: " << error.what() << "\n";
+        }
+    }
+
     if (failures) {
         std::cerr << failures << " failures\n";
         return 1;

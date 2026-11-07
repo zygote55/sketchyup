@@ -1,4 +1,7 @@
 #include "io/obj_import.hpp"
+#include "core/document_limits.hpp"
+#include "io/body_budget.hpp"
+#include "io/format_limits.hpp"
 #include "io/obj_material.hpp"
 #include "io/texture_image.hpp"
 #include <QDir>
@@ -143,10 +146,19 @@ struct Importer {
         std::uint64_t smoothing{};
         std::map<Id, size_t> normals;
     };
-    struct Bucket {
+    // One body of a bucket. A mesh over the one-body limits (R113, D-102) is several pieces: each
+    // continues the bucket in the next body, named "Name (2)" and so on.
+    struct Piece {
         std::shared_ptr<Body> body;
         std::map<size_t, Id> vertices;
         std::map<Id, FaceSource> faces;
+        BodyBudget budget;
+    };
+    struct Bucket {
+        std::string name;
+        Id parent{};
+        QStringList groups;
+        std::vector<Piece> pieces;
     };
     std::map<QString, Id> objects;
     std::map<std::pair<QString, QStringList>, Bucket> buckets;
@@ -162,6 +174,15 @@ struct Importer {
         edit.changes.push_back({b->id, nullptr, b});
         return b;
     }
+    // A new piece of a bucket, continuing it in the next body.
+    Piece &startPiece(Bucket &bucket) {
+        auto b = body(continuedBodyName(bucket.name, bucket.pieces.size() + 1), bucket.parent,
+                      BodyKind::Geometry);
+        for (qsizetype i = 0; i < bucket.groups.size(); ++i)
+            b->properties["obj.group." + std::to_string(i)] = bucket.groups[i].toStdString();
+        bucket.pieces.push_back(Piece{b, {}, {}, {}});
+        return bucket.pieces.back();
+    }
     Bucket &bucket(const ObjState &state) {
         if (!objects.contains(state.object))
             objects[state.object] =
@@ -170,36 +191,55 @@ struct Importer {
                     ->id;
         const auto key = std::make_pair(state.object, state.groups);
         if (!buckets.contains(key)) {
-            auto b = body(state.groups.isEmpty() ? "Geometry"
-                                                 : state.groups.join(" + ").left(256).toStdString(),
-                          objects.at(state.object), BodyKind::Geometry);
-            for (qsizetype i = 0; i < state.groups.size(); ++i)
-                b->properties["obj.group." + std::to_string(i)] = state.groups[i].toStdString();
+            auto &created = buckets[key];
+            created.name = state.groups.isEmpty() ? "Geometry"
+                                                  : state.groups.join(" + ").left(256).toStdString();
+            created.parent = objects.at(state.object);
+            created.groups = state.groups;
+            startPiece(created);
             if (state.groups.size() > 1)
                 loss("overlappingGroupsCombined");
-            buckets.emplace(key, Bucket{b, {}, {}});
         }
         return buckets.at(key);
     }
-    Id vertex(Bucket &bucket, size_t index) {
+    // The piece that takes `moreFaces` faces, the source vertices `vertices` (those it does not
+    // hold yet are new), and `moreEdges` edges: the bucket's last piece when it fits under the
+    // one-body limits, or a new piece.
+    Piece &place(Bucket &bucket, size_t moreFaces, const std::vector<size_t> &vertices,
+                 size_t moreEdges) {
+        auto &last = bucket.pieces.back();
+        std::set<size_t> fresh;
+        for (const auto v : vertices)
+            if (!last.vertices.contains(v))
+                fresh.insert(v);
+        if (last.budget.admits(moreFaces, fresh.size(), moreEdges))
+            return last;
+        return startPiece(bucket);
+    }
+    Id vertex(Piece &piece, size_t index) {
         usedVertices.insert(index);
-        if (bucket.vertices.contains(index))
-            return bucket.vertices.at(index);
-        if (++vertexCount > 100000)
-            throw std::runtime_error("Expanded OBJ exceeds 100000 vertices");
-        const auto id = bucket.body->surface.nextId++;
-        bucket.body->surface.vertices[id] = source.vertices.at(index);
-        bucket.vertices[index] = id;
+        if (piece.vertices.contains(index))
+            return piece.vertices.at(index);
+        checkFormatCount("OBJ import", "vertices", ++vertexCount,
+                         DocumentLimits::unique.vertices, "unique geometry");
+        const auto id = piece.body->surface.nextId++;
+        piece.body->surface.vertices[id] = source.vertices.at(index);
+        piece.vertices[index] = id;
         return id;
     }
     void face(const ObjFace &sourceFace, size_t original) {
         const auto &state = source.states.at(sourceFace.state);
-        auto &b = bucket(state);
-        auto &surface = b.body->surface;
+        std::vector<size_t> indices;
+        for (const auto &corner : sourceFace.corners)
+            indices.push_back(corner.vertex);
+        // A face of k corners is one face, or k - 2 triangles when UV coordinates are not affine.
+        auto &piece = place(bucket(state), std::max<size_t>(1, indices.size() - 2), indices,
+                            indices.size());
+        auto &surface = piece.body->surface;
         std::vector<Id> loop;
         FaceSource record{original, state.smoothing, {}};
         for (const auto &corner : sourceFace.corners) {
-            const auto id = vertex(b, corner.vertex);
+            const auto id = vertex(piece, corner.vertex);
             loop.push_back(id);
             if (corner.normal)
                 record.normals[id] = *corner.normal;
@@ -266,14 +306,17 @@ struct Importer {
             }
         }
         faceCount += faces.size();
-        if (faceCount > 100000)
-            throw std::runtime_error("Expanded OBJ exceeds 100000 faces");
+        checkFormatCount("OBJ import", "faces", faceCount, DocumentLimits::unique.faces,
+                         "unique geometry");
         for (const auto &[f, mapping] : faces) {
-            b.body->faceMaterials[f] = {m, m};
+            piece.body->faceMaterials[f] = {m, m};
             if (mapping)
-                b.body->faceTextureMappings[f] = {mapping, mapping};
-            b.faces[f] = record;
+                piece.body->faceTextureMappings[f] = {mapping, mapping};
+            piece.faces[f] = record;
         }
+        piece.budget.faces = surface.faces.size();
+        piece.budget.vertices = surface.vertices.size();
+        piece.budget.edges += indices.size();
     }
     ObjImport run(const QString &path, ObjImportOptions options) {
         options.validate();
@@ -312,37 +355,48 @@ struct Importer {
         for (const auto &line : source.lines) {
             auto &b = bucket(source.states.at(line.state));
             for (size_t i = 1; i < line.corners.size(); ++i) {
-                if (++wireCount > 100000)
-                    throw std::runtime_error("OBJ exceeds 100000 wire segments");
-                const auto a = vertex(b, line.corners[i - 1].vertex),
-                           c = vertex(b, line.corners[i].vertex);
-                b.body->surface.wires.push_back({a, c});
+                checkFormatCount("OBJ import", "wires", ++wireCount,
+                                 DocumentLimits::unique.wires, "unique geometry");
+                const auto first = line.corners[i - 1].vertex, second = line.corners[i].vertex;
+                auto &piece = place(b, 0, {first, second}, 1);
+                const auto a = vertex(piece, first), c = vertex(piece, second);
+                piece.body->surface.wires.push_back({a, c});
+                piece.budget.vertices = piece.body->surface.vertices.size();
+                piece.budget.edges += 1;
             }
             if (line.corners.front().texture)
                 loss("lineTextureCoordinatesOmitted");
         }
         if (!faceCount && !wireCount)
             throw std::runtime_error("OBJ contains no supported faces or lines");
+        size_t edgeCount{};
         for (auto &[key, b] : buckets) {
             (void)key;
-            b.body->surface.validate();
-            b.body->topology = Topology::rebuild(b.body->surface, {});
-            const auto adjacency = b.body->topology.adjacency(b.body->surface);
-            for (const auto &[edge, incidence] : adjacency.edgeFaces) {
-                if (incidence.size() != 2)
-                    continue;
-                const auto &a = b.faces.at(incidence[0].face), &c = b.faces.at(incidence[1].face);
-                bool smooth =
-                    a.original == c.original || (a.smoothing && a.smoothing == c.smoothing);
-                const auto &e = b.body->topology.edges.at(edge);
-                for (auto v : {e.a, e.b})
-                    if (a.normals.contains(v) && c.normals.contains(v) &&
-                        a.normals.at(v) != c.normals.at(v))
-                        smooth = false;
-                if (smooth)
-                    b.body->edgeAppearances[edge].smooth = true;
+            for (auto &piece : b.pieces) {
+                auto &body = *piece.body;
+                body.surface.validate();
+                body.topology = Topology::rebuild(body.surface, {});
+                edgeCount += body.topology.edges.size();
+                const auto adjacency = body.topology.adjacency(body.surface);
+                for (const auto &[edge, incidence] : adjacency.edgeFaces) {
+                    if (incidence.size() != 2)
+                        continue;
+                    const auto &a = piece.faces.at(incidence[0].face),
+                               &c = piece.faces.at(incidence[1].face);
+                    bool smooth =
+                        a.original == c.original || (a.smoothing && a.smoothing == c.smoothing);
+                    const auto &e = body.topology.edges.at(edge);
+                    for (auto v : {e.a, e.b})
+                        if (a.normals.contains(v) && c.normals.contains(v) &&
+                            a.normals.at(v) != c.normals.at(v))
+                            smooth = false;
+                    if (smooth)
+                        body.edgeAppearances[edge].smooth = true;
+                }
             }
         }
+        checkFormatCount("OBJ import", "edges", edgeCount, DocumentLimits::unique.edges,
+                         "unique geometry");
         if (!source.normals.empty())
             loss("customNormalsRecomputed", int(source.normals.size()));
         if (usedVertices.size() < source.vertices.size())
@@ -375,6 +429,15 @@ struct Importer {
         for (auto it = losses.begin(); it != losses.end(); ++it)
             notices.append(QJsonObject{
                 {"code", it.key()}, {"count", it.value()}, {"message", descriptions[it.key()]}});
+        // A mesh over the one-body limit is in more than one body. Shading does not cross the
+        // split, since the bodies share no vertices (R113, D-102).
+        QJsonArray bodySplits;
+        for (const auto &[key, b] : buckets) {
+            (void)key;
+            if (b.pieces.size() > 1)
+                bodySplits.append(QJsonObject{{"name", QString::fromStdString(b.name)},
+                                              {"bodies", qint64(b.pieces.size())}});
+        }
         result.report = {{"apiVersion", 1},
                          {"format", "OBJ"},
                          {"source", source.report},
@@ -383,6 +446,7 @@ struct Importer {
                          {"vertices", qint64(vertexCount)},
                          {"wireSegments", qint64(wireCount)},
                          {"groups", qint64(buckets.size())},
+                         {"bodySplits", bodySplits},
                          {"materials", qint64(materials.size())},
                          {"images", qint64(images.size())},
                          {"capturedBytes", qint64(captured)},

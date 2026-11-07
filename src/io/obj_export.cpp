@@ -1,5 +1,7 @@
 #include "io/obj_export.hpp"
+#include "core/document_limits.hpp"
 #include "core/face_textures.hpp"
+#include "io/format_limits.hpp"
 #include "core/shading_normals.hpp"
 #include "core/source_credits.hpp"
 #include "io/texture_image.hpp"
@@ -15,6 +17,10 @@
 #include <tuple>
 namespace sketchy {
 namespace {
+// The text of one OBJ file, and of the package's files together (R113, D-102). A model at the
+// materialized limits writes about 60 MB of geometry text with plain numbers, and more with normals
+// and texture coordinates, so the bound is the native file bound, not the old 64 MiB.
+constexpr std::size_t objTextLimit = 256 * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -53,8 +59,8 @@ struct Writer {
     Vec3 axis(Vec3 p) const { return options.up == ObjUpAxis::Y ? Vec3{p.x, p.z, -p.y} : p; }
     void textBudget() const {
         require(positions.size() + coordinates.size() + normals.size() + elements.size() <=
-                    64 * 1024 * 1024 - 256,
-                "OBJ export exceeds 64 MiB geometry text");
+                    objTextLimit - 256,
+                "OBJ export exceeds 256 MiB geometry text");
     }
     QString texture(Id id) {
         if (!id)
@@ -95,7 +101,8 @@ struct Writer {
             faceTextureMappings(body, face).front != faceTextureMappings(body, face).back)
             loss("backFaceAppearanceOmitted");
         if (!materials.contains(key)) {
-            require(materials.size() < 1024, "OBJ export exceeds 1024 materials");
+            checkFormatCount("OBJ export", "materials", materials.size() + 1,
+                             DocumentLimits::materialized.faces, "materialized");
             const auto id = materials.size() + 1;
             materials[key] = id;
             result.mtl += "newmtl material-" + QByteArray::number(id) + "\nKd";
@@ -114,7 +121,8 @@ struct Writer {
         value = normalized(axis(value));
         const Triple key{value.x, value.y, value.z};
         if (!normalIndices.contains(key)) {
-            require(normalIndices.size() < 300000, "OBJ export exceeds normal count");
+            checkFormatCount("OBJ export", "normals", normalIndices.size() + 1, materializedCornerLimit,
+                             "materialized");
             const auto id = normalIndices.size() + 1;
             normalIndices[key] = id;
             normals += "vn " + vector(value) + "\n";
@@ -127,7 +135,8 @@ struct Writer {
                 "OBJ export UV exceeds supported bounds");
         const auto key = std::make_pair(value.u, 1 - value.v);
         if (!uvIndices.contains(key)) {
-            require(uvIndices.size() < 300000, "OBJ export exceeds UV count");
+            checkFormatCount("OBJ export", "texture coordinates", uvIndices.size() + 1,
+                             materializedCornerLimit, "materialized");
             const auto id = uvIndices.size() + 1;
             uvIndices[key] = id;
             coordinates += "vt " + number(key.first) + ' ' + number(key.second) + "\n";
@@ -141,7 +150,8 @@ struct Writer {
         auto vertex = [&](Vec3 local, Id identity) {
             const auto key = std::make_pair(identity, Triple{local.x, local.y, local.z});
             if (!vertexIndices.contains(key)) {
-                require(vertexCount < 100000, "OBJ export exceeds 100000 positions");
+                checkFormatCount("OBJ export", "vertices", vertexCount + 1,
+                                 DocumentLimits::materialized.vertices, "materialized");
                 const auto p = axis(world.point(local)) * (1 / options.metresPerUnit);
                 vertexIndices[key] = ++vertexCount;
                 positions += "v " + vector(p) + "\n";
@@ -170,9 +180,10 @@ struct Writer {
             }
             auto polygon = [&](std::vector<Vec3> points, std::vector<Vec3> smooth,
                                std::vector<Id> identities) {
-                require(++faceCount <= 100000, "OBJ export exceeds 100000 faces");
+                checkFormatCount("OBJ export", "faces", ++faceCount, DocumentLimits::materialized.faces,
+                             "materialized");
                 cornerCount += points.size();
-                require(cornerCount <= 500000, "OBJ export exceeds 500000 corners");
+                checkFormatCount("OBJ export", "corners", cornerCount, materializedCornerLimit, "materialized");
                 if (reflected) {
                     std::reverse(points.begin(), points.end());
                     std::reverse(smooth.begin(), smooth.end());
@@ -243,9 +254,10 @@ struct Writer {
             }
         }
         for (const auto &wire : body.surface.wires) {
-            require(++wireCount <= 100000, "OBJ export exceeds 100000 wire segments");
+            checkFormatCount("OBJ export", "wires", ++wireCount, DocumentLimits::materialized.wires,
+                             "materialized");
             cornerCount += 2;
-            require(cornerCount <= 500000, "OBJ export exceeds 500000 corners");
+            checkFormatCount("OBJ export", "corners", cornerCount, materializedCornerLimit, "materialized");
             const auto a = vertex(body.surface.vertices.at(wire[0]), wire[0]),
                        b = vertex(body.surface.vertices.at(wire[1]), wire[1]);
             elements += "l " + QByteArray::number(a) + ' ' + QByteArray::number(b) + "\n";
@@ -280,7 +292,6 @@ struct Writer {
                     credits.add(*dem);
         }
         require(faceCount + wireCount > 0, "OBJ export contains no supported faces or wires");
-        require(faceCount + wireCount <= 100000, "OBJ export exceeds 100000 combined elements");
         if (!doc.instances().empty())
             loss("componentInstancesExpanded", int(doc.instances().size()));
         if (!doc.annotations().empty())
@@ -374,7 +385,7 @@ void writeObjExport(const ObjExport &package, const QString &directory) {
         textureBytes += size_t(bytes.size());
     }
     require(textureBytes <= assetTotalLimit && !package.obj.isEmpty() &&
-                package.obj.size() <= 64 * 1024 * 1024 && package.mtl.size() <= 4 * 1024 * 1024,
+                package.obj.size() <= objTextLimit && package.mtl.size() <= 4 * 1024 * 1024,
             "OBJ package exceeds byte limits");
     files["model.obj"] = package.obj;
     files["materials.mtl"] = package.mtl;

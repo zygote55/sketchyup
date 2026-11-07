@@ -1,4 +1,7 @@
 #include "io/gltf_import.hpp"
+#include "core/document_limits.hpp"
+#include "io/body_budget.hpp"
+#include "io/format_limits.hpp"
 #include "io/texture_image.hpp"
 #include <QJsonArray>
 #include <algorithm>
@@ -39,6 +42,11 @@ std::array<float, 4> values(const cgltf_accessor &a, size_t i, cgltf_type type) 
             throw std::runtime_error("Non-finite glTF vertex attribute");
     return result;
 }
+// A glTF position as a native point: glTF is Y-up metres, the native model is Z-up.
+Vec3 vertexPoint(const cgltf_accessor &position, size_t i) {
+    const auto v = values(position, i, cgltf_type_vec3);
+    return {v[0], -v[2], v[1]};
+}
 struct Importer {
     const GltfPackage &package;
     const cgltf_data &data;
@@ -50,17 +58,56 @@ struct Importer {
     std::set<std::string> materialNames;
     std::map<std::pair<const cgltf_image *, int>, Id> images;
     Id nextBody{1}, nextDefinition{1}, nextMaterial{1}, nextAsset{1}, nextScene{1};
-    size_t vertices{}, faces{}, records{}, assetSize{}, decodedBytes{};
+    // The geometry budget (R113, D-102). A definition's members are unique geometry, counted once
+    // as the definition is built. A placement of a definition is materialized geometry, counted
+    // for each placement. A node is outside every placement, so it counts in both totals.
+    struct Totals {
+        size_t vertices{}, faces{}, bodies{}, placements{};
+    };
+    Totals unique, materialized;
+    // Primitives over the one-body limit, as name and body count (R113, D-102).
+    QJsonArray bodySplits;
+    size_t assetSize{}, decodedBytes{};
     std::set<const cgltf_node *> visited;
     explicit Importer(const GltfPackage &p) : package(p), data(p.data()) {}
     void loss(const char *key, int count = 1) { losses[key] = losses[key].toInt() + count; }
-    void budget(size_t v, size_t f, size_t r) {
-        vertices += v;
-        faces += f;
-        records += r;
-        if (vertices > 100000 || faces > 100000 || records > 10000)
-            throw std::runtime_error("Expanded glTF exceeds native geometry limits (100000 "
-                                     "vertices/faces, 10000 records)");
+    void checkTotals() const {
+        const auto operation = "glTF import";
+        checkFormatCount(operation, "vertices", unique.vertices, DocumentLimits::unique.vertices,
+                         "unique geometry");
+        checkFormatCount(operation, "faces", unique.faces, DocumentLimits::unique.faces,
+                         "unique geometry");
+        checkFormatCount(operation, "bodies", unique.bodies, DocumentLimits::unique.bodies,
+                         "unique geometry");
+        checkFormatCount(operation, "vertices", materialized.vertices,
+                         DocumentLimits::materialized.vertices, "materialized");
+        checkFormatCount(operation, "faces", materialized.faces,
+                         DocumentLimits::materialized.faces, "materialized");
+        checkFormatCount(operation, "bodies", materialized.bodies,
+                         DocumentLimits::materialized.bodies, "materialized");
+        checkFormatCount(operation, "placements", materialized.placements,
+                         DocumentLimits::materialized.placements, "materialized");
+    }
+    // A definition's own geometry or bodies, once.
+    void definedGeometry(size_t v, size_t f, size_t b) {
+        unique.vertices += v;
+        unique.faces += f;
+        unique.bodies += b;
+        checkTotals();
+    }
+    // A node: a body outside every placement.
+    void nodeBody() {
+        unique.bodies += 1;
+        materialized.bodies += 1;
+        checkTotals();
+    }
+    // One placement of a definition: its members' geometry and bodies, as materialized geometry.
+    void placed(size_t v, size_t f, size_t b) {
+        materialized.vertices += v;
+        materialized.faces += f;
+        materialized.bodies += b;
+        ++materialized.placements;
+        checkTotals();
     }
     Id material(const cgltf_material *source) {
         if (materials.contains(source))
@@ -172,7 +219,7 @@ struct Importer {
         root->kind = BodyKind::Group;
         root->name = definition->name;
         definition->members[1] = root;
-        budget(0, 0, 1);
+        definedGeometry(0, 0, 1);
         Id member = 2;
         for (size_t pi = 0; pi < source.primitives_count; ++pi) {
             const auto &p = source.primitives[pi];
@@ -199,21 +246,29 @@ struct Importer {
                                p.indices->component_type != cgltf_component_type_r_16u &&
                                p.indices->component_type != cgltf_component_type_r_32u)))
                 throw std::runtime_error("Invalid glTF index accessor");
-            budget(position->count,
-                   p.type == cgltf_primitive_type_triangles ? count / 3 : count - 2, 1);
-            auto body = std::make_shared<Body>();
-            body->id = member++;
-            body->parent = 1;
-            body->name = "Primitive " + std::to_string(pi + 1);
+            // Each position is checked as before. Only the vertices the kept triangles use become body
+            // vertices, under their glTF index plus one.
+            for (size_t i = 0; i < position->count; ++i)
+                checkPoint(vertexPoint(*position, i));
             const auto materialId = material(p.material);
-            body->materials = {materialId, materialId};
-            for (size_t i = 0; i < position->count; ++i) {
-                const auto v = values(*position, i, cgltf_type_vec3);
-                const Vec3 point{v[0], -v[2], v[1]};
-                checkPoint(point);
-                body->surface.vertices[i + 1] = point;
-            }
-            body->surface.nextId = position->count + 1;
+            const auto primitiveName = "Primitive " + std::to_string(pi + 1);
+            struct Piece {
+                std::shared_ptr<Body> body;
+                BodyBudget budget;
+            };
+            std::vector<Piece> pieces;
+            // The next body of the primitive, continuing the last one (R113, D-102).
+            auto startPiece = [&]() -> Piece & {
+                auto piece = std::make_shared<Body>();
+                piece->id = member++;
+                piece->parent = 1;
+                piece->name = continuedBodyName(primitiveName, pieces.size() + 1);
+                piece->materials = {materialId, materialId};
+                piece->surface.nextId = position->count + 1;
+                definedGeometry(0, 0, 1);
+                pieces.push_back({piece, {}});
+                return pieces.back();
+            };
             const auto *normal = attribute(p, cgltf_attribute_type_normal);
             if (normal) {
                 if (normal->count != position->count)
@@ -248,33 +303,55 @@ struct Importer {
                     throw std::runtime_error(
                         "glTF skin attributes are outside the supported import subset");
             }
-            const auto index = [&](size_t i) -> Id {
+            const auto corner = [&](size_t i) -> size_t {
                 const auto vertex = p.indices ? cgltf_accessor_read_index(p.indices, i) : i;
                 if (vertex >= position->count)
                     throw std::runtime_error("glTF vertex index out of range");
-                return vertex + 1;
+                return vertex;
             };
+            std::vector<bool> used(position->count);
             for (size_t i = 0; i < count - 2;
                  i += p.type == cgltf_primitive_type_triangles ? 3 : 1) {
-                std::array<Id, 3> ids{index(i), index(i + 1), index(i + 2)};
+                std::array<size_t, 3> index{corner(i), corner(i + 1), corner(i + 2)};
                 if (p.type == cgltf_primitive_type_triangle_fan)
-                    ids = {index(0), index(i + 1), index(i + 2)};
+                    index = {corner(0), corner(i + 1), corner(i + 2)};
                 if (p.type == cgltf_primitive_type_triangle_strip && i % 2)
-                    std::swap(ids[0], ids[1]);
-                std::array<Vec3, 3> points{body->surface.vertices.at(ids[0]),
-                                           body->surface.vertices.at(ids[1]),
-                                           body->surface.vertices.at(ids[2])};
+                    std::swap(index[0], index[1]);
+                const std::array<Vec3, 3> points{vertexPoint(*position, index[0]),
+                                                 vertexPoint(*position, index[1]),
+                                                 vertexPoint(*position, index[2])};
                 if (length(cross(points[1] - points[0], points[2] - points[0])) <=
                     tolerance * tolerance) {
                     loss("degenerateTrianglesOmitted");
                     continue;
                 }
-                const Id face = body->surface.nextId++;
-                body->surface.faces[face] = Face{face, {{ids[0], ids[1], ids[2]}}};
+                // The first body of the primitive with room under the one-body limits takes the
+                // triangle: its new vertices, one face and three edges.
+                auto *piece = pieces.empty() ? &startPiece() : &pieces.back();
+                size_t fresh = 0;
+                for (const auto v : index)
+                    fresh += !piece->body->surface.vertices.contains(v + 1);
+                if (!piece->budget.admits(1, fresh, 3))
+                    piece = &startPiece();
+                auto &surface = piece->body->surface;
+                const std::array<Id, 3> ids{index[0] + 1, index[1] + 1, index[2] + 1};
+                for (size_t k = 0; k < 3; ++k) {
+                    used[index[k]] = true;
+                    if (!surface.vertices.contains(ids[k])) {
+                        surface.vertices[ids[k]] = points[k];
+                        definedGeometry(1, 0, 0);
+                    }
+                }
+                const Id face = surface.nextId++;
+                surface.faces[face] = Face{face, {{ids[0], ids[1], ids[2]}}};
+                definedGeometry(0, 1, 0);
+                piece->budget.faces = surface.faces.size();
+                piece->budget.vertices = surface.vertices.size();
+                piece->budget.edges += 3;
                 if (uv) {
                     std::array<TextureCoordinate, 3> coordinates{};
                     for (size_t k = 0; k < 3; ++k) {
-                        const auto v = values(*uv, ids[k] - 1, cgltf_type_vec2);
+                        const auto v = values(*uv, index[k], cgltf_type_vec2);
                         double u = v[0], w = v[1];
                         if (view->has_transform) {
                             const auto &t = view->transform;
@@ -285,18 +362,31 @@ struct Importer {
                         coordinates[k] = {u, w};
                     }
                     const auto mapping = pinnedTextureMapping(points, coordinates);
-                    body->faceTextureMappings[face] = {mapping, mapping};
+                    piece->body->faceTextureMappings[face] = {mapping, mapping};
                 }
             }
-            body->surface.validate();
-            body->topology = Topology::rebuild(body->surface, {});
-            if (normal) {
-                const auto adjacency = body->topology.adjacency(body->surface);
-                for (const auto &[edge, incident] : adjacency.edgeFaces)
-                    if (incident.size() == 2)
-                        body->edgeAppearances[edge] = {false, true, true};
+            if (pieces.empty())
+                startPiece();
+            if (pieces.size() > 1)
+                bodySplits.append(QJsonObject{{"name", QString::fromStdString(primitiveName)},
+                                              {"bodies", qint64(pieces.size())}});
+            size_t unused = 0;
+            for (const bool kept : used)
+                unused += !kept;
+            if (unused)
+                loss("unusedVerticesOmitted", int(unused));
+            for (auto &piece : pieces) {
+                auto &body = *piece.body;
+                body.surface.validate();
+                body.topology = Topology::rebuild(body.surface, {});
+                if (normal) {
+                    const auto adjacency = body.topology.adjacency(body.surface);
+                    for (const auto &[edge, incident] : adjacency.edgeFaces)
+                        if (incident.size() == 2)
+                            body.edgeAppearances[edge] = {false, true, true};
+                }
+                definition->members[body.id] = piece.body;
             }
-            definition->members[body->id] = body;
         }
         definition->nextMemberId = member;
         meshes[&source] = definition;
@@ -340,7 +430,7 @@ struct Importer {
         if (source.skin || source.weights_count)
             throw std::runtime_error(
                 "glTF skinning/morph weights are outside the supported import subset");
-        budget(0, 0, 1);
+        nodeBody();
         auto body = std::make_shared<Body>();
         body->id = nextBody++;
         body->parent = parent;
@@ -358,10 +448,13 @@ struct Importer {
             const auto definition = mesh(*source.mesh);
             auto instance = std::make_shared<ComponentInstance>();
             instance->definition = definition->id;
+            size_t placedVertices{}, placedFaces{};
             for (const auto &[member, canonical] : definition->members) {
-                budget(canonical->surface.vertices.size(), canonical->surface.faces.size(), 1);
+                placedVertices += canonical->surface.vertices.size();
+                placedFaces += canonical->surface.faces.size();
                 instance->members[member] = nextBody++;
             }
+            placed(placedVertices, placedFaces, definition->members.size());
             for (const auto &[member, canonical] : definition->members) {
                 auto placed = std::make_shared<Body>(*canonical);
                 placed->id = instance->members.at(member);
@@ -426,6 +519,7 @@ struct Importer {
             {"vertexColorsOmitted", "Per-vertex colors are omitted."},
             {"tangentsRecomputed", "Explicit tangent vectors are not retained."},
             {"degenerateTrianglesOmitted", "Degenerate triangles are omitted."},
+            {"unusedVerticesOmitted", "Vertices used by no kept triangle are omitted."},
             {"cameraRollApproximated", "Camera roll is replaced by the native upright view."},
             {"cameraAspectAndClipPlanesOmitted",
              "Camera aspect ratio and clipping use native view settings."},
@@ -452,6 +546,7 @@ struct Importer {
                          {"nativeUp", "Z"},
                          {"nodes", qint64(visited.size())},
                          {"triangles", qint64(triangles)},
+                         {"bodySplits", bodySplits},
                          {"meshDefinitions", qint64(meshes.size())},
                          {"instances", qint64(result.document.instances().size())},
                          {"materials", qint64(materials.size())},

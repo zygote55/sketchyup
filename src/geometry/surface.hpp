@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <stdexcept>
@@ -38,6 +39,9 @@ struct Edge {
     std::vector<Id> faces;
 };
 struct Surface {
+    // One body's own limit (R113, D-102): at most this many vertices and faces. It is a limit of
+    // the editing kernel, not of the document, so an import over it continues in another body.
+    static constexpr std::size_t bodyLimit = 100000;
     std::map<Id, Vec3> vertices;
     std::map<Id, Face> faces;
     // Wire edges are authoritative too; face adjacency is derived from ordered loops.

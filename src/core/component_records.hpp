@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include "core/asset_records.hpp"
 #include "core/body.hpp"
 #include "core/component_parameter_types.hpp"
@@ -29,6 +30,9 @@ struct ComponentDefinition {
 };
 using DefinitionPtr = std::shared_ptr<const ComponentDefinition>;
 using ComponentDefinitions = std::map<Id, DefinitionPtr>;
+// The most component definitions a document holds besides its root (R113, D-102). The format
+// refuses more; an import of a larger file omits the excess, and counts it.
+inline constexpr std::size_t componentDefinitionCountLimit = 1024;
 struct ComponentInstance {
     Id definition{};
     // Definition member -> resolved scene record. For a parametric placement this is

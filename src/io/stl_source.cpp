@@ -1,4 +1,5 @@
 #include "io/stl_source.hpp"
+#include "io/format_limits.hpp"
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QtEndian>
@@ -10,8 +11,12 @@ void StlCoordinateOptions::validate() const {
         throw std::runtime_error("STL requires bounded explicit units and Y or Z up");
 }
 namespace {
-constexpr qsizetype byteLimit = 64 * 1024 * 1024;
-constexpr size_t facetLimit = 100000;
+// Parse bounds that stop hostile files, sized to the unique limits (R113, D-102). A binary facet is
+// 50 bytes; an ASCII facet with 17-digit numbers is about 400 bytes, so 128 MiB holds 300,000 of
+// them. ASCII allows eight lines per facet (seven are needed), which covers the solid lines and a
+// few blank lines, and refuses the rest cheaply.
+constexpr qsizetype byteLimit = 128 * 1024 * 1024;
+constexpr size_t asciiLineLimit = 8 * DocumentLimits::unique.faces;
 void require(bool valid, const char *message) {
     if (!valid)
         throw std::runtime_error(message);
@@ -22,7 +27,8 @@ struct Parser {
     size_t attributes{}, zeroNormals{}, opposedNormals{}, degenerate{};
     Vec3 axis(Vec3 p) const { return options.up == StlUpAxis::Y ? Vec3{p.x, -p.z, p.y} : p; }
     void add(StlFacet facet) {
-        require(result.facets.size() < facetLimit, "STL exceeds 100000 facets");
+        checkFormatCount("STL import", "facets", result.facets.size() + 1,
+                         DocumentLimits::unique.faces, "unique geometry");
         for (auto &p : facet.vertices) {
             p = axis(p) * options.metresPerUnit;
             checkPoint(p);
@@ -46,7 +52,9 @@ struct Parser {
         result.facets.push_back(facet);
     }
     void binary(const QByteArray &bytes, size_t count) {
-        require(count > 0 && count <= facetLimit, "STL binary facet count must be 1..100000");
+        require(count > 0, "STL binary facet count must be at least 1");
+        checkFormatCount("STL import", "facets", count, DocumentLimits::unique.faces,
+                         "unique geometry");
         require(bytes.size() == qsizetype(84 + count * 50),
                 "STL binary count and byte length disagree");
         result.solids.append("STL mesh");
@@ -83,7 +91,9 @@ struct Parser {
             return value;
         };
         while (offset < text.size()) {
-            require(++lines <= 1000000, "ASCII STL exceeds one million lines");
+            if (++lines > asciiLineLimit)
+                throw std::runtime_error("ASCII STL exceeds " + groupedCount(asciiLineLimit) +
+                                         " lines (eight per facet at the unique face limit)");
             auto end = text.indexOf('\n', offset);
             if (end < 0)
                 end = text.size();
@@ -144,7 +154,7 @@ struct Parser {
 StlSource parseStl(const QByteArray &bytes, StlCoordinateOptions options) {
     options.validate();
     require(!bytes.isEmpty() && bytes.size() <= byteLimit,
-            "STL input must contain 1 byte to 64 MiB");
+            "STL input must contain 1 byte to 128 MiB");
     Parser parser{options, {}};
     const auto count = bytes.size() >= 84 ? qFromLittleEndian<quint32>(bytes.constData() + 80) : 0;
     const bool binary = bytes.size() >= 84 && quint64(bytes.size()) == 84 + quint64(count) * 50;
