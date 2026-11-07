@@ -6,11 +6,11 @@
 #
 # Build it with packaging/arch as the context, so the build sends only the mirror list:
 #
-#   docker build -f scripts/screenshots.Dockerfile --build-arg SKETCHYUP_VERSION=1.7.0 \
-#     -t sketchyup-shots:1.7.0 packaging/arch
+#   docker build -f scripts/screenshots.Dockerfile --build-arg SKETCHYUP_VERSION=1.8.0 \
+#     -t sketchyup-shots:1.8.0 packaging/arch
 FROM archlinux:base-devel
 
-ARG SKETCHYUP_VERSION=1.7.0
+ARG SKETCHYUP_VERSION=1.8.0
 
 # The dated archive keeps the package set fixed; see packaging/arch/mirrorlist.
 COPY mirrorlist /etc/pacman.d/mirrorlist
