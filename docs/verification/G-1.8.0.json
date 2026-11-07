@@ -695,7 +695,7 @@
     "Harness label: glb/glb-checks.txt says bodies=17 for the 153,034-visible-face model; that is a literal in harness/smoke-180-glb.sh; the export has 36 bodies (18 geometry, 18 group).",
     "Rounding: the release notes and ADR 0162 say 153,000 visible faces for the 17-placement prism model; the model has 153,034 (17 x 9,002).",
     "Roadmap: PR_ROADMAP's 1.8.0 release entry still reads In preparation at RC1; M10 requires the documentation to match the record; updated at publication. Resolved by the publication PR: the entry reads as released.",
-    "Documentation at the RC that changes at publication: the support matrix's commit row says 'not yet released'; the screenshots Dockerfile default and docs/images/README.md name 1.7.0; the README's v=1.7.0 snippet and its current-release line; ADR 0162 lists them. Resolved by the publication PR, except the screenshots (the screenshot Dockerfile and docs/images/README.md still name 1.7.0; another PR completes that).",
+    "Documentation at the RC that changes at publication: the support matrix's commit row says 'not yet released'; the screenshots Dockerfile default and docs/images/README.md name 1.7.0; the README's v=1.7.0 snippet and its current-release line; ADR 0162 lists them. Resolved by the publication PR, except the screenshots (the screenshot Dockerfile and docs/images/README.md still name 1.7.0; another PR completes that). #579 resolved the screenshot part.",
     "R089.a rows D-094 to D-098 said 'in this PR' or 'the R112 PR' (the branch or PR that fixed them); noted in ADR 0162 as not reworded. Resolved by the publication PR: the rows name #569, #571, #573 and #575.",
     "Site review: the 1.8.0 review says Site repeat 3 made two assert.measurement checks where R086.l recorded three in each run; the executed receipts agree (11 mentions against 15); the committed canonical hash of repeat 3 equals 1.7.0's; the cause is not traced.",
     "First-turn input: at 1.8.0 the provider-reported first-turn input differs between repeats in five tasks although each first request body is byte-identical; at 1.7.0 it did not differ; the cause is not traced (R086.m).",
@@ -713,9 +713,7 @@
     "PR #574, from an outside contributor: open, not in 1.8.0",
     "carried from G-1.7.0: the 1 s per-frame budget and the view test's cost; the frame credit for stills (no checkbox); the Qt range 6.8.0 to 6.12.0, where the orthophoto dialog and the guide viewer were not run on Qt 6.8"
   ],
-  "followUpsForPublicationPr": [
-    "screenshots: scripts/screenshots.Dockerfile defaults to SKETCHYUP_VERSION=1.7.0 and docs/images/README.md names the 1.7.0 image; another PR completes this (contradiction 5)"
-  ],
+  "followUpsForPublicationPr": [],
   "publishedRelease": {
     "tag": "v1.8.0",
     "tagType": "annotated",
@@ -743,8 +741,10 @@
     "fullTierRun": {
       "run": 42344572529,
       "headBranch": "v1.8.0",
-      "status": "in_progress when written",
-      "conclusion": null
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "completed": "2026-11-07T07:45:59Z"
     }
   }
 }
