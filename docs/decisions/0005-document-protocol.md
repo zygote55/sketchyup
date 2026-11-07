@@ -581,9 +581,10 @@ bear on this ADR:
 - **A move of one body is charged about 640 bytes per face** (64.0 MB at 100,000 faces, 128.0 MB at
   200,000), so a move of one body above about 300,000 faces is refused.
 - **The model chunk.** The native model is 107 bytes per unique face for untextured spheres and 132 to
-  140 for dense bodies, and about 536 bytes per placement. The 96 MiB model chunk therefore holds about
-  940,000 unique faces at 107 bytes, and about 630,000 at the 159 bytes per face that R112 measured on a
-  short-valued model. The 2.4 million-face tier is 246 MiB.
+  140 for dense bodies, and about 536 bytes per placement. Real models take more: R082w v4 measures 209 to 243
+  bytes per face, and a real model of about 292,000 faces about 226, so the 96 MiB bound stops a real model at
+  about 450,000 faces. The bound is a constant and not a limit of the format: the same format wrote and read a
+  258 MB model at 2.4 million faces, so raising it needs no schema change.
 - **Two product caps stop the design's own limits.** The 600,000 materialized vertex limit admits 11,538
   of the 26-sided prisms, so the 20,000 placement limit is not reachable with them. The viewport holds
   128 MiB of decoded textures, which is two 4096 by 4096 images, so a model within the 64 MiB stored

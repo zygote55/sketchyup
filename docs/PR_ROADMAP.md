@@ -1622,7 +1622,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R114 — Measure the model limits on real hardware
 
-**Status:** In progress. The owner approved using the GPU PC on 2026-11-07, and the measurements are recorded in [R114-hardware-limits](verification/R114-hardware-limits.md) (JSON beside it). Within the frame and edit budgets: 10,000 placements, 2.4 million unique faces, 512 MiB of textures; within the frame budget only: 800,000 faces in one body, 27 placements of a 176,000-face definition, 1,024 definitions. No product limit changes. The 300,000-face tier answers the question of [D-091](verification/R089a-defect-triage.md); the owner decides whether D-091 closes.
+**Status:** In progress. The owner approved using the GPU PC on 2026-11-07, and the measurements are recorded in [R114-hardware-limits](verification/R114-hardware-limits.md) (JSON beside it). Within the frame and edit budgets: 10,000 placements, 2.4 million unique faces, 512 MiB of textures; within the frame budget only: 800,000 faces in one body, 27 placements of a 176,000-face definition, 1,024 definitions. No product limit changes. The 300,000-face tier answers [D-091](verification/R089a-defect-triage.md), which it closes for the AMD GPU. The results also found D-104 to D-107.
 
 **Requires:** nothing merged; it measures `main`.
 
@@ -1642,7 +1642,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R116 — Binary geometry storage
 
-**Status:** Conditional on [R114](#r114). The owner agreed on 2026-11-07 to build it if the measurements justify it. Geometry is stored as JSON in a chunk of at most 96 MiB, which holds about 400,000 to 480,000 unique faces, or about 136,000 with imported UVs ([D-099](verification/R089a-defect-triage.md)). Going past that needs a new document schema, which older versions refuse to open.
+**Status:** Not built. The owner agreed on 2026-11-07 to build it if the measurements justify it, and [R114](verification/R114-hardware-limits.md#binary-storage-r116) shows they do not. Geometry is stored as JSON in a chunk whose 96 MiB bound is a constant: the same format wrote and read a 258 MB model at 2.4 million faces, in 6 s, so [R115](#r115) raises the bound with no schema change. Reconsider this only if a measured open time or peak memory becomes what stops a model.
 
 **Requires:** [R114](#r114).
 

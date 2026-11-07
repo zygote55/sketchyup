@@ -15997,7 +15997,7 @@
       "limit": "Unique faces (product 300,000)",
       "withinBudgetsTier": 2400000,
       "worksAtAnySpeedTier": 2400000,
-      "stopsNextTier": "The unique limit at scale 8. Above about 900,000 faces the 96 MiB model chunk needs R116."
+      "stopsNextTier": "The unique limit at scale 8. A real model reaches the 96 MiB model chunk at about 450,000 faces unless that constant is raised; the format does not need to change."
     },
     {
       "limit": "One body faces (product 100,000)",
@@ -16045,5 +16045,6 @@
     "Push-pull on any body above 1,000 faces (product context limit).",
     "GLB export of 512 MiB of textures (refused by the decoded-texture cap).",
     "The sharing-off control and the Intel machine (outside the brief)."
-  ]
+  ],
+  "binaryStorageVerdict": "Not justified: the same format wrote and read a 258 MB model at 2.4 million faces. modelBytes is a constant, not a limit of the format."
 }
