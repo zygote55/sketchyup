@@ -1,4 +1,5 @@
 #include "geometry/surface.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 #include <clipper2/clipper.h>
 #include <limits>
@@ -215,7 +216,9 @@ std::vector<Edge> Surface::edges() const {
     return out;
 }
 void Surface::validate() const {
-    if (vertices.size() > 100000 || faces.size() > 100000)
+    // The one-body limit (100,000 faces or vertices); scaled only in benchmark builds (R114).
+    if (vertices.size() > 100000 * DocumentLimits::scale ||
+        faces.size() > 100000 * DocumentLimits::scale)
         throw std::runtime_error("Surface exceeds editing limits");
     for (auto [id, p] : vertices) {
         if (id == 0 || id >= nextId || faces.contains(id))

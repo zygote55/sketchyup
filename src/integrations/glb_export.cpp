@@ -19,7 +19,9 @@
 #include <limits>
 namespace sketchy {
 namespace {
-constexpr qsizetype binaryLimit = 256 * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
+// Scaled with the benchmark-only limit scale (R114); the published values at scale 1.
+constexpr qsizetype binaryLimit = 256 * 1024 * 1024 * DocumentLimits::scale,
+                    jsonLimit = 16 * 1024 * 1024 * DocumentLimits::scale;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -291,7 +293,8 @@ struct Writer {
                 require(++faces <= visibleFaceBudget, "GLB has too many visible faces");
             for (const auto &loop : record.loops) {
                 references += loop.size();
-                require(references <= 2000000, "GLB has too many face vertices");
+                require(references <= 2000000 * DocumentLimits::scale,
+                        "GLB has too many face vertices");
             }
             if (!cuts.empty() && !retained.contains(face))
                 continue;
@@ -314,7 +317,8 @@ struct Writer {
                                                   : std::vector<Triangle>{};
             const auto count = cuts.empty() ? tessellated.size() : retained.at(face).size();
             triangles += count * (paired ? 2 : 1);
-            require(triangles <= 1000000, "GLB has too many visible triangles");
+            require(triangles <= 1000000 * DocumentLimits::scale,
+                    "GLB has too many visible triangles");
             auto appendSide = [&](int index, bool reverse) {
                 auto &group = groups[index];
                 const int start = group.count;
@@ -387,7 +391,8 @@ struct Writer {
                     appearance = material(color, color, false);
                     first = groups[appearance].count;
                 }
-                require(++triangles <= 1000000, "GLB has too many visible triangles");
+                require(++triangles <= 1000000 * DocumentLimits::scale,
+                        "GLB has too many visible triangles");
                 ++capTriangles;
                 auto &group = groups[appearance];
                 std::array<Vec3, 3> points{triangle.vertices[0].point, triangle.vertices[1].point,

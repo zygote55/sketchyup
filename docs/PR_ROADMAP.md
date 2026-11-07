@@ -1622,7 +1622,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R114 — Measure the model limits on real hardware
 
-**Status:** In progress. The owner approved using the GPU PC on 2026-11-07. This closes [D-091](verification/R089a-defect-triage.md) if the results are complete.
+**Status:** In progress. The owner approved using the GPU PC on 2026-11-07, and the measurements are recorded in [R114-hardware-limits](verification/R114-hardware-limits.md) (JSON beside it). Within the frame and edit budgets: 10,000 placements, 2.4 million unique faces, 512 MiB of textures; within the frame budget only: 800,000 faces in one body, 27 placements of a 176,000-face definition, 1,024 definitions. No product limit changes. The 300,000-face tier answers the question of [D-091](verification/R089a-defect-triage.md); the owner decides whether D-091 closes.
 
 **Requires:** nothing merged; it measures `main`.
 

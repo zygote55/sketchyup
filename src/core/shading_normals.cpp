@@ -1,4 +1,5 @@
 #include "core/shading_normals.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 #include <numeric>
 #include <set>
@@ -55,12 +56,14 @@ ShadingNormals::Key ShadingNormals::FaceNormals::key(Vec3 point) const {
 }
 ShadingNormals::ShadingNormals(const Body &body) {
     const auto &surface = body.surface;
-    if (surface.faces.size() > 100000 || body.topology.edges.size() > Topology::edgeLimit)
+    if (surface.faces.size() > 100000 * DocumentLimits::scale ||
+        body.topology.edges.size() > Topology::edgeLimit)
         throw std::runtime_error("Shading geometry exceeds supported bounds");
     size_t references = 0;
     for (const auto &[id, face] : surface.faces)
         for (const auto &loop : face.loops) {
-            if (loop.size() > 10000 || loop.size() > 2000000 - references)
+            // Two million face corners per body; scaled only in benchmark builds (R114).
+            if (loop.size() > 10000 || loop.size() > 2000000 * DocumentLimits::scale - references)
                 throw std::runtime_error("Shading exceeds two million face corners");
             references += loop.size();
         }

@@ -160,7 +160,8 @@ std::map<Id, ComponentSize>
 validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
                              const TagRecords &tags, Id nextTagId, const MaterialRecords &materials,
                              Id nextMaterialId, const AssetRecords &assets, Id nextAssetId) {
-    if (!nextDefinitionId || definitions.size() > 1024)
+    // 1,024 definitions; scaled only in benchmark builds (R114).
+    if (!nextDefinitionId || definitions.size() > 1024 * DocumentLimits::scale)
         throw std::runtime_error("Invalid component definition allocator or count");
     ComponentSize stored;
     for (const auto &[id, definition] : definitions) {

@@ -1,4 +1,5 @@
 #pragma once
+#include "core/document_limits.hpp"
 #include "geometry/surface.hpp"
 namespace sketchy {
 struct EdgeRecord {
@@ -28,7 +29,8 @@ struct Adjacency {
 struct Topology {
     std::map<Id, EdgeRecord> edges;
     Id nextId{1};
-    static constexpr size_t edgeLimit = 300000;
+    // Scales with the benchmark-only limit scale (R114); 300,000 at every product build.
+    static constexpr size_t edgeLimit = 300000 * DocumentLimits::scale;
     static Topology rebuild(const Surface &surface, const Topology &previous, Id floor = 1);
     Adjacency adjacency(const Surface &surface) const;
     void validate(const Surface &surface) const;

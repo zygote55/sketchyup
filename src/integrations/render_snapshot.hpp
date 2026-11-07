@@ -1,4 +1,5 @@
 #pragma once
+#include "core/document_limits.hpp"
 #include "core/render_settings.hpp"
 #include "core/selection.hpp"
 #include "core/source_credits.hpp"
@@ -17,7 +18,7 @@ struct RenderOptions {
 };
 // Bodies a capture may hold (ADR 0032). R099.f keeps it: a 20,000-body capture already takes
 // 1.7 s to prepare (p50), over the 1 s per-frame budget, so no higher limit is within budget.
-inline constexpr std::size_t renderSnapshotBodyLimit = 20000;
+inline constexpr std::size_t renderSnapshotBodyLimit = 20000 * DocumentLimits::scale;
 RenderCamera renderSceneCamera(const SceneCamera &camera);
 Transform renderCameraTransform(const RenderCamera &camera);
 QJsonObject describeRenderSettings(const RenderSettings &settings);

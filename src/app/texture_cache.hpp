@@ -1,4 +1,5 @@
 #pragma once
+#include "core/document_limits.hpp"
 #include "io/texture_image.hpp"
 #include <functional>
 #include <mutex>
@@ -19,7 +20,11 @@ class TextureCache {
         std::uint64_t generation{};
     };
     struct Limits {
-        size_t bytes{128 * 1024 * 1024}, images{128};
+        // Decoded bytes and images held at once. Scaled only in benchmark builds (R114): the
+        // decoded budget is 128 MiB at every product build, and scale squared at scale 8 so that
+        // a 512 MiB stored texture set (about 2.4 GB decoded) is held, as the benchmark needs.
+        size_t bytes{128 * 1024 * 1024 * DocumentLimits::scale * DocumentLimits::scale},
+            images{128 * DocumentLimits::scale};
     };
     using Decoder = std::function<TextureImageResult(const AssetRecord &)>;
     TextureCache();

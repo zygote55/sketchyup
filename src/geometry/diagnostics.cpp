@@ -1,4 +1,5 @@
 #include "geometry/diagnostics.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 #include <set>
 namespace sketchy {
@@ -70,7 +71,8 @@ std::string detail(const std::string &status) {
 } // namespace
 GeometryDiagnostics diagnoseGeometry(const Surface &surface, const Topology &topology) {
     Collector out;
-    if (surface.faces.size() > 100000 || surface.vertices.size() > 100000 ||
+    if (surface.faces.size() > 100000 * DocumentLimits::scale ||
+        surface.vertices.size() > 100000 * DocumentLimits::scale ||
         topology.edges.size() > Topology::edgeLimit) {
         limit(out);
         return out.finish();
