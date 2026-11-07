@@ -317,3 +317,4 @@ informational: readers accept any writer string, and retained fixtures that reco
     The screenshots are regenerated at a release publication, so they stay as they are until then.
   - The README's `v=1.7.0` install snippet and its "current release" line also change at a release publication, not at preparation.
   - The R089a rows D-094 to D-096 still say "in this PR" (the branch that fixed them); the rows are history and are not reworded.
+- Resolved at the publication (2026-11-07). The README's `v=1.8.0` install snippet and its "current release" line name 1.8.0. The R089.a rows D-094 to D-098 name the PRs that fixed them (#569, #571, #573 and #575), so their wording changed at publication, against the last item above. The screenshot Dockerfile and `docs/images/README.md` still name 1.7.0; another PR completes that.

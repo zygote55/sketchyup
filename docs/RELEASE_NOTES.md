@@ -57,7 +57,7 @@ This changes an error code that callers can see.
 - **Smooth edges.** The 600,000 materialized face limit is unchanged. With smooth edges the 900,000 edge limit binds first, at about 498,000 faces (measured: 498,000 faces and 896,003 edges).
 - **Render snapshot.** The 20,000-body render snapshot limit is unchanged.
 - **Carried from 1.7.0.** The memory evidence is software only ([D-091](verification/R089a-defect-triage.md)). A bulk transaction over the 128 MiB staging budget is refused, so split it ([D-090](verification/R089a-defect-triage.md)). A `.skp` definition over the component limit loses its geometry past the limit ([D-092](verification/R089a-defect-triage.md)). The inline form of a native document, at its 256 MiB file bound, has unmeasured parse memory ([D-093](verification/R089a-defect-triage.md)).
-- **Defects.** The triage lists 29 open defects at this preparation: none is release-blocking or Major (8 Minor, 21 Limitations). D-087 (Minor, a retained render re-rendered from a manifest written before the in-view credit rule can burn a terrain's source notice for a terrain outside its view) stays open.
+- **Defects.** The triage lists 30 open defects at the release candidate: none is release-blocking or Major (8 Minor, 22 Limitations). The release candidate added [D-101](verification/R089a-defect-triage.md), a transaction deadline that ran out once in a sanitized test run. D-087 (Minor, a retained render re-rendered from a manifest written before the in-view credit rule can burn a terrain's source notice for a terrain outside its view) stays open.
 
 ### Upgrade from 1.7.0-1
 
