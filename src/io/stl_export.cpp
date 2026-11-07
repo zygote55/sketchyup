@@ -8,6 +8,10 @@
 #include <bit>
 namespace sketchy {
 namespace {
+// The most bytes of an STL file (R113, D-102): a model at the materialized limits writes about
+// 30 MB of binary facets, and the ASCII form about 4.5 times that, so 256 MiB is the native file
+// bound, not 64 MiB.
+constexpr std::size_t stlByteLimit = 256 * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -116,7 +120,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
                         result.bytes += "vertex " + vector(p) + "\n";
                     result.bytes += "endloop\nendfacet\n";
                 }
-                require(result.bytes.size() <= 64 * 1024 * 1024 - 32, "STL export exceeds 64 MiB");
+                require(result.bytes.size() <= stlByteLimit - 32, "STL export exceeds 256 MiB");
             }
         }
     }
@@ -163,7 +167,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
     return result;
 }
 void writeStlExport(const StlExport &result, const QString &path) {
-    require(!result.bytes.isEmpty() && result.bytes.size() <= 64 * 1024 * 1024 &&
+    require(!result.bytes.isEmpty() && result.bytes.size() <= stlByteLimit &&
                 result.report["bytes"].toInteger() == result.bytes.size() &&
                 result.report["sha256"] == hash(result.bytes),
             "STL export bytes do not match the report");

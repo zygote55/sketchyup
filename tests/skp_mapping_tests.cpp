@@ -809,24 +809,62 @@ int main(int argc, char **argv) {
         checkUndo("BanyanHarbor.skp", imported);
     }
 
-    // R113 reproduction (D-102): a file with more definitions than the native document takes. The
-    // package allows 100,000 definitions; the component definition records of one document take 1,024.
+    // R113 (D-102, ADR 0176): a file with more definitions than a document takes. The package allows
+    // 100,000 definitions; a document takes 1,024 besides its root. The import keeps the first 1,024,
+    // omits and counts the rest, and is not refused.
     {
         auto package = packageOf(fixture("component_instances.skp"), temp);
-        check(package.definitions.size() >= 2, "repro: the fixture has a definition to copy");
+        check(package.definitions.size() >= 2, "definition limit: the fixture has a definition to copy");
         const auto source = package.definitions[1];
         while (package.definitions.size() < 1100) {
             auto copy = source;
-            copy.name = "Repro definition " + std::to_string(package.definitions.size());
+            copy.name = "Copy " + std::to_string(package.definitions.size());
             package.definitions.push_back(copy);
         }
-        try {
-            const auto imported = importSkpPackage(package);
-            std::cout << "R113 repro: imported " << imported.document.definitions().size()
-                      << " definitions\n";
-        } catch (const std::exception &error) {
-            std::cout << "R113 repro: refused: " << error.what() << "\n";
+        const auto imported = importSkpPackage(package);
+        check(imported.document.definitions().size() == 1024,
+              "definition limit: 1,024 definitions are imported");
+        check(imported.report["notices"].toObject()["definitionLimit"].toInt() == 75,
+              "definition limit: the 75 over the limit are counted in the notices");
+        check(imported.report["counts"].toObject()["definitions"].toInt() == 1024,
+              "definition limit: the report counts 1,024 imported definitions");
+    }
+
+    // R113 (D-102): a mesh over the one-body limit continues in another body. The root's own mesh
+    // is 150,152 triangles in one bucket (no tag, visible), so it becomes two bodies, named
+    // "Geometry" and "Geometry (2)", and every triangle is kept.
+    {
+        auto package = packageOf(fixture("box.skp"), temp);
+        const int side = 274;
+        package.definitions[0].vertices.clear();
+        package.definitions[0].edges.clear();
+        package.definitions[0].faces.clear();
+        for (int j = 0; j <= side; ++j)
+            for (int i = 0; i <= side; ++i)
+                package.definitions[0].vertices.push_back({double(i), double(j), 0});
+        const auto at = [&](int i, int j) { return std::uint32_t(j * (side + 1) + i); };
+        for (int j = 0; j < side; ++j)
+            for (int i = 0; i < side; ++i) {
+                SkpPackageFace first, second;
+                first.loops = {{at(i, j), at(i + 1, j), at(i + 1, j + 1)}};
+                second.loops = {{at(i, j), at(i + 1, j + 1), at(i, j + 1)}};
+                package.definitions[0].faces.push_back(first);
+                package.definitions[0].faces.push_back(second);
+            }
+        const auto imported = importSkpPackage(package);
+        const auto splits = imported.report["bodySplits"].toArray();
+        check(splits.size() == 1 && splits[0].toObject()["bodies"].toInt() == 2,
+              "body split: 150,152 faces in one bucket become two bodies");
+        check(imported.report["counts"].toObject()["faces"].toInt() == 2 * side * side,
+              "body split: every face is imported");
+        std::size_t faces = 0;
+        for (const auto &[id, body] : imported.document.bodies()) {
+            (void)id;
+            faces += body->surface.faces.size();
         }
+        check(faces >= std::size_t(2 * side * side), "body split: the faces are in the document");
+        std::cout << "R113 body split: " << splits.size() << " split, "
+                  << imported.report["counts"].toObject()["faces"].toInt() << " faces\n";
     }
 
     if (failures) {

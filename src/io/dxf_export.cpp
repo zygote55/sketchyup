@@ -167,7 +167,8 @@ struct Writer {
                 edges.erase(next);
                 current = edge[0] == current ? edge[1] : edge[0];
                 vertices.push_back(current);
-                require(vertices.size() <= 100001, "DXF polyline exceeds vertex budget");
+                checkFormatCount("DXF export", "polyline vertices", vertices.size(),
+                                 DocumentLimits::materialized.vertices, "materialized");
                 if (current == start || adjacency.at(current).size() != 2)
                     break;
                 const auto &candidates = adjacency.at(current);
