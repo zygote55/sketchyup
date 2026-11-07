@@ -33,6 +33,8 @@ The memory evidence is [R082w v4](verification/R082w-memory-budget-v4.md). It wa
 
 The modelled worst case with a GLB export on top of a loaded viewport is 3.99 GiB. That was over the 3.75 GiB ceiling set on 2026-11-01 by about 242 MiB, so the work stopped until the owner decided. **On 2026-11-06 the owner raised the modelled ceiling to 8 GiB** (8,589,934,592 bytes). The 4 GiB cap on test and measurement jobs is a separate operational limit and is unchanged. The modelled worst case is about 14 MiB under it, so a change that adds to that worst case must be measured again against the record.
 
+**Correction, 2026-11-07.** The owner set these memory ceilings only to protect the development laptop during development and testing. They are not product limits, and no product limit is derived from them. Product limits are set from behaviour measured on real hardware ([R114](PR_ROADMAP.md#r114)).
+
 Three things the evidence does not show. **The desktop viewport was modelled, not measured:** the desktop build was not compiled for it, so the viewport's own resident memory is an estimate from the earlier record. The export's transient was measured on the command-line export, which runs the same `exportGlb` and `writeGlbExport` code as the desktop render path. **Hardware evidence is open:** [D-091](verification/R089a-defect-triage.md) stays open, and the [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md) waiver still applies. **The higher ceiling raises no model limit:** the published vertex, face, edge, placement and byte limits are as they were.
 
 ### Missing entities fail with `NOT_FOUND` (D-095, D-096)
@@ -47,11 +49,12 @@ This changes an error code that callers can see.
 
 - Select tool hint (D-094, Minor, [#569](https://github.com/zygote55/sketchyup/pull/569)): with saved-scene tabs visible, the Select tool's hint no longer overlaps the status line at the bottom left of the viewport.
 - Missing entities (D-095, [#571](https://github.com/zygote55/sketchyup/pull/571); D-096, [#573](https://github.com/zygote55/sketchyup/pull/573)): see the section above.
-- Export of a model at the published limits (D-097 and D-098, Minor): fixed by the R112 limits above.
+- Export of a model at the published limits (D-097 and D-098, Minor): fixed by the R112 limits above for GLB, render and library inserts. **Correction, 2026-11-07:** OBJ, STL, DXF and STEP keep their own lower caps ([D-102](verification/R089a-defect-triage.md)); see Known limitations.
 - Documentation ([#570](https://github.com/zygote55/sketchyup/pull/570), [#572](https://github.com/zygote55/sketchyup/pull/572)): the README is a short overview with screenshots, and [docs/README.md](README.md) is the documentation index.
 
 ### Known limitations
 
+- **Format caps below the model limits (D-102, Minor, found after release).** A model within the published limits can be refused by a format's own cap. OBJ and STL exports stop at 100,000 faces, and OBJ and STL imports refuse a file over about 100,000 faces. A glTF import stops at about 50,000 faces in one mesh, because a mesh is charged twice. A STEP export is refused above 256 MiB of output, about 110,000 triangle faces. GLB export works at the limits. The fix is [R113](PR_ROADMAP.md#r113).
 - **Imported UVs (D-099, Limitation).** A model with imported UVs reaches the 96 MiB model limit at about 136,000 faces, because each textured face stores about 528 bytes of mapping (front and back). The workaround is to import the model with colours only, then give the material a repeating texture with `material.edit` (`asset` and `textureSize`). The workaround covers repeating textures only, not atlases.
 - **Colours and textures at the limits (D-100, Limitation).** A model the published limits admit can exceed the 512 MiB budget when its faces carry per-face colours or texture mappings. Such a model opens, edits and saves, but its exports refuse by name. Measured: colours on every face give 528.8 MiB; textures on 302,000 face copies give 540.9 MiB; each colour costs 84 bytes per charged face copy and each mapping 264 bytes.
 - **Smooth edges.** The 600,000 materialized face limit is unchanged. With smooth edges the 900,000 edge limit binds first, at about 498,000 faces (measured: 498,000 faces and 896,003 edges).

@@ -542,6 +542,7 @@ export fits. No file format, schema, document version or materialized limit chan
   The modelled worst case with an export on a loaded viewport is 3.99 GiB, over the 3.75 GiB ceiling of the time.
   **The owner raised the modeled ceiling to 8 GiB on 2026-11-06** (R082w v4), so the cap applies to every GLB
   export, including renders from the desktop app. The 4 GiB cap on test jobs is unchanged, and no model limit changes.
+  **Correction, 2026-11-07.** The owner set these memory ceilings only to protect the development laptop during development and testing. They are not product limits, and no product limit is derived from them. Product limits are set from behaviour measured on real hardware ([R114](../PR_ROADMAP.md#r114)).
 - **Capabilities.** `sketchyup-cli --capabilities` reports `readSnapshotBytes` and `glbVisibleFaces` beside
   `packagedModelBytes`. The generated references and the CLI schema artifacts match; the assistant tool
   surface and the provider corpus are unchanged.

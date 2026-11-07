@@ -456,6 +456,8 @@ budget of 512 MiB of document data (256 MiB before 1.8.0). A model over the budg
 written. A model with per-face colours or texture mappings can exceed it at the model limits; it still opens and saves,
 and its exports refuse ([release notes](RELEASE_NOTES.md#180), D-100).
 
+**Format limits.** OBJ and STL exports and imports stop at 100,000 faces, a glTF import stops at about 50,000 faces in one mesh, and DXF stops at 100,000 segments or edges. These are below the model limits ([D-102](verification/R089a-defect-triage.md)); until they are raised, use GLB to export a larger model.
+
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
 is identified as raster content. Print at actual size to preserve the requested

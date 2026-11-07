@@ -1606,6 +1606,46 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 **Verify:** `snapshot_glb_limits_acceptance` (new, slow core, 78 s, peak 1,539 MiB): 291,994 faces in 29 definitions, two catalog entries imported with a nested definition, validation, save and reopen byte for byte, scene records unchanged, a GLB export with everything visible whose visible triangles equal the triangulated faces; the budget helper accepts the charge and refuses one byte less; the cap accepts its visible count and refuses one face less by name, changes nothing, and hiding a body lowers the visible count. `glb_export_tests` (192 MiB refusal), `unique_limits_acceptance` (R110, passes), and the export, catalog, render, Blender and inspection suites pass. `snapshot_glb_limits_benchmark` (manual, core and I/O) and the CLI measured the synthetic models in the pinned image under the 4 GiB cap: the smooth worst case is 464.9 MiB with assets; a 600,000-face export takes 22.1 s and peaks at 1,326 MiB; validate, save and reopen take 7 to 66 s at 1,231 to 1,453 MiB; the export adds about 278 MiB above the loaded model. The textured and coloured variants exceed 512 MiB and their export refuses by name ([D-100](verification/R089a-defect-triage.md)). The generator checks match. Not measured: the desktop viewport, hardware (D-091 stays open), and the Blender path. The 1.8.0 release preparation exercises the PR contract and CI. At the preparation, the Debug build (the fast-tier flags) passed `snapshot_glb_limits_acceptance` in 576 s with a peak of 1,546 MiB, and `unique_limits_acceptance`, `command_tests` and the I/O suites passed (2026-11-06).
 
+<a id="r113"></a>
+
+#### R113 — Bring every file format up to the published model limits
+
+**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)).
+
+**Requires:** [R110](#r110), [R112](#r112).
+
+**Build:** OBJ, STL, glTF and DXF take their caps from the document limits instead of a literal of 100,000. Exports take the materialized limits. Imports take the unique limits. A mesh over the one-body limit (100,000 faces or vertices) imports as several bodies and the report says so, instead of being refused, and a `.skp` body does the same instead of losing faces. A glTF mesh is no longer charged twice against one budget. The STEP export's output bound follows the model limits if the helper can do it. A `.skp` file over 1,024 definitions gets a named result, not a generic validation failure. OBJ import stops being superlinear. Parser bounds that exist to stop hostile files stay, and are checked against the new sizes. No file format change.
+
+**Verify:** a new acceptance test takes a model at the published limits through every export and through OBJ, STL and glTF imports, so that a format cap below the limits can't return unnoticed. The hostile-input tests and fuzz targets for the changed parsers still pass.
+
+<a id="r114"></a>
+
+#### R114 — Measure the model limits on real hardware
+
+**Status:** In progress. The owner approved using the GPU PC on 2026-11-07. This closes [D-091](verification/R089a-defect-triage.md) if the results are complete.
+
+**Requires:** nothing merged; it measures `main`.
+
+**Build:** a private build on the GPU PC (RX 6800 XT, 22 GiB), using the benchmark-only limit scale, which product targets never define. It measures frame time, edit feedback, memory, video memory, open, save and export at today's limits and at 2, 4 and 8 times them, for repeated placements, dense definitions, unique geometry, a single dense body and textures.
+
+**Verify:** a record under `docs/verification/` with the machine, driver, source revision and raw results, and a recommendation for each limit. No product limit changes in this entry.
+
+<a id="r115"></a>
+
+#### R115 — Raise the placed-face and texture limits
+
+**Status:** Planned, waiting on [R114](#r114). The owner agreed to the raise on 2026-11-07; the numbers come from R114's measurements. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md) and [D-100](verification/R089a-defect-triage.md) if the new budget covers them.
+
+**Requires:** [R113](#r113), [R114](#r114).
+
+<a id="r116"></a>
+
+#### R116 — Binary geometry storage
+
+**Status:** Conditional on [R114](#r114). The owner agreed on 2026-11-07 to build it if the measurements justify it. Geometry is stored as JSON in a chunk of at most 96 MiB, which holds about 400,000 to 480,000 unique faces, or about 136,000 with imported UVs ([D-099](verification/R089a-defect-triage.md)). Going past that needs a new document schema, which older versions refuse to open.
+
+**Requires:** [R114](#r114).
+
 #### 1.5 follow-ups from the 1.4.0 decisions
 
 Recorded 2026-10-28 from the owner's decisions on the 1.4.0 release documents. None of these is in 1.4.0. Each is a row for the 1.5 plan:
