@@ -1,0 +1,723 @@
+{
+  "layer": "1.8.0 release record (G-1.8.0)",
+  "date": "2026-11-06",
+  "procedure": "docs/M10_ACCEPTANCE.md, The 1.8.0 release; the 1.8.0 table answered row by row; the form of G-1.7.0",
+  "version": "1.8.0",
+  "recordComplete": "at RC1 (9cb8d7e2); the full tier (run 42311957245) passed on attempt 1; the tag and the release are made after this record merges",
+  "gateStatus": "release candidate complete; publication pending",
+  "ownerApproval": {
+    "date": "2026-11-06",
+    "decisions": [
+      "\"Yes, release 1.8.0 (Recommended)\": raise the 256 MiB read-snapshot budget (to about 512 MiB) and the 100,000-face GLB export cap (toward 600,000), test memory and time again, with no file format change; build, test and publish under the same process as 1.7.0, including one live corpus run on the ChatGPT plan at the RC, then the tag and the public GitHub release, without asking again unless a release-blocking problem turns up",
+      "\"Leave it out for now (Recommended)\": the one-record UV storage change is not in 1.8.0",
+      "\"Yes, record them (Recommended)\": record the limits in the defect list",
+      "\"Raise the memory ceiling to 8GiB\": the modeled worst-case ceiling goes from 3.75 GiB to 8 GiB; the 4 GiB test-job cap is a separate limit and is unchanged, and no model limit changes"
+    ],
+    "covers": [
+      "one live corpus run of the supported profile at the RC (R086.m), accepting the run for 1.8.0",
+      "accepting the corpus gate (releaseAccepted stays false in the scorer output by design)",
+      "the tag v1.8.0 and the GitHub release once every check passes"
+    ],
+    "source": "the parent's questions and the owner's answers as the brief records them; the owner's own message is not in the repository"
+  },
+  "tagCreated": false,
+  "releaseCreated": false,
+  "published": false,
+  "features": [
+    {
+      "id": "R112",
+      "title": "raise the read-snapshot budget and the GLB visible-face cap",
+      "pr": 575,
+      "mergeCommit": "0fb7dc77",
+      "finalHead": "ae281106",
+      "fromTo": {
+        "readSnapshotBytes": "268,435,456 (256 MiB) -> 536,870,912 (512 MiB), one budget at eleven former sites",
+        "glbVisibleFaces": "100,000 -> 600,000",
+        "glbManifestBytes": "134,217,728 (128 MiB) -> 201,326,592 (192 MiB)",
+        "modeledCeiling": "3.75 GiB -> 8 GiB (owner, 2026-11-06); the 4 GiB test-job cap is unchanged"
+      },
+      "capabilityFields": [
+        "limits.readSnapshotBytes",
+        "limits.glbVisibleFaces"
+      ]
+    },
+    {
+      "id": "D-094",
+      "title": "the Select tool's hint over the status line with saved-scene tabs visible",
+      "pr": 569,
+      "mergeCommit": "ea7c0f88",
+      "finalHead": "a34243fd",
+      "class": "Minor"
+    },
+    {
+      "id": "D-095",
+      "title": "a command that names a missing entity fails with NOT_FOUND",
+      "pr": 571,
+      "mergeCommit": "8e268389",
+      "finalHead": "20850011",
+      "class": "Minor",
+      "errorCodeChange": "INVALID_OPERATION with map::at -> NOT_FOUND naming the entity"
+    },
+    {
+      "id": "D-096",
+      "title": "a query or tag reference to a missing entity fails with NOT_FOUND",
+      "pr": 573,
+      "mergeCommit": "44c7ab96",
+      "finalHead": "bd4f842f",
+      "class": "Minor",
+      "errorCodeChange": "INVALID_OPERATION with map::at -> NOT_FOUND naming the entity; tag.assign to a missing tag: the folder message -> NOT_FOUND"
+    }
+  ],
+  "rc": {
+    "name": "RC1",
+    "commit": "9cb8d7e258d21faabd01f747549e07d4798b24db",
+    "branch": "release/1.8.0",
+    "mainAfter": "PR #576 (1.8.0: release preparation), merged 2026-11-06T23:26:29Z",
+    "fullTierRun": 42311957245,
+    "fullTierCreatedAt": "2026-11-06T23:26:51Z",
+    "versionScriptPrints": "1.8.0",
+    "pkgver": "1.8.0",
+    "pkgrel": 1,
+    "highestSchema": 35,
+    "sourceArchive": {
+      "file": "sketchyup-1.8.0.tar.gz",
+      "sha256": "aba17f526e549ef46a6c7d4923179f4ba9ca22e876ec47e58fdf81820e1792b4",
+      "byteIdenticalAcrossRuns": true
+    },
+    "packages": [
+      {
+        "file": "sketchyup-1.8.0-1-x86_64.pkg.tar.zst",
+        "name": "sketchyup",
+        "version": "1.8.0-1",
+        "sha256": "d44e2f6632712232d889e5deec0e8178cc670df8def1502249a8fb571e21dd34"
+      },
+      {
+        "file": "sketchyup-ifc-1.8.0-1-x86_64.pkg.tar.zst",
+        "name": "sketchyup-ifc",
+        "version": "1.8.0-1",
+        "optional": true,
+        "sha256": "296e95c1b7552b9e82fa7f60a1bac34be0f896c83ad5e02fc84a9de3709fdb93"
+      }
+    ],
+    "thirdPartyNotices": {
+      "file": "THIRD_PARTY_NOTICES",
+      "sha256": "228d2a789ae8d3983a598c945f02c2ac4bd5a7b5bdabe14ebcff411095a96c29"
+    },
+    "manifest": {
+      "file": "MANIFEST.json",
+      "gitCommit": "9cb8d7e2",
+      "buildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3"
+    },
+    "priorRelease": {
+      "file": "sketchyup-1.7.0-1-x86_64.pkg.tar.zst",
+      "sha256": "8b51842e3ab746b9b766f0e489d7de5e1a9f9497eea98d316a54759b4cc3170d",
+      "source": "the published v1.7.0 asset; SKETCHYUP_PRIOR_RELEASE_PACKAGE; the pin in verify-package.sh and native.yml"
+    },
+    "priorSplitPackage": {
+      "file": "sketchyup-ifc-1.7.0-1-x86_64.pkg.tar.zst",
+      "sha256": "938bb054c5ba90f3a38927802e545d0c81fcf076d09b284e0bf8a0d48f77804b",
+      "pinned": false
+    },
+    "qt68ReferencePackageSha256": "d5b7260d1bca8e8b43706e644ae61cd86bd1e04a1f2e1caaade45f054a91ef49",
+    "qt68ReferenceNote": "a reference build of sketchyup 1.8.0-1 only, not a release asset; SKETCHYUP_PACKAGE_WITHOUT_IFC=1; buildSeconds 2777",
+    "qt68PriorReferencePackageSha256": "f0bef0989649a31fb744858c9f6943e1592996e1d8fe772f8d453f3e86e7ea3e",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true
+  },
+  "images": {
+    "pinned": "sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "packageBuildTag": "sketchyup-build:20261002 (5 GiB, 2 CPUs; its image ID is not in the facts sheet)",
+    "fresh": "sha256:624bdc7fc661... (archlinux:base-devel)",
+    "qt68Reference": "archlinux:base-devel-20241013.0.269705 (sha256:291198370afb...; snapshot 2024/10/15)"
+  },
+  "mergedPrsSince170": [
+    {
+      "pr": 567,
+      "title": "the 1.7.0 release record (G-1.7.0)",
+      "mergeCommit": "567b7f7b",
+      "finalHead": "1c3eab0e",
+      "mergedAt": "2026-11-02T06:35:30Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": false
+    },
+    {
+      "pr": 568,
+      "title": "record the SketchyUp 1.7.0 publication",
+      "mergeCommit": "704fc24f",
+      "finalHead": "139e3dd1",
+      "mergedAt": "2026-11-02T06:43:42Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": false
+    },
+    {
+      "pr": 569,
+      "title": "fix: keep the Select hint above the status line when scene tabs are visible (D-094)",
+      "mergeCommit": "ea7c0f88",
+      "finalHead": "a34243fd",
+      "mergedAt": "2026-11-02T21:57:55Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true
+    },
+    {
+      "pr": 570,
+      "title": "docs: cleaner README with screenshots, docs index, contributing and security files",
+      "mergeCommit": "e428599a",
+      "finalHead": "cac5f272",
+      "mergedAt": "2026-11-02T22:12:08Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true,
+      "note": "includes the merge of the README screenshots, showcase model and capture script (d1af738b)"
+    },
+    {
+      "pr": 571,
+      "title": "Name missing entities as NOT_FOUND in command errors (D-095)",
+      "mergeCommit": "8e268389",
+      "finalHead": "20850011",
+      "mergedAt": "2026-11-03T00:26:24Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true
+    },
+    {
+      "pr": 572,
+      "title": "docs: midcentury modern showcase for the README images, with a GPU Blender render",
+      "mergeCommit": "3e199f8f",
+      "finalHead": "ff5a063e",
+      "mergedAt": "2026-11-03T00:45:35Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true
+    },
+    {
+      "pr": 573,
+      "title": "Refuse missing query and tag references as NOT_FOUND (D-096)",
+      "mergeCommit": "44c7ab96",
+      "finalHead": "bd4f842f",
+      "mergedAt": "2026-11-03T01:09:52Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true
+    },
+    {
+      "pr": 575,
+      "title": "R112 (1.8.0): read-snapshot budget 512 MiB, GLB visible-face cap 600,000",
+      "mergeCommit": "0fb7dc77",
+      "finalHead": "ae281106",
+      "mergedAt": "2026-11-06T18:53:09Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true
+    },
+    {
+      "pr": 576,
+      "title": "1.8.0: release preparation",
+      "mergeCommit": "9cb8d7e2",
+      "finalHead": "859adc7d",
+      "mergedAt": "2026-11-06T23:26:29Z",
+      "ciVerdict": "SUCCESS",
+      "inRelease": true
+    }
+  ],
+  "notInRelease": [
+    {
+      "pr": 574,
+      "state": "open",
+      "note": "from an outside contributor; not merged; not in 1.8.0"
+    }
+  ],
+  "ciAtRc": {
+    "run": 42311957245,
+    "url": "https://github.com/zygote55/sketchyup/actions/runs/42311957245",
+    "event": "push",
+    "branch": "release/1.8.0",
+    "headSha": "9cb8d7e258d21faabd01f747549e07d4798b24db",
+    "tier": "full",
+    "attempt": 1,
+    "status": "completed",
+    "verdict": "success",
+    "createdAt": "2026-11-06T23:26:51Z",
+    "completedAt": "2026-11-07T01:49:16Z",
+    "workloadJobsTotal": 13,
+    "workloadJobsSucceeded": 13,
+    "workloadJobsInProgress": 0,
+    "jobs": {
+      "Plan": "success",
+      "Development build and checks": "success",
+      "IFC library and helper": "success",
+      "Qt 6.8 reference compile": "success",
+      "Arch package acceptance": "success",
+      "SKP parser, helper and import": "success",
+      "Blender interoperability": "success",
+      "Native tests (six jobs)": "success",
+      "Sanitized builds": "success",
+      "Fast tier (three matrix entries)": "skipped",
+      "CI verdict": "success"
+    },
+    "ctestTotals": {
+      "Development build and checks": [
+        "285/285",
+        "2/2",
+        "1/1"
+      ],
+      "Sanitized builds": [
+        "74/74",
+        "146/146",
+        "7/7",
+        "1/1"
+      ],
+      "Arch package acceptance": [
+        "284/284"
+      ],
+      "IFC library and helper": [
+        "10/10",
+        "8/8",
+        "6/6",
+        "1/1"
+      ],
+      "SKP parser, helper and import": [
+        "11/11",
+        "5/5"
+      ],
+      "Blender interoperability": [
+        "2/2"
+      ]
+    },
+    "limitTestTimesSeconds": {
+      "Development build and checks": {
+        "unique_limits_acceptance": 284.87,
+        "snapshot_glb_limits_acceptance": 385.28,
+        "glb_export": 24.51,
+        "texture_export": 6.83,
+        "presentation_export": 14.85
+      },
+      "Arch package acceptance": {
+        "unique_limits_acceptance": 75.92,
+        "snapshot_glb_limits_acceptance": 93.42,
+        "glb_export": 7.44,
+        "texture_export": 8.33,
+        "presentation_export": 14.08
+      },
+      "Sanitized builds": {
+        "unique_limits_acceptance": "not run in this job",
+        "snapshot_glb_limits_acceptance": "not run in this job",
+        "glb_export": 177.88,
+        "texture_export": 13.01,
+        "presentation_export": 132.49,
+        "document_limits": 695.63
+      }
+    },
+    "sanitizedAcceptanceTestsRun": false,
+    "sanitizedAcceptanceTestsReason": "the sanitize core preset inherits headless (desktop and CLI off), so the two tests are not registered; the CLI step's -R list does not name them (CMakeLists.txt lines 1155 to 1162; CMakePresets.json)",
+    "nativeTestTotals": "no ctest totals in the job logs; each native test step concluded with success",
+    "localPackageCheckCtest": "100% of 284 (output.log); one skipped (presentation_export_real)"
+  },
+  "packageAcceptance": {
+    "image": "sketchyup-build:20261002",
+    "limits": "5 GiB, 2 CPUs, -j2; boost, eigen, opencascade and patchelf installed first",
+    "exit": 0,
+    "firstTry": true,
+    "gatesCleared": "2026-11-06T15:42:58-08:00 (MemAvailable 15,233,532 kiB)",
+    "containerStarted": "2026-11-06T23:43:02Z",
+    "containerFinished": "2026-11-07T02:06:58Z",
+    "durationMinutes": 144,
+    "ciArchJobDurationMinutes": 61,
+    "ciArchJobStarted": "2026-11-06T23:27:04Z",
+    "ciArchJobCompleted": "2026-11-07T00:28:17Z",
+    "durationCause": "not established",
+    "priorRelease": "sketchyup-1.7.0-1 (published asset, 8b51842e...)",
+    "priorCliReadsSchemasUpTo": 35,
+    "newerFixturesRefusedUnchanged": 0,
+    "installedMigrations": 38,
+    "ctest": {
+      "passed": 284,
+      "total": 284,
+      "skipped": 1
+    },
+    "uniqueLimitsAcceptanceSeconds": 177.79,
+    "snapshotGlbLimitsAcceptanceSeconds": 171.59,
+    "purgeUnusedSeconds": 0.31,
+    "glbExportSeconds": 21.98,
+    "textureExportSeconds": 15.14,
+    "presentationExportSeconds": 31.55
+  },
+  "privateAcceptanceModel": {
+    "note": "the parent's figures, aggregated, as the brief records them; not verified by the worker (no evidence file for the run was in the read set); no model named",
+    "date": "2026-11-07 UTC",
+    "cli": "sketchyup-cli 1.8.0, from the RC's sketchyup-1.8.0-1 package",
+    "host": "an ordinary laptop, 30 GiB, Qt 6.12; one process at a time; ulimit -v 12 GiB",
+    "inputs": {
+      "verticesTotal": 213795,
+      "facesAtMost": 292218,
+      "componentDefinitions": 44,
+      "catalogEntriesImportedNothingExploded": 2
+    },
+    "result": {
+      "exitStatusesAllZero": true,
+      "bodies": 2403,
+      "documentChunkBytes": 65963189,
+      "fileBytes": 74805867
+    },
+    "peakRssMiBAndSeconds": {
+      "catalogImport": {"mib": 1593, "seconds": 26.6},
+      "validate": {"mib": 1056, "seconds": 4.1},
+      "save": {"mib": 1185, "seconds": 8.4},
+      "reopen": {"mib": 1056, "seconds": 4.1},
+      "glbExport": {"mib": 1079, "seconds": 12.6}
+    },
+    "export": {
+      "hiddenBodiesOmitted": 0,
+      "hiddenFacesOmitted": 0,
+      "visibleTriangles": 341075,
+      "glbBytesMB": 49.4,
+      "jsonChunkMB": 1.57,
+      "manifestMB": 91.0,
+      "manifestBoundMiB": 192
+    },
+    "scenes": {
+      "savedScenes": 29,
+      "orderAndNameKept": true,
+      "missingReferences": 0,
+      "describeIdenticalBeforeAndAfter": true
+    },
+    "release170Refusal": "Library insertion result exceeds snapshot budget (reproduced by the parent before the work started; not an RC check)",
+    "limitsOfCheck": "CLI only, no desktop viewport, one machine; the model and derived outputs stay out of the repository and were deleted after the run"
+  },
+  "limitsSmoke": {
+    "capabilities": {
+      "readSnapshotBytes": 536870912,
+      "glbVisibleFaces": 600000,
+      "vertices": 300000,
+      "componentDefinitionVertices": 200000,
+      "packagedModelBytes": 100663296,
+      "documentBytes": 268435456
+    },
+    "model153kUnique": {
+      "bodies": 17,
+      "documentVersion": 26,
+      "validatesAndReopens": true,
+      "resaveByteIdentical": true
+    },
+    "model153034VisibleFaces": {
+      "faces": 162036,
+      "visibleFaces": 153034,
+      "bodies": 36,
+      "bodyKinds": {"geometry": 18, "group": 18},
+      "validatesAndReopens": true,
+      "resaveByteIdentical": true,
+      "glbExportVisibleTriangles": 598212,
+      "labelInHarnessLog": "bodies=17 (a literal in harness/smoke-180-glb.sh; the export has 36 bodies)"
+    },
+    "purge": {
+      "unusedDefinitionKept": true,
+      "dryRunLeavesFileUnchanged": true,
+      "realPurgeRemovesDefinition": true
+    },
+    "notFound": "four cases on the installed CLI, with the file unchanged; --describe-command tag.assign returns JSON"
+  },
+  "cleanMachines": {
+    "method": "R087.u lifecycle for the 1.8.0 RC, with the smoke-180-glb and smoke-180-notfound steps added; one fresh container per machine; --network none; 2 CPUs; 4 GiB; first attempt",
+    "pinned": {
+      "image": "sha256:51dd3d24f7fb... (the pinned digest)",
+      "packages": "qt6-base 6.11.2-3, qt6-wayland 6.11.2-1, mesa 1:26.2.3-2, glibc 2.44+r50+g1848099f063e-1, pacman 7.1.0.r9.g54d9411-2",
+      "stepResults": 31,
+      "networkIsolated": true,
+      "lifecycle": "pass",
+      "officialRun": "2026-11-06 18:14:16 to 18:16:55 local",
+      "networkedRehearsal": {
+        "stepResults": 31,
+        "lifecycle": "pass",
+        "networkIsolated": "rehearsal-not-checked"
+      }
+    },
+    "fresh": {
+      "image": "sha256:624bdc7fc661...",
+      "packages": "qt6-base 6.12.0-3, qt6-wayland 6.12.0-1, mesa 1:26.2.6-1, glibc 2.44+r50+g1848099f063e-1, pacman 7.1.0.r9.g54d9411-3",
+      "stepResults": 31,
+      "networkIsolated": true,
+      "lifecycle": "pass",
+      "officialRun": "2026-11-06 18:17:03 to 18:19:06 local",
+      "networkedRehearsal": "not run (as at 1.7.0)"
+    },
+    "qt68Reference": {
+      "image": "archlinux:base-devel-20241013.0.269705 (sha256:291198370afb...)",
+      "packages": "qt6-base 6.8.0-1, qt6-wayland 6.8.0-1, mesa 1:24.2.4-1, glibc 2.40+r16+gaa533d58ff-2, pacman 7.0.0.r3.g7736133-1",
+      "stepResults": 29,
+      "networkIsolated": true,
+      "lifecycle": "pass",
+      "sketchyupIfc": "not installed (IFC steps not run on Qt 6.8)",
+      "officialRun": "2026-11-06 19:09:17 to 19:11:30 local",
+      "networkedRehearsal": {
+        "stepResults": 29,
+        "lifecycle": "pass",
+        "networkIsolated": "rehearsal-not-checked"
+      }
+    },
+    "migrations": 38,
+    "upgradeFromPublished": {
+      "prior": "sketchyup-1.7.0-1 (published)",
+      "step": "upgrade-preferences-remove",
+      "passed": true
+    },
+    "d036": {
+      "pages": 2,
+      "syntaxErrors": 0,
+      "qpdfCheck": "exit 0",
+      "textSha256Prefix": "c4812bec",
+      "machines": [
+        "pinned",
+        "fresh",
+        "qt68Reference"
+      ]
+    }
+  },
+  "downgradeWindow": {
+    "priorCli": "published sketchyup-cli 1.7.0-1 (readDocumentVersions 1 to 35; highest document version 35)",
+    "machines": [
+      "packageAcceptance",
+      "pinned",
+      "fresh",
+      "qt68Reference"
+    ],
+    "opensUnchangedPerOfficialMachine": 17,
+    "committedFixturesOpened": [
+      "presentation-v30",
+      "edge-styles-v31",
+      "geographic-site-v32",
+      "material-texture-size-v33",
+      "terrain-dem-v34",
+      "reference-geo-v35"
+    ],
+    "purgedFileOpensUnchanged": true,
+    "refusedNewerFixtures": 0,
+    "sheetFreeSaveAccepted": true,
+    "model153kUniqueOpensUnchanged": true,
+    "refusal": {
+      "model": "153,034 visible faces (17 placements of a 9,002-face prism; 36 bodies)",
+      "exitStatus": 1,
+      "noDirectory": true,
+      "fileUnchanged": true,
+      "text": "{\"code\":\"INVALID_OPERATION\",\"error\":\"GLB has too many visible faces\",\"status\":\"failed\"}",
+      "seenIn": [
+        "packageAcceptance",
+        "pinned",
+        "fresh",
+        "qt68Reference"
+      ]
+    },
+    "readSnapshotBudgetRefusalCheck": "not done: by estimate a model that charges over 256 MiB needs about 260,000 or more charged face copies, and 1.7.0's visible-face cap refuses it first unless most of its bodies are hidden; no cheap model was built (M10, ADR 0162)"
+  },
+  "rollback": {
+    "machines": [
+      "pinned",
+      "fresh",
+      "qt68Reference (no IFC)"
+    ],
+    "withIfcInstalled": "pacman -U sketchyup-1.7.0-1 exits 1: 'warning: downgrading package sketchyup (1.8.0-1 => 1.7.0-1)'; 'error: failed to prepare transaction (could not satisfy dependencies)'; ':: installing sketchyup (1.7.0-1) breaks dependency sketchyup=1.8.0 required by sketchyup-ifc'; nothing changed",
+    "afterRemovingIfc": "pacman -R sketchyup-ifc exit 0; the same pacman -U installs sketchyup-1.7.0-1 ('downgrading sketchyup'); the 1.7.0 CLI validates the orthophoto document saved by 1.8.0 (valid true, documentVersion 35, exit 0) and the purged file (valid true, documentVersion 26, exit 0)",
+    "referenceMachine": "no sketchyup-ifc; the rollback steps ran without the IFC step, with the same two validations, exit 0"
+  },
+  "corpus": {
+    "record": "docs/verification/R086m-rc180-remote-evaluation.md",
+    "completionRecord": "docs/verification/R086m-rc180-remote-completion.json",
+    "scoreRecord": "docs/verification/R086m-rc180-remote-corpus-score.json",
+    "manifestVersion": 6,
+    "manifestSha256": "25ac7440b8e2e9152eade18a009aa2cd3334ee89cf50eaa34d0204484e8f5a86",
+    "manifestChangedFrom170": "eight inputSha256 values re-pinned for the SketchyUp/1.8.0 writer; no other line changed; the scorer is unchanged (ba50fa5a...)",
+    "run": "one fresh live run at RC1, 2026-11-06T23:43:44Z to 23:57:55Z (15:43:44 to 15:57:55 -08:00), no retries",
+    "frozenAt": "2026-11-06T23:43:42Z (2026-11-06 15:43:42 -08:00)",
+    "runsCompleted": 24,
+    "runsPassed": 24,
+    "corpusPassed": true,
+    "blockers": [],
+    "releaseAccepted": false,
+    "undoRecovery": "24/24",
+    "remoteHttp200": 107,
+    "loopbackAttempts": 9,
+    "providerAttempts": 116,
+    "toolCalls": 150,
+    "toolCallErrors": 3,
+    "toolCallErrorCode": "CONTEXT_MISMATCH (read-only entity.describe, first call of each Resize run)",
+    "reportedTokens": 1611433,
+    "reportedTokensAt170": 1600369,
+    "trialSeconds": 838.0,
+    "trialSecondsAt170": 963.416,
+    "largestRunTokens": 167772,
+    "largestReplyTokens": 35264,
+    "maximumProviderTurns": 8,
+    "maximumElapsedSeconds": 108.938,
+    "advancedFirstRequestToolsBytes": 63657,
+    "advancedFirstRequestToolCount": 40,
+    "advancedFirstTurnInputTokensByRepeat": [12870, 12986, 12986],
+    "committedCanonicalHashesEqualTo170": "12 of 12",
+    "model": "gpt-6-astra",
+    "scorerReRun": {
+      "exitCode": 0,
+      "outputByteIdentical": true
+    }
+  },
+  "commits": {
+    "outcomeBudgetChangedAt18": false
+  },
+  "memory": {
+    "status": "software only (R082w v4); D-091 open; the desktop viewport modeled, not measured",
+    "measuredAt": "#575 (Release command-line build, pinned image, 4 GiB cap, synthetic models)",
+    "smoothWorstCaseWithAssets": {
+      "bytes": 487462730,
+      "mib": 464.9,
+      "againstBudgetMiB": 512,
+      "marginMiB": 47.1
+    },
+    "coloredAndTexturedVariants": {
+      "colouredMiB": 528.8,
+      "texturedMiB": 540.9,
+      "result": "over the 512 MiB budget; exports refuse by name (D-100)"
+    },
+    "exportAt600kFaces": {
+      "seconds": 22.1,
+      "peakMiB": 1326,
+      "manifestMiB": 175.2,
+      "addsAboveLoadedModelMiB": 278
+    },
+    "acceptancePeaks": {
+      "snapshot_glb_limits_acceptance": {"mib": 1539, "measuredAt": "#575", "measuredAtRc": false},
+      "unique_limits_acceptance": {"mib": 1864, "measuredAt": "#575", "measuredAtRc": false}
+    },
+    "modeledWorstCase": {
+      "withExportOnLoadedViewport": {
+        "bytes": 4280561904,
+        "gib": 3.99,
+        "mib": 4082
+      }
+    },
+    "ceilingGib": 8,
+    "ceilingBytes": 8589934592,
+    "previousCeilingGib": 3.75,
+    "marginToFourGiBJobCapMiB": 14,
+    "fourGiBOperationalCap": "unchanged",
+    "notMeasured": [
+      "desktop viewport frame times and resident memory (no desktop build)",
+      "hardware at these limits (D-091)",
+      "the Blender render path and its 175 MiB manifest read-back",
+      "paired faces at 600,000 faces",
+      "sanitized RSS and time of the two acceptance tests at the RC"
+    ]
+  },
+  "triage": {
+    "atRc": "9cb8d7e2",
+    "open": 29,
+    "releaseBlocking": 0,
+    "major": 0,
+    "minor": 8,
+    "limitation": 21,
+    "newAtRc": [],
+    "addedWithR112": [
+      "D-099 (Limitation): imported UVs reach the 96 MiB model limit; open",
+      "D-100 (Limitation): a model over the 512 MiB budget with per-face colours or textures; open"
+    ],
+    "fixedByR112": [
+      "D-097 (Minor)",
+      "D-098 (Minor)"
+    ],
+    "openAtRc": [
+      "D-006, D-007, D-008, D-009 (Minor)",
+      "D-031, D-034, D-040 (Minor)",
+      "D-087 (Minor): a retained render can carry a terrain's notice outside its view",
+      "D-001, D-004, D-005, D-010 to D-019, D-020, D-029 (Limitation)",
+      "D-090 (Limitation): staging budget for whole-document proposals; needs an owner decision",
+      "D-091 (Limitation): hardware evidence at the raised limits",
+      "D-092 (Limitation): .skp definitions over the component limit lose geometry past the limit",
+      "D-093 (Limitation): inline document parse memory unmeasured",
+      "D-099 (Limitation): imported UVs; the storage change is for a later release",
+      "D-100 (Limitation): colours and textures at the budget; an owner decision"
+    ],
+    "countConvention": "as the G-1.7.0 record: every non-fixed Minor, Major or Release-blocking row, and every non-fixed Limitation row, is counted"
+  },
+  "m10Answers": [
+    {
+      "area": "RC",
+      "answer": "yes: release/1.8.0 at 9cb8d7e2 (RC1); release-version.sh prints 1.8.0; pkgver 1.8.0; pkgrel 1; the source archive aba17f52..., the packages d44e2f66... and 296e95c1..., the pinned image digest 51dd3d24..."
+    },
+    {
+      "area": "CI",
+      "answer": "yes: the full tier (run 42311957245) passed on attempt 1; all 13 workload jobs succeeded; CI verdict success; every ctest run 100%; the two acceptance tests pass in the Development and Arch package jobs but are not in the Sanitized job"
+    },
+    {
+      "area": "Downgrade window",
+      "answer": "yes, with one not done: the published 1.7.0-1 CLI opened and validated the 153,000-unique-vertex model unchanged, opened the schema-35 reference-image save unchanged, accepted the sheet-free save, and refused the 153,034-visible-face GLB export (exit 1, GLB has too many visible faces, no directory, file unchanged) in package acceptance and in all three official lifecycles; 17 files plus the sheet-free save open unchanged on each official machine; the 1.7.0 refusal of a model over the 256 MiB read-snapshot budget is not done (M10's reason)"
+    },
+    {
+      "area": "Split-package rollback",
+      "answer": "yes: with sketchyup and sketchyup-ifc 1.8.0-1 installed, pacman -U sketchyup-1.7.0-1 exits 1 with the sketchyup=1.8.0 dependency error and changes nothing; after pacman -R sketchyup-ifc (exit 0) the same command installs 1.7.0-1 (pinned and fresh; reference without IFC)"
+    },
+    {
+      "area": "Corpus",
+      "answer": "yes, under the owner's 2026-11-06 permission: R086.m, one fresh live run at RC1, 24/24 passed, corpusPassed true, no blockers, undo and recovery 24/24, 107 remote responses HTTP 200 with gpt-6-astra and status completed; the 1.7.0 run does not carry over; the corpus content is unchanged (eight inputSha256 values re-pinned; the scorer has no diff); the scorer re-run reproduces the record byte for byte"
+    },
+    {
+      "area": "Limits",
+      "answer": "partly: the two acceptance tests pass in the Development and Arch package jobs and in the local package check, and the export suites pass in the Sanitized job; the two acceptance tests have no sanitized time or peak at the RC because the Sanitized job does not run them; their peak RSS (1,864 and 1,539 MiB) is R082w v4's from #575, not re-measured at the RC; the modeled worst case is 3.99 GiB with an export on a loaded viewport, against the 8 GiB ceiling (desktop viewport modeled, not measured); the 4 GiB cap is unchanged, about 14 MiB of margin; software evidence only (D-091)"
+    },
+    {
+      "area": "Clean machines",
+      "answer": "yes: the RC package installs over 1.7.0-1 and the lifecycle passes on the pinned, fresh and Qt 6.8 reference machines, each --network none, first attempt, migrations 38; 31, 31 and 29 step results, all pass; the fresh image had no networked rehearsal, as at 1.7.0"
+    },
+    {
+      "area": "Accepted misses",
+      "answer": "no budget miss recorded for the 1.8.0 items; D-100 (over the 512 MiB budget with colours or textures) is a limitation with an owner decision; D-090, D-091, D-092 and D-093 are open limits; D-099 is an open limit; the STEP speed budgets, the render limits, the IFC import of about 10,000 bodies and the view test's cost carry over from 1.6.0"
+    },
+    {
+      "area": "Error codes",
+      "answer": "yes: the NOT_FOUND behaviour is tested in the command, history, scene-input and automation suites, and each suite passes at the RC; the before-and-after table is in the record, from the installed packages (1.7.0 INVALID_OPERATION with map::at, or the folder message for tag.assign; 1.8.0 NOT_FOUND naming the entity)"
+    },
+    {
+      "area": "Triage",
+      "answer": "yes: 29 open at the RC (0 release-blocking, 0 Major, 8 Minor, 21 Limitation); D-087 stays open; D-099 and D-100 are added and open; the R089.a line for the RC is added"
+    },
+    {
+      "area": "Documentation",
+      "answer": "yes, with publication follow-ups: the release notes (1.8.0 section), support matrix, user guide, SCOPE (unchanged) and ADR 0162 notes match, except the items in contradictions; the CHANGELOG heading reads 1.8.0 — unreleased, to be dated at the tag; the roadmap entry reads In preparation and is updated at publication"
+    }
+  ],
+  "contradictions": [
+    "Sanitized acceptance tests: M10's Limits row expects unique_limits_acceptance and snapshot_glb_limits_acceptance to pass in the sanitized run; they are not in the RC's Sanitized builds job, so the RC evidence has no sanitized time or peak for them.",
+    "Harness label: glb/glb-checks.txt says bodies=17 for the 153,034-visible-face model; that is a literal in harness/smoke-180-glb.sh; the export has 36 bodies (18 geometry, 18 group).",
+    "Rounding: the release notes and ADR 0162 say 153,000 visible faces for the 17-placement prism model; the model has 153,034 (17 x 9,002).",
+    "Roadmap: PR_ROADMAP's 1.8.0 release entry still reads In preparation at RC1; M10 requires the documentation to match the record; updated at publication.",
+    "Documentation at the RC that changes at publication: the support matrix's commit row says 'not yet released'; the screenshots Dockerfile default and docs/images/README.md name 1.7.0; the README's v=1.7.0 snippet and its current-release line; ADR 0162 lists them.",
+    "R089.a rows D-094 to D-096 say 'in this PR' (the branch that fixed them); noted in ADR 0162; not reworded.",
+    "Site review: the 1.8.0 review says Site repeat 3 made two assert.measurement checks where R086.l recorded three in each run; the executed receipts agree (11 mentions against 15); the committed canonical hash of repeat 3 equals 1.7.0's; the cause is not traced.",
+    "First-turn input: at 1.8.0 the provider-reported first-turn input differs between repeats in five tasks although each first request body is byte-identical; at 1.7.0 it did not differ; the cause is not traced (R086.m).",
+    "Harness banner: the run-container banner says 6 CPUs; the code sets --cpus to 2 (inherited from 1.7.0).",
+    "Owner words: the approvals are quoted from the parent's brief; the owner's message is not in the repository."
+  ],
+  "openForOwner": [
+    "R107.d (geocoding) stays held; SCOPE C06 stays at Investigate",
+    "buildingSMART hosted validation of the IFC export: the owner's own task, not a gate",
+    "D-087, retained renders: Minor, open",
+    "D-091: the AMD campaign at the 1.8.0 limits is not run; the owner decides whether the software evidence stands, or the run is made (ADR 0161 does not waive it)",
+    "D-099: the one-record UV storage change, left out of 1.8.0 by the owner; a later release",
+    "D-100: raise the 512 MiB read-snapshot budget, or accept the refusal of a model with colours or textures on export",
+    "D-090: an owner decision on a larger staging budget for whole-document proposals (the triage row's words)",
+    "PR #574, from an outside contributor: open, not in 1.8.0",
+    "carried from G-1.7.0: the 1 s per-frame budget and the view test's cost; the frame credit for stills (no checkbox); the Qt range 6.8.0 to 6.12.0, where the orthophoto dialog and the guide viewer were not run on Qt 6.8"
+  ],
+  "followUpsForPublicationPr": [
+    "to do: the CHANGELOG heading to the release date",
+    "to do: PR_ROADMAP entry '1.8.0 release' reads as released; R112 reads 'Delivered (in 1.8.0)'",
+    "to do: R089.a has a line for the 1.8.0 release, with no count change",
+    "to do: the SUPPORT_MATRIX snapshot-budget wording 'not yet released' reads as released",
+    "to do: the screenshot Dockerfile default version, docs/images/README.md, and the README install snippet and current-release line name 1.8.0",
+    "to do: R089.a rows D-094 to D-096 reword 'in this PR'"
+  ],
+  "publishedRelease": {
+    "tag": null,
+    "tagType": "annotated (to be created)",
+    "tagMessage": "SketchyUp 1.8.0 (to be created)",
+    "pointsAt": "9cb8d7e258d21faabd01f747549e07d4798b24db",
+    "url": null,
+    "title": null,
+    "publishedAt": null,
+    "latest": null,
+    "prerelease": null,
+    "draft": null,
+    "assets": null,
+    "fullTierRunOnTag": null,
+    "note": "to be filled at publication, after this record merges"
+  }
+}
