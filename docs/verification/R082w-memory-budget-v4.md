@@ -167,6 +167,8 @@ took 336.9 s and peaked at 1,728 MiB (1,993 MiB with the container written).
 
 ## The owner's decision
 
+**Correction, 2026-11-07.** The owner set these memory ceilings only to protect the development laptop during development and testing. They are not product limits, and no product limit is derived from them. Product limits are set from behaviour measured on real hardware ([R114](../PR_ROADMAP.md#r114)).
+
 The export at the cap went over the ceiling of the time, 3.75 GiB, so the work stopped and the owner was asked.
 The options offered were 600,000 faces on the command line only, 600,000 everywhere with a higher ceiling, or
 cutting the export's memory first. On 2026-11-06 the owner answered: "Raise the memory ceiling to 8GiB".
