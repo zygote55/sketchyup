@@ -303,6 +303,18 @@
       }
     },
     "sanitizedAcceptanceTestsRun": false,
+    "sanitizedAcceptanceTestsRunOutsideCi": {
+      "commit": "9cb8d7e258d21faabd01f747549e07d4798b24db",
+      "image": "sketchyup-ci-pinned:r097a-ifc",
+      "configure": "cmake --preset sanitize -DSKETCHYUP_BUILD_CLI=ON",
+      "container": "--memory=4g --memory-swap=4g --cpus=2, one fresh container per run",
+      "runs": [
+        {"test": "snapshot_glb_limits_acceptance", "exit": 0, "seconds": 2917, "peakRssMiB": 3564},
+        {"test": "unique_limits_acceptance", "exit": 1, "seconds": 1268, "peakRssMiB": 3118, "error": "TRANSACTION_EXPIRED: Draft expired while sealing its commit request"},
+        {"test": "unique_limits_acceptance", "exit": 0, "seconds": 2272, "peakRssMiB": 3753, "note": "second run, unchanged"}
+      ],
+      "causeNotEstablished": "the error is the 60 s default transaction deadline; machine load was similar in both runs, so load alone does not explain the difference"
+    },
     "sanitizedAcceptanceTestsReason": "the sanitize core preset inherits headless (desktop and CLI off), so the two tests are not registered; the CLI step's -R list does not name them (CMakeLists.txt lines 1155 to 1162; CMakePresets.json)",
     "nativeTestTotals": "no ctest totals in the job logs; each native test step concluded with success",
     "localPackageCheckCtest": "100% of 284 (output.log); one skipped (presentation_export_real)"
@@ -576,7 +588,8 @@
     },
     "acceptancePeaks": {
       "snapshot_glb_limits_acceptance": {"mib": 1539, "measuredAt": "#575", "measuredAtRc": false},
-      "unique_limits_acceptance": {"mib": 1864, "measuredAt": "#575", "measuredAtRc": false}
+      "unique_limits_acceptance": {"mib": 1864, "measuredAt": "#575", "measuredAtRc": false},
+      "sanitizedAtRc": {"snapshot_glb_limits_acceptance": 3564, "unique_limits_acceptance": 3753}
     },
     "modeledWorstCase": {
       "withExportOnLoadedViewport": {
@@ -594,18 +607,19 @@
       "desktop viewport frame times and resident memory (no desktop build)",
       "hardware at these limits (D-091)",
       "the Blender render path and its 175 MiB manifest read-back",
-      "paired faces at 600,000 faces",
-      "sanitized RSS and time of the two acceptance tests at the RC"
+      "paired faces at 600,000 faces"
     ]
   },
   "triage": {
     "atRc": "9cb8d7e2",
-    "open": 29,
+    "open": 30,
     "releaseBlocking": 0,
     "major": 0,
     "minor": 8,
-    "limitation": 21,
-    "newAtRc": [],
+    "limitation": 22,
+    "newAtRc": [
+      "D-101 (Limitation): unique_limits_acceptance can run past the 60 s transaction deadline in a sanitized build; failed once, passed once; open"
+    ],
     "addedWithR112": [
       "D-099 (Limitation): imported UVs reach the 96 MiB model limit; open",
       "D-100 (Limitation): a model over the 512 MiB budget with per-face colours or textures; open"
@@ -624,7 +638,8 @@
       "D-092 (Limitation): .skp definitions over the component limit lose geometry past the limit",
       "D-093 (Limitation): inline document parse memory unmeasured",
       "D-099 (Limitation): imported UVs; the storage change is for a later release",
-      "D-100 (Limitation): colours and textures at the budget; an owner decision"
+      "D-100 (Limitation): colours and textures at the budget; an owner decision",
+      "D-101 (Limitation): the 60 s transaction deadline in a sanitized build of unique_limits_acceptance"
     ],
     "countConvention": "as the G-1.7.0 record: every non-fixed Minor, Major or Release-blocking row, and every non-fixed Limitation row, is counted"
   },
@@ -635,7 +650,7 @@
     },
     {
       "area": "CI",
-      "answer": "yes: the full tier (run 42311957245) passed on attempt 1; all 13 workload jobs succeeded; CI verdict success; every ctest run 100%; the two acceptance tests pass in the Development and Arch package jobs but are not in the Sanitized job"
+      "answer": "yes: the full tier (run 42311957245) passed on attempt 1; all 13 workload jobs succeeded; CI verdict success; every ctest run 100%; the two acceptance tests pass in the Development and Arch package jobs but are not in the Sanitized job, and were run sanitized outside CI"
     },
     {
       "area": "Downgrade window",
@@ -651,7 +666,7 @@
     },
     {
       "area": "Limits",
-      "answer": "partly: the two acceptance tests pass in the Development and Arch package jobs and in the local package check, and the export suites pass in the Sanitized job; the two acceptance tests have no sanitized time or peak at the RC because the Sanitized job does not run them; their peak RSS (1,864 and 1,539 MiB) is R082w v4's from #575, not re-measured at the RC; the modeled worst case is 3.99 GiB with an export on a loaded viewport, against the 8 GiB ceiling (desktop viewport modeled, not measured); the 4 GiB cap is unchanged, about 14 MiB of margin; software evidence only (D-091)"
+      "answer": "yes, with one re-run: the two acceptance tests pass in the Development and Arch package jobs and in the local package check, and the export suites pass in the Sanitized job; the Sanitized job does not run the two acceptance tests, so the parent ran them sanitized at the RC in the pinned image at 4 GiB: snapshot_glb_limits_acceptance passed, 2,917 s, peak 3,564 MiB; unique_limits_acceptance failed once on the 60 s transaction deadline (1,268 s, peak 3,118 MiB; D-101), then passed unchanged, 2,272 s, peak 3,753 MiB; their Release-build peaks (1,864 and 1,539 MiB) are R082w v4's from #575, not re-measured at the RC; the modeled worst case is 3.99 GiB with an export on a loaded viewport, against the 8 GiB ceiling (desktop viewport modeled, not measured); the 4 GiB cap is unchanged, about 14 MiB of margin; software evidence only (D-091)"
     },
     {
       "area": "Clean machines",
@@ -667,7 +682,7 @@
     },
     {
       "area": "Triage",
-      "answer": "yes: 29 open at the RC (0 release-blocking, 0 Major, 8 Minor, 21 Limitation); D-087 stays open; D-099 and D-100 are added and open; the R089.a line for the RC is added"
+      "answer": "yes: 30 open at the RC (0 release-blocking, 0 Major, 8 Minor, 22 Limitation), one more than M10's 29 because the gate added D-101; D-087 stays open; D-099 and D-100 are added and open; the R089.a line for the RC is added"
     },
     {
       "area": "Documentation",
@@ -675,7 +690,8 @@
     }
   ],
   "contradictions": [
-    "Sanitized acceptance tests: M10's Limits row expects unique_limits_acceptance and snapshot_glb_limits_acceptance to pass in the sanitized run; they are not in the RC's Sanitized builds job, so the RC evidence has no sanitized time or peak for them.",
+    "Sanitized acceptance tests: M10's Limits row expects unique_limits_acceptance and snapshot_glb_limits_acceptance to pass in the sanitized run; they are not in the RC's Sanitized builds job; the parent ran them sanitized outside CI at the RC, so the row is met by that run, not by CI.",
+    "Triage count: M10's Triage row says 29 open; the gate added D-101, so the RC count is 30.",
     "Harness label: glb/glb-checks.txt says bodies=17 for the 153,034-visible-face model; that is a literal in harness/smoke-180-glb.sh; the export has 36 bodies (18 geometry, 18 group).",
     "Rounding: the release notes and ADR 0162 say 153,000 visible faces for the 17-placement prism model; the model has 153,034 (17 x 9,002).",
     "Roadmap: PR_ROADMAP's 1.8.0 release entry still reads In preparation at RC1; M10 requires the documentation to match the record; updated at publication.",
