@@ -8,6 +8,7 @@
 #include "core/components.hpp"
 #include "core/document_limits.hpp"
 #include "core/groups.hpp"
+#include "core/materials.hpp"
 #include "core/transform.hpp"
 #include "geometry/topology.hpp"
 #include "integrations/glb_export.hpp"
@@ -142,12 +143,20 @@ Totals totalsOf(const Document &doc) {
 // The model at the materialized limits: one definition of two closed spheres of 75,000 faces each
 // (150,000 faces, 225,000 edges, unique), placed four times. The placements are 3 m apart, so the
 // coordinates stay within a float's micrometre for the binary STL.
-Document materializedModel() {
+Document materializedModel(bool differentSides = false) {
     std::map<Id, BodyPtr> bodies;
     bodies.emplace(1, sphere(1, {0, 0, 0}, .5, 250, 150));
     bodies.emplace(2, sphere(2, {1.2, 0, 0}, .5, 250, 150));
     Document doc;
     doc.restore("00000000000000000000000000000c01", 3, std::move(bodies));
+    if (differentSides) {
+        const auto front = createMaterial(doc, "Front", {1, 0, 0}),
+                   back = createMaterial(doc, "Back", {0, 0, 1});
+        for (const Id body : {Id(1), Id(2)}) {
+            assignMaterial(doc, body, {}, front, true, false);
+            assignMaterial(doc, body, {}, back, false, true);
+        }
+    }
     const auto group = createGroup(doc, {1, 2}, "Pair");
     const auto component = createComponent(doc, group, "Pair");
     for (int k = 1; k < 4; ++k)
@@ -373,9 +382,16 @@ void exportsAtMaterializedLimits() {
     std::cout << "STL: binary " << binary.bytes.size() << " bytes, ASCII " << ascii.bytes.size()
               << " bytes (" << seconds(started) << " s)\n";
     const auto scene = exportGlb(RenderSnapshot::capture(model));
-    check(scene.glb.size() > qsizetype(totals.faces) * 3 * 4,
+    check(scene.manifest["visibleTriangles"].toInteger() == qint64(totals.faces),
           "GLB writes the materialized triangles");
     std::cout << "GLB: " << scene.glb.size() << " bytes (" << seconds(started) << " s)\n";
+    // Different front and back appearances write each triangle twice: 1,200,000 here, over the
+    // 1,000,000 that 1.8.0 refused, from a document within every published limit.
+    const auto paired = exportGlb(RenderSnapshot::capture(materializedModel(true)));
+    check(paired.manifest["visibleTriangles"].toInteger() == 2 * qint64(totals.faces),
+          "GLB writes both sides of a model with different front and back appearances");
+    std::cout << "GLB, both sides: " << paired.glb.size() << " bytes (" << seconds(started)
+              << " s)\n";
     // A model over the materialized limit cannot be made: the document refuses it at the edit, so
     // the export's own check is not reachable from a valid model. The one-past refusals are tested
     // on the imports.

@@ -292,8 +292,7 @@ struct Writer {
                 require(++faces <= visibleFaceBudget, "GLB has too many visible faces");
             for (const auto &loop : record.loops) {
                 references += loop.size();
-                checkFormatCount("GLB export", "face vertices", references, materializedCornerLimit,
-                                 "materialized");
+                require(references <= 2000000, "GLB has too many face vertices");
             }
             if (!cuts.empty() && !retained.contains(face))
                 continue;

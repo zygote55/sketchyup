@@ -8,9 +8,11 @@ Format count limits (R113, D-102, [PR_ROADMAP R113](docs/PR_ROADMAP.md#r113)): t
 - Changed (R113): a mesh over the one-body limit (100,000 faces or vertices) imports as several bodies, named "Name (2)", "Name (3)" and so on, instead of being refused or, for `.skp`, losing faces. The import report lists the splits under `bodySplits`. Shading does not carry across a split.
 - Changed (R113): a glTF mesh is charged once as unique geometry and again for each placement as materialized geometry, rather than twice against one budget. A glTF mesh may hold up to 200,000 faces, the component definition limit.
 - Changed (R113): the `.skp` import keeps the first 1,024 component definitions (the limit of one document) and counts the rest in the notices (`definitionLimit`), instead of failing the whole import with `Invalid component definition allocator or count`.
-- Changed (R113): OBJ, STL and DXF byte bounds are 256 MiB (were 64 MiB), the native file bound. A DXF polyline may hold 300,000 vertices.
+- Changed (R113): OBJ, STL and DXF exports may write 256 MiB (were 64 MiB), the native file bound. OBJ and STL imports read up to 128 MiB and DXF imports up to 256 MiB (all were 64 MiB). A DXF polyline may hold 300,000 vertices.
+- Changed (R113): the GLB export's triangle cap is 1,800,000 (was 1,000,000), because a 600,000-face model with different front and back appearances writes 1,200,000 triangles. The Blender worker's bound moves with it.
 - Fixed (R113, D-102): OBJ import took time quadratic in the faces (12 s for 96,800 faces) because the body encoder inserted face records into JSON objects in id order; it now sorts them first (4 s in the same run).
-- Unchanged: the STEP export's 256 MiB output bound; a model of 300,000 distinct triangles is refused by name and a raised bound did not let the helper finish it. The IFC export takes 300,000 distinct faces.
+- Unchanged: the STEP export's 256 MiB output bound; a model of 300,000 distinct triangles is refused by name and a raised bound did not let the helper finish it ([D-103](docs/verification/R089a-defect-triage.md)). The IFC export takes 300,000 distinct faces.
+- Unchanged: the 192 MiB undo budget, which refuses a glTF import whose one edit places 600,000 faces ([D-103](docs/verification/R089a-defect-triage.md)).
 
 ## 1.8.0 — 2026-11-07
 

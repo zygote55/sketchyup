@@ -459,7 +459,8 @@ and its exports refuse ([release notes](RELEASE_NOTES.md#180), D-100).
 **Format limits.** An export takes the model's limits: up to 600,000 faces and 900,000 edges, placements
 included, in OBJ, STL (binary and ASCII), GLB and, for a planar model, DXF. An import takes the document's
 limits for distinct geometry: up to 300,000 faces, vertices and wires and 900,000 edges. A file over a limit
-is refused by name, with the count and the limit, and nothing is created. A glTF mesh is also limited to
+is refused by name, with the count and the limit, and nothing is created. A GLB export writes up to 1,800,000
+triangles, because a face with different front and back appearances writes its triangles twice. A glTF mesh is also limited to
 200,000 faces, which is the limit of one component definition.
 
 A mesh over 100,000 faces or vertices imports as several bodies, named "Name (2)", "Name (3)" and so on,

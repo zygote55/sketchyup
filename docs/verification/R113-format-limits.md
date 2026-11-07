@@ -17,6 +17,7 @@ no Blender runs here. The numbers are single runs on a shared machine, so the ti
 | Acceptance: OBJ export of a model at the materialized limit (600,000 faces, 900,000 edges, 8 placements of two closed spheres through one definition, 4 per sphere) | 600,000 faces, 54 MB, 33 s | `tests/format_limits_acceptance_tests.cpp` |
 | Acceptance: STL export at 600,000 facets | binary 30 MB; ASCII 183 MB | |
 | Acceptance: GLB export at 600,000 faces | 10.8 MB | |
+| Acceptance: GLB export at 600,000 faces with different front and back materials | 1,200,000 triangles, 21.6 MB | over the 1,000,000 that 1.8.0 refused |
 | Acceptance: DXF export of a planar model (29 placements of a 101 × 101 grid, 591,658 faces, 893,345 edges) | 893,345 segments, 68 MB, 37 s | the edge limit is 900,000, so a planar model at the face limit is not possible |
 | Acceptance: OBJ import of 300,000 faces | 3 bodies, saved and reopened with every face | |
 | Acceptance: STL import of 300,000 facets | 3 bodies | |
@@ -59,6 +60,19 @@ is refused by name and is recorded as a limit.
   terrain-only DXF bounds (1,000,000 vertices), the IFC and STEP helper bounds, the texture
   budget (R115) and the 1,024 material and texture-count bounds of the formats. None of these is a
   count of model geometry.
+
+- A GLB export of a model of large polygons with differing sides can go over the 1,800,000 triangle cap, and
+  it is refused by name. An OBJ export's MTL file is bounded at 4 MiB, so a model with many distinct per-face
+  colours can be refused by that bound.
+
+The STEP bound and the undo budget still stop models within the published limits. They are recorded as
+[D-103](R089a-defect-triage.md).
+
+## Not tested
+
+Undo of an import at these sizes. One past the limit for vertices, DXF entities and bodies. A full build and the
+whole test suite were left to CI. A render of a GLB over 1,000,000 triangles: this machine runs no Blender, so
+the worker's raised bound is checked only by reading it.
 
 ## Fuzz-regression replay
 

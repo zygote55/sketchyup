@@ -121,3 +121,13 @@ visible exports in full. A 600,000-face export writes a 175.2 MiB manifest (meas
 face-vertex references and 1,000,000 triangles caps, the 256 MiB binary, the 16 MiB JSON and the 20,000-body
 render snapshot are unchanged. The export at the cap adds about 278 MiB above a loaded model; that transient
 is recorded in [R082w v4](../verification/R082w-memory-budget-v4.md), within the owner's 8 GiB ceiling.
+
+## R113 note: triangles
+
+Dated 2026-11-07 (R113, D-102). The export's triangle cap is 1,800,000 (`materializedCornerLimit`), not
+1,000,000. A face with different front and back appearances writes its triangles twice, so a valid document of
+600,000 triangle faces with differing sides writes 1,200,000 triangles, which the old cap refused. The Blender
+worker's bound on paired triangles is 1,800,000 too, so a model that exports also renders. The binary stays
+at 256 MiB, and 1,800,000 triangles at 96 bytes each take about 173 MB. The 2,000,000 face-vertex references,
+the 16 MiB JSON and the 20,000-body render snapshot are unchanged. A model of large polygons with differing
+sides can still go over the triangle cap, and it is refused by name.
