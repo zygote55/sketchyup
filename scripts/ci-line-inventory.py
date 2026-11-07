@@ -41,7 +41,8 @@ PLUMBING_STEPS = re.compile(
     r"|Install compile dependencies)$"
 )
 # Native fixtures no CI tier runs: interactive or timing tools whose evidence is manual.
-MANUAL_FIXTURES = {"native_provider_trial", "terrain_budget_benchmark", "real_model_benchmark"}
+MANUAL_FIXTURES = {"native_provider_trial", "terrain_budget_benchmark", "real_model_benchmark",
+                   "limits_hardware_benchmark"}
 TIER = re.compile(r"needs\.plan\.outputs\.(\w+) == 'true'")
 # Environment that only affects how objects are compiled or cached.
 IGNORED_ENV = re.compile(r"^(CCACHE_.*|CMAKE_C_COMPILER_LAUNCHER|CMAKE_CXX_COMPILER_LAUNCHER)$")
