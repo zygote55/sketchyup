@@ -18,8 +18,8 @@
 namespace sketchy {
 namespace {
 // The text of one OBJ file, and of the package's files together (R113, D-102). A model at the
-// materialized limits writes about 60 MB of geometry text with plain numbers, and more with normals
-// and texture coordinates, so the bound is the native file bound, not the old 64 MiB.
+// materialized face limit (600,000 faces) measured 54 MB of OBJ, so 64 MiB refused the limits; the
+// bound is the native file bound, 256 MiB.
 constexpr std::size_t objTextLimit = 256 * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)

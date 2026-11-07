@@ -7,9 +7,9 @@
 #include <map>
 #include <optional>
 namespace sketchy {
-// The most bytes of a DXF file (R113, D-102). A model at the unique limits in 2D is about
-// 200 bytes per wire, and an export at the materialized edge limit is about 135 MB, so this is
-// the native file bound, not 64 MiB.
+// The most bytes of a DXF file (R113, D-102). An export of 893,345 segments at the materialized
+// edge limit measured 68 MB, so 64 MiB refused a model within the published limits; 256 MiB is the
+// native file bound.
 inline constexpr std::size_t dxfByteLimit = 256 * 1024 * 1024;
 struct DxfOptions {
     // If absent, a supported non-unitless $INSUNITS is required.

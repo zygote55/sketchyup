@@ -164,8 +164,8 @@ struct Importer {
     std::map<std::pair<QString, QStringList>, Bucket> buckets;
     std::set<size_t> usedVertices;
     std::shared_ptr<Body> body(std::string name, Id parent, BodyKind kind) {
-        if (nextBody > 10000)
-            throw std::runtime_error("OBJ exceeds 10000 body records");
+        checkFormatCount("OBJ import", "bodies", nextBody, DocumentLimits::unique.bodies,
+                         "unique geometry");
         auto b = std::make_shared<Body>();
         b->id = nextBody++;
         b->parent = parent;
@@ -324,7 +324,7 @@ struct Importer {
         if (!input.isFile())
             throw std::runtime_error("OBJ requires a regular source file");
         root = QFileInfo(input.canonicalFilePath()).absolutePath();
-        source = parseObj(read(input.canonicalFilePath(), 64 * 1024 * 1024), options);
+        source = parseObj(read(input.canonicalFilePath(), 128 * 1024 * 1024), options);
         for (const auto &library : source.materialLibraries) {
             const auto file = sidecar(root, library);
             if (!QFileInfo::exists(file)) {

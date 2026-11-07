@@ -41,3 +41,20 @@ corrupt-source preservation, menu import/export, unit selection, source-safe Sav
 native reopen and face editing/undo on Wayland/X11 at 1×/2× and under sanitizers.
 Core conversion, explicit repairs, bounded diagnostics and independent Blender
 producer/consumer fixtures are specified in ADRs 0116–0118.
+
+## Implementation notes (R113)
+
+R113 (D-102) changed the STL path. Findings and measured numbers, 2026-11-07,
+in [R113](../verification/R113-format-limits.md).
+
+- **Export** writes facets up to `materializedCornerLimit` (a triangle has at most one corner per model
+  corner), with a 256 MiB file bound (was 64 MiB). At the materialized face limit (600,000 facets) the binary file
+  is 30 MB and the ASCII file 183 MB, so the old bound refused a model within the limits.
+- **Import** takes the unique limits: 300,000 facets and 300,000 vertices. The binary facet count and the ASCII
+  parse are checked against them. The ASCII line bound is eight lines a facet at the unique limit, and the
+  file bound is 128 MiB, which holds 300,000 facets with 17-digit numbers. A mesh over 100,000 facets or vertices
+  continues in the next body, and the report lists it under `bodySplits`.
+- **Measured:** 150,152 binary facets import as two bodies (before: refused as `STL binary facet count must be
+  1..100000`).
+- **Contract:** the 64 MiB and one-million-line bounds that the brief names are replaced by the unique-limit
+  bounds above. A hostile file is still refused cheaply by the byte and line bounds.

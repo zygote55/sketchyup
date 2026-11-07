@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Format count limits (R113, D-102, [PR_ROADMAP R113](docs/PR_ROADMAP.md#r113)): the file formats now take the document's limits rather than 100,000.
+
+- Changed (R113): OBJ, STL, glTF and DXF exports take the model's materialized limits (600,000 faces, 900,000 edges, placements included), and the imports take the unique limits (300,000 faces, vertices and wires, 900,000 edges). A file over a limit is refused by name, with the count and the limit, and nothing is created.
+- Changed (R113): a mesh over the one-body limit (100,000 faces or vertices) imports as several bodies, named "Name (2)", "Name (3)" and so on, instead of being refused or, for `.skp`, losing faces. The import report lists the splits under `bodySplits`. Shading does not carry across a split.
+- Changed (R113): a glTF mesh is charged once as unique geometry and again for each placement as materialized geometry, rather than twice against one budget. A glTF mesh may hold up to 200,000 faces, the component definition limit.
+- Changed (R113): the `.skp` import keeps the first 1,024 component definitions (the limit of one document) and counts the rest in the notices (`definitionLimit`), instead of failing the whole import with `Invalid component definition allocator or count`.
+- Changed (R113): OBJ, STL and DXF byte bounds are 256 MiB (were 64 MiB), the native file bound. A DXF polyline may hold 300,000 vertices.
+- Fixed (R113, D-102): OBJ import took time quadratic in the faces (12 s for 96,800 faces) because the body encoder inserted face records into JSON objects in id order; it now sorts them first (4 s in the same run).
+- Unchanged: the STEP export's 256 MiB output bound; a model of 300,000 distinct triangles is refused by name and a raised bound did not let the helper finish it. The IFC export takes 300,000 distinct faces.
+
 ## 1.8.0 — 2026-11-07
 
 Tag `v1.8.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.8.0).

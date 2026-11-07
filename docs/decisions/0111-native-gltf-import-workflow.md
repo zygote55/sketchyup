@@ -43,3 +43,23 @@ mode validation. Native tests check corrupt/canceled replacement, readable notic
 new-file save/reopen, source byte preservation and component editing/undo on Wayland
 and X11 at both display scales. Actual Blender interoperability and sanitizer checks
 remain the conversion acceptance gates.
+
+## Implementation notes (R113)
+
+R113 (D-102) changed the glTF budget. Findings and measured numbers, 2026-11-07,
+in [R113](../verification/R113-format-limits.md).
+
+- **The double charge is gone.** A mesh was charged once as its definition and again for each placement, against
+  one budget of 100,000. A definition's members are now unique geometry, counted once; each placement is
+  materialized geometry; a node is unique and materialized. The two classes are checked against their own
+  limits (`checkTotals` in `src/io/gltf_import.cpp`).
+- **Measured:** one mesh of 49,928, 50,562 and 150,152 triangles imports (before: 50,562 was refused). Two meshes of
+  150,000 triangles (300,000 in all) import as two definitions.
+- **Bodies.** A primitive over 100,000 faces or vertices continues in the next body of its definition. A vertex
+  enters a body only when a kept triangle uses it; a vertex that no kept triangle uses is reported as
+  `unusedVerticesOmitted`. Before this change every position was kept, used or not.
+- **A definition over 200,000 faces, or vertices, is refused by the component definition limit,** named, not by the
+  import. A glTF mesh is therefore limited to 200,000 faces.
+- **Not a format limit:** four placements of a 300,000-face pair (600,000 materialized faces) in one import are refused by
+  the 192 MiB undo budget (`Edit exceeds the 192 MiB history budget`). The budget is R115's and out of scope here.
+- **Contract:** no change to the accepted files, except the report's `bodySplits` and the unused-vertex notice.

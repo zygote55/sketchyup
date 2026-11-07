@@ -613,7 +613,7 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
         }
         if (version >= 16) {
             const auto mappings = object(o["faceTextureMappings"]);
-            if (mappings.size() > 100000)
+            if (mappings.size() > Surface::bodyLimit)
                 throw std::runtime_error("Too many face texture mappings");
             for (auto it = mappings.begin(); it != mappings.end(); ++it) {
                 const auto sides = array(it.value());
@@ -646,7 +646,7 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
             };
             b->materials = sides(o["materials"]);
             const auto assigned = object(o["faceMaterials"]);
-            if (assigned.size() > 100000)
+            if (assigned.size() > Surface::bodyLimit)
                 throw std::runtime_error("Too many face assignments");
             for (auto it = assigned.begin(); it != assigned.end(); ++it)
                 b->faceMaterials[readId(it.key())] = sides(it.value());

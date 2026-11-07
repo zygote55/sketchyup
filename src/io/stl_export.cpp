@@ -8,9 +8,9 @@
 #include <bit>
 namespace sketchy {
 namespace {
-// The most bytes of an STL file (R113, D-102): a model at the materialized limits writes about
-// 30 MB of binary facets, and the ASCII form about 4.5 times that, so 256 MiB is the native file
-// bound, not 64 MiB.
+// The most bytes of an STL file (R113, D-102). A model at the materialized face limit (600,000
+// facets) measured 30 MB in binary and 183 MB in ASCII, so 64 MiB refused it; 256 MiB is the native
+// file bound.
 constexpr std::size_t stlByteLimit = 256 * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)

@@ -456,7 +456,22 @@ budget of 512 MiB of document data (256 MiB before 1.8.0). A model over the budg
 written. A model with per-face colours or texture mappings can exceed it at the model limits; it still opens and saves,
 and its exports refuse ([release notes](RELEASE_NOTES.md#180), D-100).
 
-**Format limits.** OBJ and STL exports and imports stop at 100,000 faces, a glTF import stops at about 50,000 faces in one mesh, and DXF stops at 100,000 segments or edges. These are below the model limits ([D-102](verification/R089a-defect-triage.md)); until they are raised, use GLB to export a larger model.
+**Format limits.** An export takes the model's limits: up to 600,000 faces and 900,000 edges, placements
+included, in OBJ, STL (binary and ASCII), GLB and, for a planar model, DXF. An import takes the document's
+limits for distinct geometry: up to 300,000 faces, vertices and wires and 900,000 edges. A file over a limit
+is refused by name, with the count and the limit, and nothing is created. A glTF mesh is also limited to
+200,000 faces, which is the limit of one component definition.
+
+A mesh over 100,000 faces or vertices imports as several bodies, named "Name (2)", "Name (3)" and so on,
+rather than being refused. The import report lists the splits under `bodySplits`. Shading does not carry
+across a split: the faces on either side share no vertices, so an edge on the split is not smooth. A DXF
+polyline is split the same way, and a DXF file has at most 10,000 entities, one body each.
+
+STEP export writes at most 256 MiB. A model of distinct geometry that writes more is refused by name:
+150,000 distinct faces (167 MB) export, and 300,000 distinct faces (more than 256 MiB) do not
+([D-102](verification/R089a-defect-triage.md), [R113](PR_ROADMAP.md#r113)). Instances of one definition
+share its geometry in a STEP file, so a model placed many times exports at its distinct size. IFC export
+writes 300,000 distinct faces (15 MB) and the placed model at 600,000 faces (30 MB).
 
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
@@ -576,8 +591,10 @@ geometry (100,000 before 1.7.0), and a curved surface becomes one face per trian
 about 300,000 triangles; the bodies that would go over it are left out and reported as not imported. An export
 writes into a 256 MiB file and is refused above it. The largest model a document held before 1.7.0, five placements of a 100,000-triangle grid, exports in about 19 s (its budget is 23 s), and the export helper keeps its 4 GiB address-space cap. Measured: about 2.4 KB per triangle face, so a
 model made of triangle faces reaches the limit at about 110,000 faces; large flat faces take about
-0.9 KB per triangle, so the limit is reached at about 280,000 triangles. The export dialog's size
-note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
+0.9 KB per triangle, so the limit is reached at about 280,000 triangles. In R113 a model of closed spheres
+measured about 1.1 KB per triangle (167 MB for 150,000 triangles), so the limit is reached at about 240,000
+distinct triangles; a model of 300,000 distinct triangles writes more than 256 MiB and is refused. The export
+dialog's size note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
 
 **Speed and crashes.** In 1.5.0, importing a 100-sphere model with a new native file takes about 10.2 s (10.17 s measured) against a 10 s budget, and about 6.9 s without a file. Exporting a 90,954-face model takes about 10 s (9.96 s measured) against a 5 s budget. The owner accepted both misses as limits (2026-10-28). A STEP file whose tessellation crashes the helper or overruns its limits is restarted without the part it stopped on, up to three times, and the import names that part. A file that a sandbox kill stops, or that stops before tessellation, is still refused whole, and the model is unchanged. A file over 2,000,000 entities is refused before any transfer.
 
@@ -650,12 +667,15 @@ does not change the size of the model.
 - The file: 256 MiB at most. A larger file is refused before the helper starts.
 - The helper: 4 GiB of address space, 480 seconds of CPU time, 512 MiB of output, and the time
   allowance above. A helper that goes over one of these limits stops, and nothing is created.
-- The model: one body of up to 100,000 faces or vertices and 300,000 edges, and one component of up to
-  200,000 faces, vertices or wires and 600,000 edges. A body or component over these limits is left out and
+- The model: one body of up to 100,000 faces or vertices and 300,000 edges. A file's mesh over that
+  continues in the next body (named "Name (2)", and so on) and is reported under `bodySplits`, as described
+  under [Format limits](#exchange-and-present-a-model); shading does not carry across the split. One component
+  of up to 200,000 faces, vertices or wires and 600,000 edges. A component over those limits is left out and
   reported, and the rest of the model comes across. The document also takes at most 10,000 distinct
   geometry records, 300,000 faces, vertices and wires and 900,000 edges of distinct geometry (a component
-  counts once), 600,000 faces after placement and 1,024 materials.
-  Anything beyond them is left out and reported.
+  counts once), 600,000 faces after placement and 1,024 materials, and 1,024 component definitions besides
+  its root. Definitions beyond the 1,024th are left out and counted in the notices ("definitionLimit"), and
+  so are the placements of them.
 - Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
 - Nesting: components nested more than 64 levels deep are left out and reported.
 

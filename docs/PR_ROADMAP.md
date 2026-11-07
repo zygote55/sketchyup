@@ -1610,7 +1610,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R113 — Bring every file format up to the published model limits
 
-**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)).
+**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)). The branch `feat/r113-format-caps` implements it, and the measurements are in [R113](verification/R113-format-limits.md): exports take the materialized limits and imports the unique limits; a mesh over the one-body limit continues in another body; the `.skp` definition count is named and counted; the OBJ import's quadratic hot spot is fixed; the STEP output bound stays at 256 MiB, because a raised bound did not let the helper finish a model of 300,000 distinct faces. The status becomes Verified when the pull request is reviewed and merged.
 
 **Requires:** [R110](#r110), [R112](#r112).
 

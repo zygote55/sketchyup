@@ -41,3 +41,21 @@ face editing and undo. Platform acceptance repeats native behavior on Wayland/X1
 assets, concavity, material/UV handling and independent Blender producer/consumer
 checks remain in ADRs 0112–0114. Import does not establish a live external link and
 OBJ does not preserve native hierarchy, components, annotations or parametric data.
+
+## Implementation notes (R113)
+
+R113 (D-102, the format count limits) changed the OBJ path. Findings and measured numbers, 2026-11-07,
+in [R113](../verification/R113-format-limits.md).
+
+- **Export** takes the materialized limits by name (`DocumentLimits::materialized`): positions, faces and
+  wires. Corners, normal records and texture records are bounded by `materializedCornerLimit` (two times the
+  materialized edge limit, see `src/io/format_limits.hpp`). The text bound is 256 MiB (was 64 MiB): a model at
+  the materialized face limit writes 54 MB.
+- **Import** takes the unique limits: 300,000 vertices, faces and wires, 900,000 edges, and corners bounded by
+  `uniqueCornerLimit`. A mesh over 100,000 faces or vertices continues in the next body (`Name (2)`), and the
+  report lists the split under `bodySplits`. The parser's bounds are the unique limits; the byte bound is 128 MiB
+  and the physical line bound is the vertex, normal, texture, face and wire records at their limits.
+- **Hot spot.** Import of 96,800 faces took 12.2 s, of which the body encoder's quadratic `QJsonObject` inserts
+  were most (gdb sampling put every sample there). Sorting the keys first brought it to about 4.4 s in a later single run on a
+  shared machine, and it grows about linearly now.
+- **Contract:** no change. Shading does not carry across a split, which the user guide states.

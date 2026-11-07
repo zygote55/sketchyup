@@ -1,9 +1,9 @@
 // R113 (D-102, 1.9.0): the file formats' count limits at the published limits. A model at the
 // materialized limits (600,000 faces, 900,000 edges, placed through one shared definition) exports
 // to OBJ, to STL in both encodings, to GLB, and, as a planar model near the edge limit, to DXF. A
-// file at the unique limit (300,000 faces, or 300,000 DXF segments) imports from OBJ, STL, glTF and
-// DXF with every face kept and the meshes split into bodies of at most 100,000 faces, and it saves
-// and reopens. One past a limit is refused by name. The models are synthetic. This is a slow core
+// file at the unique limit (300,000 faces) imports from OBJ, STL and glTF, and a DXF polyline of
+// 250,000 vertices imports from DXF; every face is kept, the meshes are split into bodies of at most
+// 100,000 faces or vertices, and the documents save and reopen. One past a limit is refused by name. The models are synthetic. This is a slow core
 // test (ADR 0170): it needs about a minute of I/O and under 4 GiB.
 #include "core/components.hpp"
 #include "core/document_limits.hpp"
