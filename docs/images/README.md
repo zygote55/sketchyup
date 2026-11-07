@@ -5,7 +5,7 @@ and built with SketchyUp's public modeling commands. It is an architectural stud
 not a surveyed site or a construction document. No external project models,
 real addresses, house numbers, city names or branded furniture were used.
 
-All eight screenshots are actual SketchyUp 1.7.0 windows captured under a private
+All eight screenshots are actual SketchyUp 1.8.0 windows captured under a private
 Xvfb **inside Docker**. Each is 1440×900, stripped of metadata and below 500 KB.
 
 | Image | What it shows |
@@ -25,7 +25,7 @@ Xvfb **inside Docker**. Each is 1440×900, stripped of metadata and below 500 KB
 
 [`showcase/build_showcase.py`](showcase/build_showcase.py) emits bounded, readable
 JSON command batches and executes them through `sketchyup-cli --script`. The old
-monolithic `showcase.json` and `showcase-sheet.json` have been replaced.
+monolithic single-file JSON models have been replaced.
 Generated batches, native documents, logs and render manifests belong in `.local/`.
 
 The generator uses only this repository's sources:
@@ -71,11 +71,11 @@ ulimit -c 0
 timeout 10 free -g
 timeout 10 df -h .
 timeout 600 docker build -f scripts/screenshots.Dockerfile \
-  --build-arg SKETCHYUP_VERSION=1.7.0 \
-  -t sketchyup-shots:1.7.0 packaging/arch
+  --build-arg SKETCHYUP_VERSION=1.8.0 \
+  -t sketchyup-shots:1.8.0 packaging/arch
 ```
 
-Build the model separately with an installed SketchyUp 1.7.0 CLI:
+Build the model separately with an installed SketchyUp 1.8.0 CLI:
 
 ```sh
 timeout 300 python3 docs/images/showcase/build_showcase.py .local/showcase-build
@@ -92,7 +92,7 @@ timeout 900 docker run --rm --network none \
   --memory 4g --memory-swap 4g --cpus 2 --user "$(id -u):$(id -g)" \
   -v "$PWD":/src:ro -v "$PWD/docs/images":/out \
   -v "$PWD/.local/capture-build":/build -e SHOWCASE_BUILD_OUT=/build \
-  sketchyup-shots:1.7.0 /src/scripts/capture-screenshots.sh /out
+  sketchyup-shots:1.8.0 /src/scripts/capture-screenshots.sh /out
 ```
 
 For capture development only, `SHOWCASE_SHOTS=components,sheets` selects a subset.
@@ -173,9 +173,9 @@ build with a complete NumPy needs nothing extra.
 No product code was changed. These observations and workarounds are relevant
 when reproducing this model:
 
-- D-094: Select hints overlap the scene/status line. Capture clicks the Paint
-  tool before model shots. A scene-tab click retains keyboard focus, so a bare
-  `B` keystroke is not reliable there.
+- D-094 (fixed in 1.8.0): with saved-scene tabs visible, the Select tool's hint
+  no longer overlaps the status line. The model shots use the Select tool, the
+  application's default; capture does not select another tool.
 - Under bare Xvfb, the separate command-palette dialog may not acquire X input
   focus. Capture waits for the named main window and retries focus while Qt maps
   it; it also explicitly focuses the palette before typing.

@@ -6,12 +6,12 @@
 # and writes the PNGs (1440x900, stripped, max compression) to OUTPUT_DIR.
 #
 # Run it inside the screenshot image, which provides Xvfb, xdotool, ImageMagick
-# and the SketchyUp 1.7.0 package. Build the image from scripts/screenshots.Dockerfile
+# and the SketchyUp 1.8.0 package. Build the image from scripts/screenshots.Dockerfile
 # first, then run the script with this repository mounted read-only:
 #
-#   docker build -f scripts/screenshots.Dockerfile -t sketchyup-shots:1.7.0 packaging/arch
+#   docker build -f scripts/screenshots.Dockerfile -t sketchyup-shots:1.8.0 packaging/arch
 #   docker run --rm --network none --memory 4g --memory-swap 4g --cpus 2 --user "$(id -u):$(id -g)" \
-#     -v "$PWD":/src:ro -v "$PWD/docs/images":/out sketchyup-shots:1.7.0 \
+#     -v "$PWD":/src:ro -v "$PWD/docs/images":/out sketchyup-shots:1.8.0 \
 #     /src/scripts/capture-screenshots.sh /out
 #
 # Usage: scripts/capture-screenshots.sh OUTPUT_DIR
@@ -224,19 +224,18 @@ shot() {
   echo "shot $name"
 }
 
-# The Paint tool avoids the released Select hint overlap (D-094). Clicking
-# the tool rail also works when a scene tab retains keyboard focus. Reduced
-# camera motion makes captures independent of the scene animation timing.
+# Shots use the Select tool, the application's default. Reduced camera motion
+# makes captures independent of the scene animation timing.
 # The table comes from the generator; collapse Entity info to reveal parameters.
 shots=(
-  "hero-light|1|click:124,826;click:43,170;palette:Outliner;move:640,884;sleep:3"
-  "hero-dark|2|click:124,826;click:43,170;palette:Outliner;move:640,884;sleep:3"
-  "components|1|click:500,826;click:43,170;palette:Outliner;click:1280,216;type:Dining table;click:1280,267;palette:Entity info;key:ctrl+alt+bracketright;click:1220,230;move:640,884;sleep:3"
+  "hero-light|1|click:124,826;palette:Outliner;move:640,884;sleep:3"
+  "hero-dark|2|click:124,826;palette:Outliner;move:640,884;sleep:3"
+  "components|1|click:500,826;palette:Outliner;click:1280,216;type:Dining table;click:1280,267;palette:Entity info;key:ctrl+alt+bracketright;click:1220,230;move:640,884;sleep:3"
   "sheets|1|key:ctrl+alt+s;sleep:3;click:304,834;sleep:2;key:shift+z;move:640,884;sleep:3"
-  "terrain|1|click:432,826;click:43,170;palette:Sun and shadows;move:640,470;wheel:5;move:640,884;sleep:3"
-  "commands|1|click:124,826;click:43,170;key:ctrl+s;search:export;move:640,884;sleep:3"
-  "section|1|click:320,826;click:43,170;palette:Outliner;move:640,884;sleep:3"
-  "interior|1|click:250,826;click:43,170;palette:Outliner;move:640,884;sleep:3"
+  "terrain|1|click:432,826;palette:Sun and shadows;move:640,470;wheel:5;move:640,884;sleep:3"
+  "commands|1|click:124,826;key:ctrl+s;search:export;move:640,884;sleep:3"
+  "section|1|click:320,826;palette:Outliner;move:640,884;sleep:3"
+  "interior|1|click:250,826;palette:Outliner;move:640,884;sleep:3"
 )
 for entry in "${shots[@]}"; do
   [[ -z ${SHOWCASE_SHOTS:-} || ,$SHOWCASE_SHOTS, == *,${entry%%|*},* ]] || continue
