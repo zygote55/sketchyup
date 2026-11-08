@@ -234,8 +234,8 @@ void writeStlBinary(const QString &path, int cols, int rows, std::uint32_t facet
     check(file.open(QIODevice::WriteOnly), "Write the STL grid");
     file.write(bytes);
 }
-// A glTF 2.0 binary with one mesh per grid, each placed by one node, 3 m apart along x.
-QByteArray glb(const std::vector<std::pair<int, int>> &grids) {
+// A glTF 2.0 binary with one mesh per grid, each placed by `placements` nodes, 3 m apart along x.
+QByteArray glb(const std::vector<std::pair<int, int>> &grids, int placements = 1) {
     QByteArray binary;
     QJsonArray accessors, views, nodes, meshes, scene;
     const auto align = [&] {
@@ -293,9 +293,11 @@ QByteArray glb(const std::vector<std::pair<int, int>> &grids) {
                                {"attributes", QJsonObject{{"POSITION", positionAccessor}}},
                                {"indices", indexAccessor},
                                {"mode", 4}}}}});
-        nodes.append(QJsonObject{{"mesh", int(m)},
-                                 {"translation", QJsonArray{3.0 * double(m), 0, 0}}});
-        scene.append(int(m));
+        for (int p = 0; p < placements; ++p) {
+            nodes.append(QJsonObject{{"mesh", int(m)},
+                                     {"translation", QJsonArray{3.0 * double(int(m) * placements + p), 0, 0}}});
+            scene.append(int(nodes.size()) - 1);
+        }
     }
     align();
     QJsonObject json{{"asset", QJsonObject{{"version", "2.0"}}},
@@ -460,9 +462,11 @@ void importsAtUniqueLimits(const QString &dir) {
     const auto glbPath = dir + "/unique.glb";
     writeFile(glbPath, glb({{300, 250}, {300, 250}}));
     const auto gltf = loadGltf(glbPath);
-    check(gltf.report["triangles"].toInteger() == 300000 && facesOf(gltf.document) == 300000,
+    // Each mesh is used by one node, so each is a group of loose bodies and no definition (R119).
+    check(gltf.report["triangles"].toInteger() == 300000 && facesOf(gltf.document) == 300000 &&
+              gltf.document.definitions().empty() && gltf.report["meshGroups"].toInteger() == 2,
           "glTF keeps every triangle at the unique limit");
-    std::cout << "glTF import: 300,000 triangles in two definitions (" << seconds(started)
+    std::cout << "glTF import: 300,000 triangles in two groups (" << seconds(started)
               << " s)\n";
     // DXF: one polyline of 250,000 vertices, which splits into three bodies of vertices.
     QByteArray entities = "0\nLWPOLYLINE\n8\nSheet\n90\n250000\n70\n0\n";
@@ -502,14 +506,22 @@ void refusalsByName(const QString &dir) {
     });
     check(stlRefusal.find("facets would be 300,001 of 300,000") != std::string::npos,
           "STL over the unique facet limit is refused by name: " + stlRefusal);
-    // One mesh past the component definition limit (200,000 faces, R110): refused by name. The
-    // limit is the definition's, so the mesh is not split to pass it.
+    // A mesh used by one node is a group of loose bodies (R119), so the definition limit does not govern
+    // it: 200,400 faces import, where the R110 definition bound of 200,000 once refused them.
+    const auto singlePath = dir + "/single-use.glb";
+    // 300 x 334 cells: 200,400 faces but 100,835 vertices.
+    writeFile(singlePath, glb({{300, 334}}));
+    const auto single = loadGltf(singlePath);
+    check(single.document.definitions().empty() && facesOf(single.document) == 200400,
+          "A glTF mesh used by one node is loose bodies, not a definition, so 200,400 faces import");
+    // A mesh used by two nodes is one definition. The definition limit (800,000 faces, R115) refuses one
+    // past it by name, and the mesh is not split to pass it.
     const auto glbPath = dir + "/over-definition.glb";
-    // 300 x 334 cells: 200,400 faces but 100,835 vertices, so the face limit is the one passed.
-    writeFile(glbPath, glb({{300, 334}}));
+    // 300 x 1,335 cells: 801,000 faces but 402,136 vertices, so the face limit is the one passed.
+    writeFile(glbPath, glb({{300, 1335}}, 2));
     const auto definitionRefusal = refusal([&] { (void)loadGltf(glbPath); });
-    check(definitionRefusal.find("faces would be 200,400 of 200,000") != std::string::npos,
-          "A glTF definition over 200,000 faces is refused by name: " + definitionRefusal);
+    check(definitionRefusal.find("faces would be 801,000 of 800,000") != std::string::npos,
+          "A glTF definition over 800,000 faces is refused by name: " + definitionRefusal);
 }
 } // namespace
 int main(int argc, char **argv) {

@@ -56,6 +56,9 @@ struct Importer {
     Edit edit{"Import glTF 2.0", {}};
     QJsonObject losses;
     std::map<const cgltf_mesh *, DefinitionPtr> meshes;
+    // The visited nodes that use each mesh (R119). One use makes a group; several uses make a component.
+    std::map<const cgltf_mesh *, size_t> uses;
+    size_t meshGroups{};
     std::map<const cgltf_material *, Id> materials;
     std::set<std::string> materialNames;
     std::map<std::pair<const cgltf_image *, int>, Id> images;
@@ -72,9 +75,13 @@ struct Importer {
     size_t assetSize{}, decodedBytes{};
     size_t decodedImageLimit{gltfDecodedImageLimit};
     LimitCounts uniqueBounds{DocumentLimits::unique};
+    // The most component definitions the import makes (R119): the product count, or a test's smaller one.
+    size_t componentDefinitionBound{componentDefinitionCountLimit};
     std::set<const cgltf_node *> visited;
-    Importer(const GltfPackage &p, size_t decodedBudget, const LimitCounts &unique)
-        : package(p), data(p.data()), decodedImageLimit(decodedBudget), uniqueBounds(unique) {}
+    Importer(const GltfPackage &p, size_t decodedBudget, const LimitCounts &unique,
+             size_t definitionBound)
+        : package(p), data(p.data()), decodedImageLimit(decodedBudget), uniqueBounds(unique),
+          componentDefinitionBound(definitionBound) {}
     void loss(const char *key, int count = 1) { losses[key] = losses[key].toInt() + count; }
     void checkTotals() const {
         const auto operation = "glTF import";
@@ -90,11 +97,17 @@ struct Importer {
         checkFormatCount(operation, "placements", materialized.placements,
                          DocumentLimits::materialized.placements, "materialized");
     }
-    // A definition's own geometry or bodies, once.
-    void definedGeometry(size_t v, size_t f, size_t b) {
+    // Geometry the import makes once. A definition's members count as unique geometry. A single-use
+    // mesh's bodies are loose, outside every placement, so they count once as materialized too (R119).
+    void madeGeometry(bool loose, size_t v, size_t f, size_t b) {
         unique.vertices += v;
         unique.faces += f;
         unique.bodies += b;
+        if (loose) {
+            materialized.vertices += v;
+            materialized.faces += f;
+            materialized.bodies += b;
+        }
         checkTotals();
     }
     // A node: a body outside every placement.
@@ -210,6 +223,7 @@ struct Importer {
         edit.assets.push_back({a->id, nullptr, a});
         return a->id;
     }
+    // A mesh used by several nodes: one definition, with its root group and its members (ids from 2).
     DefinitionPtr mesh(const cgltf_mesh &source) {
         if (meshes.contains(&source))
             return meshes.at(&source);
@@ -222,8 +236,29 @@ struct Importer {
         root->kind = BodyKind::Group;
         root->name = definition->name;
         definition->members[1] = root;
-        definedGeometry(0, 0, 1);
+        madeGeometry(false, 0, 0, 1);
         Id member = 2;
+        for (const auto &body : meshBodies(source, false, 0, member))
+            definition->members[body->id] = body;
+        definition->nextMemberId = member;
+        meshes[&source] = definition;
+        edit.definitions.push_back({definition->id, nullptr, definition});
+        return definition;
+    }
+    // A mesh used by one node (R119): no definition and no instance. Its bodies are loose bodies of the
+    // node's group, with document ids.
+    void looseMesh(const cgltf_mesh &source, Id group) {
+        Id unusedMember{};
+        for (const auto &body : meshBodies(source, true, group, unusedMember))
+            edit.changes.push_back({body->id, nullptr, body});
+        ++meshGroups;
+    }
+    // The bodies of a mesh's primitives, each counted as made geometry. A definition's members (loose
+    // false) take ids from `member`, under root 1. A single-use mesh's bodies (loose true) take document
+    // ids and are loose bodies of `group`.
+    std::vector<std::shared_ptr<Body>> meshBodies(const cgltf_mesh &source, bool loose, Id group,
+                                                  Id &member) {
+        std::vector<std::shared_ptr<Body>> bodies;
         for (size_t pi = 0; pi < source.primitives_count; ++pi) {
             const auto &p = source.primitives[pi];
             if (p.targets_count)
@@ -267,12 +302,12 @@ struct Importer {
             // The next body of the primitive, continuing the last one (R113, D-102).
             auto startPiece = [&]() -> Piece & {
                 auto piece = std::make_shared<Body>();
-                piece->id = member++;
-                piece->parent = 1;
+                piece->id = loose ? nextBody++ : member++;
+                piece->parent = loose ? group : 1;
                 piece->name = continuedBodyName(primitiveName, pieces.size() + 1);
                 piece->materials = {materialId, materialId};
                 piece->surface.nextId = position->count + 1;
-                definedGeometry(0, 0, 1);
+                madeGeometry(loose, 0, 0, 1);
                 pieces.push_back({piece, {}, {}});
                 return pieces.back();
             };
@@ -353,11 +388,11 @@ struct Importer {
                     ids[k] = surface.nextId++;
                     piece->welded.emplace(key, ids[k]);
                     surface.vertices[ids[k]] = points[k];
-                    definedGeometry(1, 0, 0);
+                    madeGeometry(loose, 1, 0, 0);
                 }
                 const Id face = surface.nextId++;
                 surface.faces[face] = Face{face, {{ids[0], ids[1], ids[2]}}};
-                definedGeometry(0, 1, 0);
+                madeGeometry(loose, 0, 1, 0);
                 piece->budget.faces = surface.faces.size();
                 piece->budget.vertices = surface.vertices.size();
                 piece->budget.edges += 3;
@@ -398,13 +433,10 @@ struct Importer {
                         if (incident.size() == 2)
                             body.edgeAppearances[edge] = {false, true, true};
                 }
-                definition->members[body.id] = piece.body;
+                bodies.push_back(piece.body);
             }
         }
-        definition->nextMemberId = member;
-        meshes[&source] = definition;
-        edit.definitions.push_back({definition->id, nullptr, definition});
-        return definition;
+        return bodies;
     }
     void camera(const cgltf_camera &source, const Transform &world, const std::string &nodeName) {
         if (edit.scenes.size() == sceneCountLimit)
@@ -457,7 +489,9 @@ struct Importer {
         body->transform = basis * local * basis.inverse();
         const auto nativeWorld = parentWorld * body->transform;
         edit.changes.push_back({body->id, nullptr, body});
-        if (source.mesh) {
+        if (source.mesh && uses.at(source.mesh) < 2)
+            looseMesh(*source.mesh, body->id);
+        else if (source.mesh) {
             const auto definition = mesh(*source.mesh);
             auto instance = std::make_shared<ComponentInstance>();
             instance->definition = definition->id;
@@ -484,24 +518,56 @@ struct Importer {
         for (size_t i = 0; i < source.children_count; ++i)
             node(*source.children[i], body->id, nativeWorld, depth + 1);
     }
+    // The root nodes of the selected scene, as run() visits them: the default scene's roots (else the
+    // first scene's), or with no scene every node that has no parent.
+    std::vector<const cgltf_node *> sceneRoots() const {
+        const auto *scene =
+            data.scene ? data.scene : (data.scenes_count ? &data.scenes[0] : nullptr);
+        std::vector<const cgltf_node *> roots;
+        if (scene) {
+            for (size_t i = 0; i < scene->nodes_count; ++i)
+                roots.push_back(scene->nodes[i]);
+        } else {
+            for (size_t i = 0; i < data.nodes_count; ++i)
+                if (!data.nodes[i].parent)
+                    roots.push_back(&data.nodes[i]);
+        }
+        return roots;
+    }
+    // Counts the visited nodes that use each mesh (R119). It walks the nodes node() visits and refuses the
+    // same repeated nodes and depth, so every refusal comes before any record is built.
+    void countUses(const cgltf_node &source, size_t depth, std::set<const cgltf_node *> &seen) {
+        if (depth > 64 || !seen.insert(&source).second)
+            throw std::runtime_error("glTF selected scene has repeated nodes or excessive depth");
+        if (source.mesh)
+            ++uses[source.mesh];
+        for (size_t i = 0; i < source.children_count; ++i)
+            countUses(*source.children[i], depth + 1, seen);
+    }
     GltfImport run() {
         if (data.animations_count)
             loss("animationsOmitted", int(data.animations_count));
         for (size_t i = 0; i < data.extensions_used_count; ++i)
             if (std::string(data.extensions_used[i]) != "KHR_texture_transform")
                 loss("optionalExtensionsOmitted");
-        const auto *scene =
-            data.scene ? data.scene : (data.scenes_count ? &data.scenes[0] : nullptr);
-        if (scene) {
-            for (size_t i = 0; i < scene->nodes_count; ++i)
-                node(*scene->nodes[i], 0, {}, 0);
-            if (data.scenes_count > 1)
-                loss("additionalScenesOmitted", int(data.scenes_count - 1));
-        } else {
-            for (size_t i = 0; i < data.nodes_count; ++i)
-                if (!data.nodes[i].parent)
-                    node(data.nodes[i], 0, {}, 0);
+        const auto roots = sceneRoots();
+        std::set<const cgltf_node *> seen;
+        for (const auto *root : roots)
+            countUses(*root, 0, seen);
+        // A mesh used by several nodes is one component definition (R119). The count is checked before
+        // any record is built, so a refusal creates nothing.
+        size_t definitions{};
+        for (const auto &[usedMesh, count] : uses) {
+            (void)usedMesh;
+            if (count > 1)
+                ++definitions;
         }
+        checkFormatCount("glTF import", "component definitions", definitions,
+                         componentDefinitionBound, "component definition");
+        for (const auto *root : roots)
+            node(*root, 0, {}, 0);
+        if (data.scenes_count > 1)
+            loss("additionalScenesOmitted", int(data.scenes_count - 1));
         size_t triangles = 0;
         for (const auto &c : edit.changes)
             triangles += c.after->surface.faces.size();
@@ -561,6 +627,7 @@ struct Importer {
                          {"triangles", qint64(triangles)},
                          {"bodySplits", bodySplits},
                          {"meshDefinitions", qint64(meshes.size())},
+                         {"meshGroups", qint64(meshGroups)},
                          {"instances", qint64(result.document.instances().size())},
                          {"materials", qint64(materials.size())},
                          {"images", qint64(images.size())},
@@ -572,8 +639,9 @@ struct Importer {
     }
 };
 } // namespace
-GltfImport importGltf(const GltfPackage &package, size_t decodedImageBudget, const LimitCounts &uniqueBounds) {
-    return Importer(package, decodedImageBudget, uniqueBounds).run();
+GltfImport importGltf(const GltfPackage &package, size_t decodedImageBudget,
+                      const LimitCounts &uniqueBounds, size_t componentDefinitionBound) {
+    return Importer(package, decodedImageBudget, uniqueBounds, componentDefinitionBound).run();
 }
 GltfImport loadGltf(const QString &path) { return importGltf(GltfPackage::read(path)); }
 } // namespace sketchy

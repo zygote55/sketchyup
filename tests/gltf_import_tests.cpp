@@ -1,3 +1,5 @@
+#include "core/components.hpp"
+#include "core/groups.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/gltf_import.hpp"
 #include "io/texture_image.hpp"
@@ -12,6 +14,7 @@
 #include <cstring>
 #include <iostream>
 #include <numbers>
+#include <set>
 using namespace sketchy;
 void check(bool ok, const char *message) {
     if (!ok)
@@ -31,6 +34,51 @@ template <class F> void rejects(F operation) {
 void write(const QString &path, const QByteArray &bytes) {
     QFile f(path);
     check(f.open(QIODevice::WriteOnly) && f.write(bytes) == bytes.size(), "Write import fixture");
+}
+// Geometry bodies of a document, and the faces they hold (R119).
+size_t geometryBodies(const Document &doc) {
+    size_t count = 0;
+    for (const auto &[id, body] : doc.bodies())
+        count += body->kind == BodyKind::Geometry;
+    return count;
+}
+size_t faceCount(const Document &doc) {
+    size_t faces = 0;
+    for (const auto &[id, body] : doc.bodies())
+        if (body->kind == BodyKind::Geometry)
+            faces += body->surface.faces.size();
+    return faces;
+}
+// Every body that a placement holds (R119).
+std::set<Id> placedBodies(const Document &doc) {
+    std::set<Id> placed;
+    for (const auto &[root, instance] : doc.instances()) {
+        (void)root;
+        for (const auto &[canonical, scene] : instance->members) {
+            (void)canonical;
+            placed.insert(scene);
+        }
+    }
+    return placed;
+}
+// Geometry bodies outside every placement: the loose bodies (R119).
+size_t looseGeometry(const Document &doc) {
+    const auto placed = placedBodies(doc);
+    size_t loose = 0;
+    for (const auto &[id, body] : doc.bodies())
+        loose += body->kind == BodyKind::Geometry && !placed.contains(id);
+    return loose;
+}
+// Whether every loose body sits in a group, as a glTF import's loose bodies do (R119).
+bool looseInGroups(const Document &doc) {
+    const auto placed = placedBodies(doc);
+    for (const auto &[id, body] : doc.bodies()) {
+        if (body->kind != BodyKind::Geometry || placed.contains(id))
+            continue;
+        if (!body->parent || doc.bodies().at(body->parent)->kind != BodyKind::Group)
+            return false;
+    }
+    return true;
 }
 struct Fixture {
     QJsonObject tree{{"asset", QJsonObject{{"version", "2.0"}}}};
@@ -448,6 +496,98 @@ int main(int argc, char **argv) {
         write(glbPath, glb.glb);
         check(loadGltf(glbPath).report["triangles"].toInt() >= 1,
               "Native GLB imports through public parser");
+        // R119: a mesh used by one node is a group of loose bodies, with no definition and no instance.
+        Fixture single;
+        auto singleNodes = single.tree["nodes"].toArray();
+        auto singleParent = singleNodes[0].toObject();
+        singleParent["children"] = QJsonArray{1};
+        singleNodes[0] = singleParent;
+        single.tree["nodes"] = singleNodes;
+        single.save(path);
+        const auto oneUse = loadGltf(path);
+        check(oneUse.document.definitions().empty() && oneUse.document.instances().empty() &&
+                  oneUse.report["meshDefinitions"] == 0 && oneUse.report["meshGroups"] == 1 &&
+                  geometryBodies(oneUse.document) == 1 && looseGeometry(oneUse.document) == 1 &&
+                  looseInGroups(oneUse.document),
+              "A mesh used by one node imports as loose bodies with no definition and no instance");
+        for (const auto &[id, body] : oneUse.document.bodies())
+            if (body->kind == BodyKind::Geometry) {
+                check(oneUse.document.bodies().at(body->parent)->name == "Normal",
+                      "The loose body sits in its node's group");
+                near(oneUse.document.worldTransform(id).point({2, 0, 0}).x, 12);
+            }
+        check(importGltf(GltfPackage::read(path), gltfDecodedImageLimit, DocumentLimits::unique, 0)
+                      .report["triangles"] == 1,
+              "Single-use meshes take no component definition, so a zero bound admits them");
+        // A mesh used twice is one definition with two placements; a mesh used once is a group, in one file.
+        Fixture mixed;
+        auto mixedMeshes = mixed.tree["meshes"].toArray();
+        mixedMeshes.append(mixedMeshes[0]);
+        mixed.tree["meshes"] = mixedMeshes;
+        auto mixedNodes = mixed.tree["nodes"].toArray();
+        mixedNodes.append(QJsonObject{
+            {"name", "Single"}, {"mesh", 1}, {"translation", QJsonArray{50, 0, 0}}});
+        auto mixedParent = mixedNodes[0].toObject();
+        mixedParent["children"] = QJsonArray{1, 2, 3};
+        mixedNodes[0] = mixedParent;
+        mixed.tree["nodes"] = mixedNodes;
+        mixed.save(path);
+        const auto both = loadGltf(path);
+        check(both.document.definitions().size() == 1 && both.document.instances().size() == 2 &&
+                  both.report["meshDefinitions"] == 1 && both.report["meshGroups"] == 1 &&
+                  both.report["triangles"] == 3 && looseGeometry(both.document) == 1,
+              "A mixed file gives one definition with two placements and one loose group");
+        // The definition count is checked before any record is built, and the refusal names the count.
+        Fixture twice;
+        auto twiceMeshes = twice.tree["meshes"].toArray();
+        twiceMeshes.append(twiceMeshes[0]);
+        twice.tree["meshes"] = twiceMeshes;
+        auto twiceNodes = twice.tree["nodes"].toArray();
+        twiceNodes.append(QJsonObject{{"name", "Third"}, {"mesh", 1}});
+        twiceNodes.append(QJsonObject{{"name", "Fourth"}, {"mesh", 1}});
+        auto twiceParent = twiceNodes[0].toObject();
+        twiceParent["children"] = QJsonArray{1, 2, 3, 4};
+        twiceNodes[0] = twiceParent;
+        twice.tree["nodes"] = twiceNodes;
+        twice.save(path);
+        std::string definitionRefusal;
+        try {
+            importGltf(GltfPackage::read(path), gltfDecodedImageLimit, DocumentLimits::unique, 1);
+        } catch (const std::exception &error) {
+            definitionRefusal = error.what();
+        }
+        const std::string definitionMessage =
+            "Two meshes used twice are refused by name at a bound of one (got: '" +
+            definitionRefusal + "')";
+        check(definitionRefusal.find("component definitions would be 2 of 1") != std::string::npos,
+              definitionMessage.c_str());
+        check(importGltf(GltfPackage::read(path), gltfDecodedImageLimit, DocumentLimits::unique, 2)
+                      .report["meshDefinitions"] == 2,
+              "Exactly the definition bound is accepted");
+        // R119: a small native model with two loose bodies and one component placed twice exports to GLB
+        // and imports with the same structure.
+        Document model;
+        const auto part = createGroup(
+            model, {model.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 3, 0}}}, "Part body")}, "Part");
+        const auto made = createComponent(model, part, "Part");
+        placeComponent(model, made.definition, Transform::translation({10, 0, 0}));
+        model.addFace({{{40, 0, 0}, {42, 0, 0}, {40, 3, 0}}}, "Loose A");
+        model.addFace({{{60, 0, 0}, {62, 0, 0}, {60, 3, 0}}}, "Loose B");
+        check(model.definitions().size() == 1 && model.instances().size() == 2 &&
+                  looseGeometry(model) == 2,
+              "The native model has one component placed twice and two loose bodies");
+        const auto exported = exportGlb(RenderSnapshot::capture(model));
+        const auto roundTrip = dir.filePath("round-trip.glb");
+        write(roundTrip, exported.glb);
+        const auto back = loadGltf(roundTrip);
+        check(back.document.definitions().size() == 1 && back.document.instances().size() == 2 &&
+                  back.report["meshDefinitions"] == 1 && back.report["meshGroups"] == 2,
+              "The GLB round trip keeps one component with two placements and two loose meshes");
+        check(looseGeometry(back.document) == 2 && looseInGroups(back.document) &&
+                  geometryBodies(back.document) == geometryBodies(model) &&
+                  faceCount(back.document) == faceCount(model) &&
+                  back.report["triangles"].toInt() == int(faceCount(model)),
+              "The GLB round trip keeps the loose bodies, bodies and faces of the model");
         std::cout
             << "glTF mesh, instance, material, UV, camera, atomicity and rejection tests passed\n";
     } catch (const std::exception &e) {
