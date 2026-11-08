@@ -36,6 +36,7 @@ Format count limits (R113, D-102, [PR_ROADMAP R113](docs/PR_ROADMAP.md#r113)): t
 - Fixed (R113, D-102): OBJ import took time quadratic in the faces (12 s for 96,800 faces) because the body encoder inserted face records into JSON objects in id order; it now sorts them first (4 s in the same run).
 - Unchanged by R117 (R115 changed it, see above): the STEP export's output bound, now 512 MiB. The IFC export takes its own limits.
 - Unchanged by R117 (R115 raised it): the undo budget, now 4 GiB. The 192 MiB budget before it refused a glTF import whose one edit places 600,000 faces ([D-103](docs/verification/R089a-defect-triage.md)).
+- Changed (R119, [D-108](docs/verification/R089a-defect-triage.md)): a glTF mesh used by one node imports as the bodies of that node's group, with no component definition. A mesh used by several nodes is one component definition, as before. A glTF file with more than 4,096 meshes used by several nodes is refused by name, with the count, before anything is created; the report counts the mesh groups as `meshGroups`. A GLB that SketchyUp exported from a model of more than 4,096 bodies imports again.
 
 ## 1.8.0 — 2026-11-07
 

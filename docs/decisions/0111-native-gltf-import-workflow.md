@@ -63,3 +63,27 @@ in [R113](../verification/R113-format-limits.md).
 - **Not a format limit:** four placements of a 300,000-face pair (600,000 materialized faces) in one import are refused by
   the 192 MiB undo budget (`Edit exceeds the 192 MiB history budget`). The budget is R115's and out of scope here.
 - **Contract:** no change to the accepted files, except the report's `bodySplits` and the unused-vertex notice.
+
+## Implementation notes (R119)
+
+R119 (D-108) changes the structure of a glTF import. The owner decided on 2026-11-08: a glTF mesh used by one node
+imports as a plain group; only a mesh used by several nodes becomes a component. Findings and measured numbers are in
+[R119](../verification/R119-gltf-meshes.md).
+
+- **The rule.** Before it builds anything, the import counts, for each mesh, the visited nodes that use it (`countUses`,
+  over the roots `run()` visits). A mesh used once is loose bodies under its node's group (`looseMesh`), with document
+  ids, no definition and no instance. A mesh used by several nodes is one definition with one placement per node, as
+  in R113 and R115.
+- **The definition count is named before anything is built.** More than `componentDefinitionCountLimit` (4,096) meshes
+  used by several nodes is refused by `checkFormatCount`: "component definitions would be N of 4,096". Nothing is
+  created. `importGltf` takes the bound as a parameter, so a test can lower it.
+- **Contradicts the R113 notes above.** "A definition over 200,000 faces ... A glTF mesh is therefore limited to
+  200,000 faces" was already out of date: R115 raised the definition limit to 800,000 faces. Under this rule the
+  definition limit governs only a mesh used by several nodes. A mesh used once is limited by the document's unique
+  limits and the one-body split (R113).
+- **Counts.** A loose body counts once as unique geometry and once as materialized geometry, with no placement, as any
+  body outside every placement does (`madeGeometry`). A definition's members still count once as unique geometry.
+- **Not kept.** A single-use mesh's own name: its node's name names the group. A definition keeps the mesh name.
+- **Export round trip.** The GLB exporter writes one glTF mesh per distinct body geometry, so two loose bodies with
+  identical geometry export as one mesh used by two nodes. That import is a component. The change is in the export's
+  sharing, not the import, and is recorded in R119.

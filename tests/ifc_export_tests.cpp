@@ -843,7 +843,8 @@ void exportImported() {
         sameModel(doc, reimport(w.path), "obj");
         golden(w, "obj-concave-paint.ifc");
     }
-    // glTF: a rig with two uses of one mesh and one use of another (components and their placements).
+    // glTF: a rig with two uses of one mesh and one use of another. The two-use mesh is a component with two
+    // placements; the one-use mesh is loose bodies in a group, with no definition (R119).
     {
         QByteArray buffer;
         auto f32 = [&](float v) { const auto at = buffer.size(); buffer.resize(at + 4); qToLittleEndian<quint32>(std::bit_cast<quint32>(v), buffer.data() + at); };
@@ -883,9 +884,9 @@ void exportImported() {
         tree["scene"] = 0;
         write(dir.filePath("rig.gltf"), QJsonDocument(tree).toJson(QJsonDocument::Compact));
         const auto doc = withIdentity(loadGltf(dir.filePath("rig.gltf")).document);
-        check(doc.instances().size() == 3 && doc.definitions().size() == 2, "the glTF fixture has three placements of two meshes: " + std::to_string(doc.instances().size()) + " placements, " + std::to_string(doc.definitions().size()) + " definitions, " + std::to_string(doc.bodies().size()) + " bodies");
+        check(doc.instances().size() == 2 && doc.definitions().size() == 1, "the glTF fixture has two placements of one component, and the one-use mesh is loose: " + std::to_string(doc.instances().size()) + " placements, " + std::to_string(doc.definitions().size()) + " definitions, " + std::to_string(doc.bodies().size()) + " bodies");
         const auto w = exportTo(doc, dir.path(), "gltf.ifc");
-        check(w.report["written"].toObject()["placements"].toInt() == 3 && w.report["accounting"].toObject()["writtenAsCopies"].toInt() == 3, "the placements are written as copies and counted");
+        check(w.report["written"].toObject()["placements"].toInt() == 2 && w.report["accounting"].toObject()["writtenAsCopies"].toInt() == 2, "the placements are written as copies and counted");
         scanAgainstDocument(doc, w, {});
         sameModel(doc, reimport(w.path), "gltf");
         golden(w, "gltf-rig.ifc");

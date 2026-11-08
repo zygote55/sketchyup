@@ -1,0 +1,46 @@
+{
+  "round": "R119",
+  "defect": "D-108",
+  "date": "2026-11-08",
+  "status": "in review; the at-limit GPU PC import has not run, so D-108 stays open",
+  "rule": "A glTF mesh used by one node imports as its node's group (loose bodies, no definition, no instance). A mesh used by several nodes is one component definition, counted against componentDefinitionCountLimit (4,096) and refused by name, with the count, before any record is built.",
+  "reportKeys": {
+    "meshDefinitions": "meshes used by several nodes (definitions made)",
+    "meshGroups": "meshes used by one node (new in R119)"
+  },
+  "localRuns": [
+    {"test": "gltf_import_tests", "preset": "dev", "result": "passed", "exit": 0},
+    {"test": "ifc_export_tests", "preset": "ifc with SKETCHYUP_BUILD_CLI=ON, in sketchyup-ci-pinned:r097a-ifc", "result": "passed after the golden was regenerated", "firstRun": "failed at G6 (gltf-rig.ifc golden only)", "exit": 0},
+    {"test": "m8_exchange_tests", "preset": "dev", "result": "passed", "exit": 0},
+    {"test": "parser_fault_corpus_tests", "preset": "dev", "result": "exit 0", "exit": 0},
+    {"test": "format_limits_acceptance_tests", "preset": "dev", "result": "compiled only; manual at-limit GPU suite, not run", "exit": null},
+    {"test": "sketchyup-cli --import-gltf, 4,200 meshes each used by one node", "result": "imports; triangles 4200, meshDefinitions 0, meshGroups 4200, instances 0", "exit": 0},
+    {"test": "sketchyup-cli --import-gltf, 4,200 meshes each used by two nodes", "result": "refused: component definitions would be 4,200 of 4,096; no output", "exit": 1}
+  ],
+  "changedOutputs": [
+    "tests/fixtures/ifc/export/gltf-rig.ifc: the one-use mesh's assembly is gone; its body is under the node",
+    "tests/ifc_export_tests.cpp: definitions 2 to 1, placements 3 to 2, writtenAsCopies 3 to 2",
+    "tests/format_limits_acceptance_tests.cpp: glTF import section (groups, not definitions); the stale 200,000-face refusal is replaced by an 800,000-face one (not run)",
+    "docs/decisions/0111-native-gltf-import-workflow.md: Implementation notes (R119)",
+    "docs/USER_GUIDE.md, docs/SUPPORT_MATRIX.md, CHANGELOG.md, docs/PR_ROADMAP.md (R119 entry), docs/verification/R089a-defect-triage.md (D-108 row)"
+  ],
+  "gpu": {
+    "status": "not run",
+    "reason": "ssh sketchyup-gpu timed out on every attempt (connection timed out at the TCP level); no ControlMaster socket at ~/.ssh/sketchyup-gpu.sock",
+    "case": "limits_r115_acceptance import-gltf (R115 case 7: 2,400,000 faces, 12,000 bodies)",
+    "command": "~/sketchyup-verification/r115-20261107/run-case.sh import-gltf, under flock -w 3600 ~/sketchyup-verification/gpu.lock systemd-run --user --wait with MemoryMax=18G, MemorySwapMax=0, a 30-minute limit and no core dumps",
+    "fields": ["timeSeconds", "peakRssBytes", "bodies", "definitions", "faces"],
+    "result": null
+  },
+  "consequences": [
+    "Two loose bodies with identical geometry export as one glTF mesh used by two nodes (the exporter keys meshes by content) and re-import as a component.",
+    "A single-use mesh's own name is dropped; its node's name names the group.",
+    "A single-use mesh is no longer limited by the 800,000-face definition limit; it is limited by the unique limits and the one-body split."
+  ],
+  "notRun": [
+    "limits_r115_acceptance import-gltf and format_limits_acceptance_tests on the GPU PC",
+    "gltf_input_tests (desktop import dialog; desktop not built)",
+    "import_refusal_tests, gltf_package_tests, glb_export_tests (code paths unchanged; not built)",
+    "CI tiers (run on the pull request)"
+  ]
+}
