@@ -42,7 +42,8 @@
       "variant_edit_cost",
       "component_parameters",
       "unique_limits_acceptance",
-      "snapshot_glb_limits_acceptance"
+      "snapshot_glb_limits_acceptance",
+      "format_limits_acceptance"
     ],
     "slow-assistant": [
       "provider_release_corpus"
@@ -827,6 +828,7 @@
     "document_limits": 29,
     "unique_limits_acceptance": 224,
     "snapshot_glb_limits_acceptance": 240,
+    "format_limits_acceptance": 110,
     "component_parameters": 15,
     "incremental_validation": 78,
     "inference_equivalence": 7,

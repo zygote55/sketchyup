@@ -1,4 +1,5 @@
 #include "io/stl_export.hpp"
+#include "io/format_limits.hpp"
 #include "core/source_credits.hpp"
 #include "io/new_file.hpp"
 #include <QCryptographicHash>
@@ -7,6 +8,10 @@
 #include <bit>
 namespace sketchy {
 namespace {
+// The most bytes of an STL file (R113, D-102). A model at the materialized face limit (600,000
+// facets) measured 30 MB in binary and 183 MB in ASCII, so 64 MiB refused it; 256 MiB is the native
+// file bound.
+constexpr std::size_t stlByteLimit = 256 * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -77,7 +82,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         for (const auto &[faceId, face] : body->surface.faces) {
             (void)face;
             for (const auto &t : body->surface.triangulate(faceId)) {
-                require(++count <= 100000, "STL export exceeds 100000 facets");
+                checkFormatCount("STL export", "facets", ++count, materializedCornerLimit, "materialized");
                 std::array<Vec3, 3> points{axis(transform.point(t.a)), axis(transform.point(t.b)),
                                            axis(transform.point(t.c))};
                 if (transform.determinant() < 0)
@@ -115,7 +120,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
                         result.bytes += "vertex " + vector(p) + "\n";
                     result.bytes += "endloop\nendfacet\n";
                 }
-                require(result.bytes.size() <= 64 * 1024 * 1024 - 32, "STL export exceeds 64 MiB");
+                require(result.bytes.size() <= stlByteLimit - 32, "STL export exceeds 256 MiB");
             }
         }
     }
@@ -162,7 +167,7 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
     return result;
 }
 void writeStlExport(const StlExport &result, const QString &path) {
-    require(!result.bytes.isEmpty() && result.bytes.size() <= 64 * 1024 * 1024 &&
+    require(!result.bytes.isEmpty() && result.bytes.size() <= stlByteLimit &&
                 result.report["bytes"].toInteger() == result.bytes.size() &&
                 result.report["sha256"] == hash(result.bytes),
             "STL export bytes do not match the report");

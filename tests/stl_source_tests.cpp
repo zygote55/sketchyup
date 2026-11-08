@@ -54,8 +54,9 @@ int main(int argc, char **argv) {
         tiny.replace("normal 0 0 1", "normal 0 0 1e-320");
         check(parseStl(tiny, {1, StlUpAxis::Z}).facets[0].normal == Vec3{0, 0, 1},
               "Subnormal ASCII normal normalizes without overflow");
-        QByteArray tooMany(84 + 50 * 100001, 0);
-        qToLittleEndian<quint32>(100001, tooMany.data() + 80);
+        // One facet past the unique face limit (R113, D-102): 300,000 facets are admitted.
+        QByteArray tooMany(84 + 50 * 300001, 0);
+        qToLittleEndian<quint32>(300001, tooMany.data() + 80);
         rejects([&] { parseStl(tooMany, {1, StlUpAxis::Z}); });
         auto small = ascii;
         small.replace("2000", "0.0001");
@@ -111,7 +112,7 @@ int main(int argc, char **argv) {
         rejects([&] { parseStl(ascii, {1, StlUpAxis(99)}); });
         rejects(
             [&] { parseStl("solid " + QByteArray(513, 'a') + "\n" + ascii, {1, StlUpAxis::Z}); });
-        rejects([&] { parseStl(QByteArray(64 * 1024 * 1024 + 1, 'x'), {1, StlUpAxis::Z}); });
+        rejects([&] { parseStl(QByteArray(128 * 1024 * 1024 + 1, 'x'), {1, StlUpAxis::Z}); });
         std::cout << "STL bounded binary/ASCII grammar, count, units, axis, normals and source "
                      "reports passed\n";
     } catch (const std::exception &e) {

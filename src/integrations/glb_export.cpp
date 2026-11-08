@@ -6,6 +6,7 @@
 #include "core/section_records.hpp"
 #include "core/source_credits.hpp"
 #include "io/assets.hpp"
+#include "io/format_limits.hpp"
 #include "io/texture_image.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -317,8 +318,8 @@ struct Writer {
                                                   : std::vector<Triangle>{};
             const auto count = cuts.empty() ? tessellated.size() : retained.at(face).size();
             triangles += count * (paired ? 2 : 1);
-            require(triangles <= 1000000 * DocumentLimits::scale,
-                    "GLB has too many visible triangles");
+            checkFormatCount("GLB export", "visible triangles", triangles, materializedCornerLimit,
+                             "materialized");
             auto appendSide = [&](int index, bool reverse) {
                 auto &group = groups[index];
                 const int start = group.count;
@@ -391,8 +392,8 @@ struct Writer {
                     appearance = material(color, color, false);
                     first = groups[appearance].count;
                 }
-                require(++triangles <= 1000000 * DocumentLimits::scale,
-                        "GLB has too many visible triangles");
+                checkFormatCount("GLB export", "visible triangles", ++triangles,
+                                 materializedCornerLimit, "materialized");
                 ++capTriangles;
                 auto &group = groups[appearance];
                 std::array<Vec3, 3> points{triangle.vertices[0].point, triangle.vertices[1].point,

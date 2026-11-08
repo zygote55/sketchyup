@@ -1160,6 +1160,12 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     add_executable(snapshot_glb_limits_acceptance_tests tests/snapshot_glb_limits_acceptance_tests.cpp)
     target_link_libraries(snapshot_glb_limits_acceptance_tests PRIVATE sketchyup_io)
     add_test(NAME snapshot_glb_limits_acceptance COMMAND snapshot_glb_limits_acceptance_tests)
+    # R113 (D-102, 1.9.0): the format count limits at the published limits, through export, save and
+    # reopen, with a refusal by name one past each. A slow core test (ADR 0170).
+    add_executable(format_limits_acceptance_tests tests/format_limits_acceptance_tests.cpp)
+    target_link_libraries(format_limits_acceptance_tests PRIVATE sketchyup_io)
+    add_test(NAME format_limits_acceptance COMMAND format_limits_acceptance_tests)
+    set_tests_properties(format_limits_acceptance PROPERTIES TIMEOUT 1500)
     add_executable(staging_tests tests/staging_tests.cpp)
     target_link_libraries(staging_tests PRIVATE sketchyup_io)
     target_compile_definitions(staging_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

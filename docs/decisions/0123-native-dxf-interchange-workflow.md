@@ -36,3 +36,20 @@ corrupt input, menu import/export, conversion reports, source-safe Save, native
 reopen and ordinary edge erase/undo. Platform acceptance covers Wayland/X11 at
 1×/2× plus ASan/UBSan. ADRs 0120–0122 define exact format/version limits, independent
 reference drawings and the external export consumer. No full DWG claim is made.
+
+## Implementation notes (R113)
+
+R113 (D-102) changed the DXF path. Findings and measured numbers, 2026-11-07,
+in [R113](../verification/R113-format-limits.md).
+
+- **Export.** Entities, edges and vertices take the materialized limits. A chained polyline is capped at the
+  materialized vertex limit (it was 100,001, a secondary cap below the import's own). The byte bound is 256 MiB
+  (was 64 MiB): a planar model of 893,345 segments writes 68 MB.
+- **Import.** Each entity is one body, so the entity count is bounded by the unique body limit, 10,000. Segments and
+  vertices take the unique wire and vertex limits (300,000), and a polyline over 100,000 vertices continues in the
+  next body (`Name (2)`), listed under `bodySplits`. An arc and its chords stay in one body, so its curve binds.
+  The line budget is 16 lines for each vertex and wire, which admits the limits; the byte bound is 256 MiB.
+- **Measured:** one polyline of 250,000 vertices imports as three bodies, 249,999 segments.
+- **Contract, and a finding.** A DXF written at the edge limit has about 893,000 segments, as chains of LINE and
+  LWPOLYLINE entities. Its import is refused at the entity count (10,000 bodies), so a model of that size does not
+  round-trip through DXF. This is the unique body limit, not a format cap.

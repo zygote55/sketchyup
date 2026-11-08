@@ -1,4 +1,6 @@
 #include "io/dxf_source.hpp"
+#include "core/document_limits.hpp"
+#include "io/format_limits.hpp"
 #include "io/terrain_source.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -53,6 +55,12 @@ int integer(const Tags &tags, int code, int fallback) {
     require(ok, "DXF integer is invalid");
     return value;
 }
+// Parse bounds of a DXF file (R113, D-102), sized to the unique limits. A record is one entity,
+// table entry or polyline VERTEX; a polyline's vertices are at most the unique vertex limit. A
+// record takes at most 16 group lines (a LINE with all its fields takes 16), so the line budget
+// holds 16 lines for each vertex and each wire.
+constexpr std::size_t dxfRecordLimit = DocumentLimits::unique.vertices + DocumentLimits::unique.wires;
+constexpr std::size_t dxfLineBudget = 16 * (DocumentLimits::unique.vertices + DocumentLimits::unique.wires);
 QString name(QString value) {
     require(!value.isEmpty() && value.toUtf8().size() <= 256 && !value.contains(QChar(0)),
             "DXF name exceeds supported bounds");
@@ -62,7 +70,7 @@ std::vector<Record> records(const Tags &tags) {
     std::vector<Record> result;
     for (const auto &tag : tags) {
         if (tag.code == 0) {
-            require(result.size() < 100000, "DXF section exceeds record count");
+            checkFormatCount("DXF", "records", result.size() + 1, dxfRecordLimit, "unique geometry");
             require(tag.value.size() <= 64, "DXF record type exceeds bounds");
             result.push_back({tag.value, {}});
         } else {
@@ -95,7 +103,7 @@ struct Reader {
                number(tags, 230, 1) == 1 && number(tags, 39, 0) == 0;
     }
     void segment(DxfEntity &entity, Vec3 start, Vec3 end, double bulge = 0) {
-        require(++segments <= 100000, "DXF exceeds 100000 expanded segments");
+        checkFormatCount("DXF", "segments", ++segments, DocumentLimits::unique.wires, "unique geometry");
         require(length(end - start) >= tolerance, "DXF has a collapsed segment");
         DxfSegment s{start, end, {}, 0};
         if (bulge != 0) {
@@ -181,7 +189,7 @@ struct Reader {
             const auto at = [&](double angle) {
                 return center + Vec3{std::cos(angle) * radius, std::sin(angle) * radius, 0};
             };
-            require(++segments <= 100000, "DXF exceeds 100000 segments");
+            checkFormatCount("DXF", "segments", ++segments, DocumentLimits::unique.wires, "unique geometry");
             e.segments.push_back({at(start), at(start + sweep), center, sweep});
             e.closed = type == "CIRCLE";
         } else {
@@ -228,7 +236,7 @@ struct Reader {
                     points.push_back({point(v.tags), number(v.tags, 42, 0)});
                 }
             }
-            require(points.size() >= 2 && points.size() <= 100000,
+            require(points.size() >= 2 && points.size() <= DocumentLimits::unique.vertices,
                     "DXF polyline vertex count out of bounds");
             for (const auto &p : points)
                 unsupported |= p.p.z != 0;
@@ -251,16 +259,16 @@ struct Prepared {
     int units{};
 };
 Prepared prepare(Reader &reader, const QByteArray &bytes, std::optional<double> metresPerUnit) {
-    require(!bytes.isEmpty() && bytes.size() <= 64 * 1024 * 1024 && !bytes.contains('\0'),
+    require(!bytes.isEmpty() && bytes.size() <= dxfByteLimit && !bytes.contains('\0'),
             "DXF requires bounded ASCII/UTF-8 text, not binary data");
-    require(bytes.count('\n') <= 1000001, "DXF exceeds line budget");
+    require(bytes.count('\n') <= dxfLineBudget, "DXF exceeds line budget");
     QStringDecoder decoder(QStringDecoder::Utf8);
     QString text = decoder(bytes);
     require(!decoder.hasError(), "DXF text must be valid UTF-8");
     if (text.startsWith(QChar(0xfeff)))
         text.remove(0, 1);
     const auto lines = text.split('\n');
-    require(lines.size() <= 1000002, "DXF exceeds line budget");
+    require(lines.size() <= dxfLineBudget + 1, "DXF exceeds line budget");
     Tags tags;
     for (qsizetype i = 0; i < lines.size(); i += 2) {
         if (i == lines.size() - 1 && lines[i].trimmed().isEmpty())
@@ -445,7 +453,8 @@ TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOption
             require(index + 1 < entities.size() && entities[index + 1].type == "SEQEND",
                     "DXF POLYLINE lacks SEQEND");
             ++index;
-            require(vertexRecords.size() <= 100000, "DXF polyline vertex count out of bounds");
+            require(vertexRecords.size() <= DocumentLimits::unique.vertices,
+                    "DXF polyline vertex count out of bounds");
         }
         if (integer(t, 67, 0) != 0 || field(t, 410).value_or("Model") != "Model") {
             skip(type, "paperSpace");
@@ -538,7 +547,7 @@ TerrainSourceSet parseDxfTerrain(const QByteArray &bytes, const DxfTerrainOption
                 continue;
             }
         }
-        require(points.size() >= 2 && points.size() <= 100000,
+        require(points.size() >= 2 && points.size() <= DocumentLimits::unique.vertices,
                 "DXF polyline vertex count out of bounds");
         // Bulges become chords within the chord tolerance; Z varies linearly along the arc.
         const std::size_t count = points.size();

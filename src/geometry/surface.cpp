@@ -216,9 +216,7 @@ std::vector<Edge> Surface::edges() const {
     return out;
 }
 void Surface::validate() const {
-    // The one-body limit (100,000 faces or vertices); scaled only in benchmark builds (R114).
-    if (vertices.size() > 100000 * DocumentLimits::scale ||
-        faces.size() > 100000 * DocumentLimits::scale)
+    if (vertices.size() > bodyLimit || faces.size() > bodyLimit)
         throw std::runtime_error("Surface exceeds editing limits");
     for (auto [id, p] : vertices) {
         if (id == 0 || id >= nextId || faces.contains(id))

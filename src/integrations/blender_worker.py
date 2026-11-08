@@ -330,7 +330,7 @@ def prepare_sided_glb(data):
             bp, bn, bu = attributes(groups[back])
             require(len(fp) == len(bp), 'Paired triangle count mismatch')
             count += len(fp) // 18  # Two sides, 36 bytes per triangle.
-            require(count <= 1000000, 'Too many paired triangles')
+            require(count <= 1800000, 'Too many paired triangles')  # The export's triangle cap (R113).
             # Compare actual geometry before removing anything; equal counts alone
             # must never authorize dropping unrelated surfaces.
             for start in range(0, len(fp), 36):

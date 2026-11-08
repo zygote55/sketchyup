@@ -1,4 +1,6 @@
 #include "io/obj_source.hpp"
+#include "core/document_limits.hpp"
+#include "io/format_limits.hpp"
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QRegularExpression>
@@ -11,7 +13,19 @@ void ObjImportOptions::validate() const {
         throw std::runtime_error("OBJ import requires bounded units and Y or Z up");
 }
 namespace {
-constexpr qsizetype byteLimit = 64 * 1024 * 1024, lineLimit = 64 * 1024;
+// Parse bounds that stop hostile files, sized to the unique limits (R113, D-102). A file may hold
+// up to the unique vertex records, the faces and the wires, and normal and texture records up to
+// recordLimit each: a corner may cite one of each per vertex and per face. Each bound is named
+// where it is checked, and each refuses cheaply. 128 MiB holds 300,000 vertices and faces with
+// 20-digit numbers.
+constexpr qsizetype byteLimit = 128 * 1024 * 1024, lineLimit = 64 * 1024;
+constexpr std::size_t recordLimit = DocumentLimits::unique.vertices + DocumentLimits::unique.faces;
+// A reference may cite any record, so it is bounded by the record limit.
+constexpr std::size_t indexLimit = recordLimit;
+// One physical line per record and per statement: vertices, normals, texture coordinates, faces and
+// wires.
+constexpr std::size_t lineBudget = DocumentLimits::unique.vertices + 2 * recordLimit +
+                                   DocumentLimits::unique.faces + DocumentLimits::unique.wires;
 struct Parser {
     ObjSource result;
     ObjImportOptions options;
@@ -41,7 +55,7 @@ struct Parser {
     size_t index(const QString &token, size_t available) const {
         bool ok{};
         const auto value = token.toLongLong(&ok);
-        if (!ok || !value || value > 300000 || value < -qint64(available))
+        if (!ok || !value || value > qint64(indexLimit) || value < -qint64(available))
             fail("invalid vertex reference");
         return value < 0 ? size_t(qint64(available) + value) : size_t(value - 1);
     }
@@ -84,8 +98,8 @@ struct Parser {
         text = text.trimmed();
         if (text.isEmpty())
             return;
-        if (++statementCount > 1000000)
-            fail("statement count exceeds one million");
+        if (++statementCount > lineBudget)
+            fail("statement count exceeds the OBJ line budget");
         static const QRegularExpression whitespace("\\s+");
         const auto tokens = text.split(whitespace, Qt::SkipEmptyParts);
         const auto op = tokens[0];
@@ -96,18 +110,22 @@ struct Parser {
                 fail("supported vertices have x y z and optional unit weight");
             if (tokens.size() == 5 && number(tokens[4]) != 1)
                 fail("weighted vertices are unsupported");
-            if (result.vertices.size() == 100000)
-                fail("vertex count exceeds 100000");
+            checkFormatCount("OBJ import", "vertices", result.vertices.size() + 1,
+                             DocumentLimits::unique.vertices, "unique geometry");
             result.vertices.push_back(
                 converted({number(tokens[1]), number(tokens[2]), number(tokens[3])}));
         } else if (op == "vn") {
-            if (tokens.size() != 4 || result.normals.size() == 300000)
-                fail("invalid or oversized normal list");
+            if (tokens.size() != 4)
+                fail("normal records need three components");
+            checkFormatCount("OBJ import", "normals", result.normals.size() + 1, recordLimit,
+                             "unique geometry");
             result.normals.push_back(
                 converted({number(tokens[1]), number(tokens[2]), number(tokens[3])}, true));
         } else if (op == "vt") {
-            if (tokens.size() < 2 || tokens.size() > 4 || result.textures.size() == 300000)
-                fail("invalid or oversized texture coordinate list");
+            if (tokens.size() < 2 || tokens.size() > 4)
+                fail("texture records need one to three components");
+            checkFormatCount("OBJ import", "texture coordinates", result.textures.size() + 1,
+                             recordLimit, "unique geometry");
             if (tokens.size() == 4 && number(tokens[3]) != 0)
                 fail("3D texture coordinates are unsupported");
             const auto u = number(tokens[1]), v = tokens.size() >= 3 ? number(tokens[2]) : 0;
@@ -119,8 +137,13 @@ struct Parser {
             if (tokens.size() < (wire ? 3 : 4) || tokens.size() > 257)
                 fail("face/line requires 2/3 to 256 corners");
             corners += size_t(tokens.size() - 1);
-            if (corners > 500000 || result.faces.size() + result.lines.size() >= 100000)
-                fail("element expansion exceeds limits");
+            checkFormatCount("OBJ import", "corners", corners, uniqueCornerLimit, "unique geometry");
+            if (wire)
+                checkFormatCount("OBJ import", "wires", result.lines.size() + 1,
+                                 DocumentLimits::unique.wires, "unique geometry");
+            else
+                checkFormatCount("OBJ import", "faces", result.faces.size() + 1,
+                                 DocumentLimits::unique.faces, "unique geometry");
             std::vector<ObjCorner> refs;
             for (qsizetype i = 1; i < tokens.size(); ++i)
                 refs.push_back(corner(tokens[i], wire));
@@ -207,8 +230,8 @@ ObjSource parseObj(const QByteArray &bytes, ObjImportOptions options) {
         if (end < 0)
             end = text.size();
         ++parser.line;
-        if (parser.line > 1000000)
-            parser.fail("physical line count exceeds one million");
+        if (parser.line > lineBudget)
+            parser.fail("physical line count exceeds the OBJ line budget");
         auto physical = text.mid(offset, end - offset).trimmed();
         offset = end + 1;
         if (parser.line == 1 && physical.startsWith(QChar(0xfeff)))

@@ -1,5 +1,8 @@
 #include "io/stl_import.hpp"
+#include "core/document_limits.hpp"
 #include "geometry/diagnostics.hpp"
+#include "io/body_budget.hpp"
+#include "io/format_limits.hpp"
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -30,7 +33,11 @@ struct Builder {
         std::map<PointKey, Id> exact;
         std::map<GridKey, std::vector<Id>> grid;
     };
-    std::map<size_t, Mesh> meshes;
+    // Every body in creation order. A solid over the one-body limit continues in its next body
+    // (R113, D-102); `current` is the body that takes the solid's next facet.
+    std::vector<Mesh> meshes;
+    std::map<size_t, size_t> current;
+    std::map<size_t, size_t> pieces;
     size_t vertices{}, welded{}, discarded{}, faces{}, moved{};
     Builder(const StlSource &input, StlRepairOptions options) : source(input), repairs(options) {}
     GridKey cell(Vec3 p) const {
@@ -38,8 +45,8 @@ struct Builder {
                 std::int64_t(std::floor(p.y / repairs.toleranceMetres)),
                 std::int64_t(std::floor(p.z / repairs.toleranceMetres))};
     }
-    Id vertex(Mesh &mesh, Vec3 p) {
-        checkPoint(p);
+    // The vertex that the weld joins p to, or 0 when p is a new vertex of the body.
+    Id existing(const Mesh &mesh, Vec3 p) const {
         const PointKey key{p.x, p.y, p.z};
         Id found{};
         if (repairs.weld == StlWeld::Exact && mesh.exact.contains(key))
@@ -62,13 +69,20 @@ struct Builder {
                         }
                     }
         }
+        return found;
+    }
+    Id vertex(Mesh &mesh, Vec3 p) {
+        checkPoint(p);
+        const PointKey key{p.x, p.y, p.z};
+        const auto found = existing(mesh, p);
         if (found) {
             ++welded;
             if (mesh.body->surface.vertices.at(found) != p)
                 ++moved;
             return found;
         }
-        require(++vertices <= 100000, "Expanded STL exceeds 100000 native vertices");
+        checkFormatCount("STL import", "vertices", ++vertices, DocumentLimits::unique.vertices,
+                         "unique geometry");
         const auto id = mesh.body->surface.nextId++;
         mesh.body->surface.vertices[id] = p;
         if (repairs.weld == StlWeld::Exact)
@@ -76,6 +90,30 @@ struct Builder {
         if (repairs.weld == StlWeld::Tolerance)
             mesh.grid[cell(p)].push_back(id);
         return id;
+    }
+    // The body that takes a facet with these corners: the solid's open body when the facet fits
+    // under the one-body limits (a corner that the weld does not join is a new vertex), or a new
+    // body that continues the solid. Each triangle has three edges.
+    Mesh &placement(size_t solid, const std::array<Vec3, 3> &corners) {
+        const auto open = current.find(solid);
+        if (open != current.end()) {
+            auto &mesh = meshes.at(open->second);
+            const auto &surface = mesh.body->surface;
+            size_t fresh = 0;
+            for (const auto &p : corners)
+                fresh += existing(mesh, p) == 0;
+            if (BodyBudget{surface.faces.size(), surface.vertices.size(),
+                           3 * surface.faces.size()}
+                    .admits(1, fresh, 3))
+                return mesh;
+        }
+        const auto piece = ++pieces[solid];
+        auto body = std::make_shared<Body>();
+        body->id = meshes.size() + 1;
+        body->name = continuedBodyName(source.solids[qsizetype(solid)].toStdString(), piece);
+        meshes.push_back(Mesh{body, {}, {}});
+        current[solid] = meshes.size() - 1;
+        return meshes.back();
     }
     bool degenerate(const std::array<Vec3, 3> &p) const {
         const std::array<double, 3> lengths{length(p[1] - p[0]), length(p[2] - p[1]),
@@ -95,7 +133,7 @@ struct Builder {
     }
     StlImport run() {
         repairs.validate();
-        require(!source.facets.empty() && source.facets.size() <= 100000 &&
+        require(!source.facets.empty() && source.facets.size() <= DocumentLimits::unique.faces &&
                     source.solids.size() > 0 && source.solids.size() <= 256,
                 "STL conversion source exceeds bounds");
         for (const auto &facet : source.facets) {
@@ -104,13 +142,7 @@ struct Builder {
                 checkPoint(p);
             if (discard(degenerate(facet.vertices)))
                 continue;
-            if (!meshes.contains(facet.solid)) {
-                auto body = std::make_shared<Body>();
-                body->id = meshes.size() + 1;
-                body->name = source.solids[qsizetype(facet.solid)].toStdString();
-                meshes.emplace(facet.solid, Mesh{body, {}, {}});
-            }
-            auto &mesh = meshes.at(facet.solid);
+            auto &mesh = placement(facet.solid, facet.vertices);
             auto &surface = mesh.body->surface;
             const std::array<Id, 3> ids{vertex(mesh, facet.vertices[0]),
                                         vertex(mesh, facet.vertices[1]),
@@ -127,8 +159,7 @@ struct Builder {
         require(faces > 0, "STL contains no retained native facets");
         QJsonArray geometry;
         size_t retainedVertices{};
-        for (auto &[solid, mesh] : meshes) {
-            (void)solid;
+        for (auto &mesh : meshes) {
             auto &body = *mesh.body;
             auto &surface = body.surface;
             if (surface.faces.empty())
@@ -192,11 +223,19 @@ struct Builder {
                 QJsonObject{{"code", "vendorAttributesOmitted"},
                             {"count", source.report["nonzeroAttributeWords"]},
                             {"message", "Nonstandard STL attribute/color words are omitted."}});
+        // A solid over the one-body limit is in more than one body; its facets on either side of
+        // the split share no vertices, so shading across the split is not smooth (R113, D-102).
+        QJsonArray bodySplits;
+        for (const auto &[solid, count] : pieces)
+            if (count > 1)
+                bodySplits.append(QJsonObject{{"name", source.solids[qsizetype(solid)]},
+                                              {"bodies", qint64(count)}});
         result.report = {{"apiVersion", 1},
                          {"source", source.report},
                          {"facets", qint64(faces)},
                          {"vertices", qint64(retainedVertices)},
                          {"bodies", qint64(result.document.bodies().size())},
+                         {"bodySplits", bodySplits},
                          {"weld", repairs.weld == StlWeld::None    ? "none"
                                   : repairs.weld == StlWeld::Exact ? "exact"
                                                                    : "tolerance"},
@@ -219,9 +258,9 @@ StlImport loadStl(const QString &path, StlCoordinateOptions coordinates, StlRepa
     repairs.validate();
     const QFileInfo info(path);
     QFile file(path);
-    require(info.isFile() && info.size() <= 64 * 1024 * 1024 && file.open(QIODevice::ReadOnly),
-            "STL requires a readable regular file of at most 64 MiB");
-    const auto bytes = file.read(64 * 1024 * 1024 + 1);
+    require(info.isFile() && info.size() <= 128 * 1024 * 1024 && file.open(QIODevice::ReadOnly),
+            "STL requires a readable regular file of at most 128 MiB");
+    const auto bytes = file.read(128 * 1024 * 1024 + 1);
     require(file.error() == QFileDevice::NoError, "Cannot capture STL source");
     return importStl(parseStl(bytes, coordinates), repairs);
 }

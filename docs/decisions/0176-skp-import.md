@@ -797,3 +797,21 @@ D-070 is a test defect (PR #519): case S8 of `skp_import_dialog_tests` could mis
 - SDK licence questions: <https://forums.sketchup.com/t/is-the-sketchup-sdk-free-to-use-for-me/220079>,
   <https://forums.sketchup.com/t/exporter-dlls-redistributable/41874>.
 - The spike's notes: `.local/briefs/skp-research.md` (local).
+
+## Implementation notes (R113)
+
+R113 (D-102) changed the `.skp` import's limits. Findings and measured numbers, 2026-11-07,
+in [R113](../verification/R113-format-limits.md).
+
+- **Contradicts the caps paragraph above.** A definition over 100,000 faces is no longer refused by element. A mesh
+  over the one-body limit continues in another body, named `Name (2)`, in the same bucket (tag and visibility), and
+  the report lists it under `bodySplits`. Faces past the limit were dropped before. Loose edges split the same way.
+  The document and component definition limits still refuse what they refuse.
+- **The definition count (reproduced).** A file with 1,100 definitions (synthetic copies of a fixture's definition)
+  was refused with `Invalid component definition allocator or count`, the generic failure the brief predicted. The
+  document takes 1,024 definitions besides its root (`componentDefinitionCountLimit`). The import now keeps the first
+  1,024, omits the rest, counts them in the notices as `definitionLimit` and the accounting, and omits the placements
+  of them. The counted = imported + omitted identity holds.
+- **Measured:** 150,152 faces in one bucket import as two bodies, every face kept.
+- **Contract:** the package's own bounds (100,000 definitions, 65,536 loop vertices) are unchanged; they are hostile-input
+  bounds.

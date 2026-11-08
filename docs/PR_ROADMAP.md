@@ -1610,7 +1610,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R113 — Bring every file format up to the published model limits
 
-**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)).
+**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)). The branch `feat/r113-format-caps` implements it, and the measurements are in [R113](verification/R113-format-limits.md): exports take the materialized limits and imports the unique limits; a mesh over the one-body limit continues in another body; the `.skp` definition count is named and counted; the OBJ import's quadratic hot spot is fixed; the GLB triangle cap moves to 1,800,000, with the Blender worker's bound; the STEP output bound stays at 256 MiB, because a raised bound did not let the helper finish a model of 300,000 distinct faces. That and the undo budget's refusal of a large glTF import are [D-103](verification/R089a-defect-triage.md), still open. The status becomes Verified when the pull request is reviewed and merged.
 
 **Requires:** [R110](#r110), [R112](#r112).
 
@@ -1622,7 +1622,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R114 — Measure the model limits on real hardware
 
-**Status:** In progress. The owner approved using the GPU PC on 2026-11-07, and the measurements are recorded in [R114-hardware-limits](verification/R114-hardware-limits.md) (JSON beside it). Within the frame and edit budgets: 10,000 placements, 2.4 million unique faces, 512 MiB of textures; within the frame budget only: 800,000 faces in one body, 27 placements of a 176,000-face definition, 1,024 definitions. No product limit changes. The 300,000-face tier answers [D-091](verification/R089a-defect-triage.md), which it closes for the AMD GPU. The results also found D-104 to D-107.
+**Status:** Done ([PR #583](https://github.com/zygote55/sketchyup/pull/583)). The owner approved using the GPU PC on 2026-11-07, and the measurements are recorded in [R114-hardware-limits](verification/R114-hardware-limits.md) (JSON beside it). Within the frame and edit budgets: 10,000 placements, 2.4 million unique faces, 512 MiB of textures; within the frame budget only: 800,000 faces in one body, 27 placements of a 176,000-face definition, 1,024 definitions. No product limit changes. The 300,000-face tier answers [D-091](verification/R089a-defect-triage.md), which it closes for the AMD GPU. The results also found [D-104 to D-107](verification/R089a-defect-triage.md), owned by R115, [R117](#r117) and [R118](#r118). Binary storage is not justified ([R116](#r116)).
 
 **Requires:** nothing merged; it measures `main`.
 
@@ -1634,7 +1634,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R115 — Raise the placed-face and texture limits
 
-**Status:** Planned, waiting on [R114](#r114). The owner agreed to the raise on 2026-11-07; the numbers come from R114's measurements. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md) and [D-100](verification/R089a-defect-triage.md) if the new budget covers them.
+**Status:** Planned; [R114](verification/R114-hardware-limits.md#recommendations) has measured the numbers. The owner agreed to the raise on 2026-11-07. The plan is about eight times today's values, the largest tiers R114 ran: 2.4 million unique faces, 4.8 million placed faces, 80,000 placements, 800,000 faces in one body and in one definition, 512 MiB of stored textures, a 768 MiB model chunk and a 4 GiB undo budget. The 1,024-definition limit stays for [R117](#r117), and the viewport's decoded-texture budget is [R118](#r118). At-limit runs happen on the GPU PC; CI keeps today's model sizes. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md), [D-100](verification/R089a-defect-triage.md) and the undo-budget part of [D-103](verification/R089a-defect-triage.md) if the new budgets cover them, and the budget part of [D-104](verification/R089a-defect-triage.md).
 
 **Requires:** [R113](#r113), [R114](#r114).
 
