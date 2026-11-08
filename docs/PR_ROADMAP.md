@@ -1646,6 +1646,22 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 **Requires:** [R114](#r114).
 
+<a id="r117"></a>
+
+#### R117 — Fast edits on large models, and push/pull on large bodies
+
+**Status:** Planned. [R114](verification/R114-hardware-limits.md) found that every edit pays for every component definition: moving one placement takes about 258 ms with one 176,000-face definition and 268 ms with 1,024 small ones, against a 100 ms budget ([D-107](verification/R089a-defect-triage.md)). Creating definitions is superlinear: 1,024 took 533 s and 4,096 did not finish in 30 minutes. A definition edit charges the records of every placement to the undo budget, which may be more than the history retains ([D-104](verification/R089a-defect-triage.md)). Push/pull refuses any body above 1,000 faces, and its overlap checks compare every pair of faces ([D-106](verification/R089a-defect-triage.md)). R117 profiles and fixes the edit path, makes definition creation near-linear, makes the history charge match what is retained, makes the push/pull checks near-linear and removes the 1,000-face limit. It then raises the 1,024-definition limit to the largest count measured within the budgets.
+
+**Requires:** [R114](#r114).
+
+<a id="r118"></a>
+
+#### R118 — Viewport textures past the decoded budget
+
+**Status:** Planned. The viewport holds at most 128 MiB of decoded textures and 128 images, so a model inside the stored-texture limit shows placeholders: eight 2048 × 2048 images or two 4096 × 4096 images fill it ([D-105](verification/R089a-defect-triage.md), [R114](verification/R114-hardware-limits.md) item 8). R118 raises the budget and, past it, shows textures at a lower resolution instead of placeholders, so every texture inside the stored limit displays. It is measured on the GPU PC at the stored-texture limit that [R115](#r115) sets.
+
+**Requires:** [R115](#r115).
+
 #### 1.5 follow-ups from the 1.4.0 decisions
 
 Recorded 2026-10-28 from the owner's decisions on the 1.4.0 release documents. None of these is in 1.4.0. Each is a row for the 1.5 plan:
