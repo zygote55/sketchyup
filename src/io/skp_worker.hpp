@@ -13,6 +13,10 @@
 
 namespace sketchy {
 
+// The largest SketchUp file the import reads (R115: 2 GiB, eight times the R102 value of 256 MiB). The
+// helper, the application's refusal and its message all read this constant.
+inline constexpr std::uint64_t skpWorkerFileLimit = 2048ull * 1024 * 1024;
+
 // The helper's RLIMIT_AS (ADR 0176 section 1.6). The sanitizer and fuzzer builds have none: ASan maps
 // more address space than the 4 GiB ceiling, so the helper and this default agree on zero there.
 #ifdef SKP_WORKER_NO_ADDRESS_LIMIT

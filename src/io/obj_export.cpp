@@ -18,9 +18,9 @@
 namespace sketchy {
 namespace {
 // The text of one OBJ file, and of the package's files together (R113, D-102). A model at the
-// materialized face limit (600,000 faces) measured 54 MB of OBJ, so 64 MiB refused the limits; the
-// bound is the native file bound, 256 MiB.
-constexpr std::size_t objTextLimit = 256 * 1024 * 1024;
+// materialized face limit (600,000 faces) measured 54 MB of OBJ, so 64 MiB refused the limits. R113
+// set 256 MiB; R115 sets 2 GiB, eight times that, for the 4,800,000-face materialized limit.
+constexpr std::size_t objTextLimit = 2048ull * 1024 * 1024, objDecodedTextureLimit = 2048ull * 1024 * 1024;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -77,7 +77,7 @@ struct Writer {
                 loss("unsupportedTextures");
             else {
                 decodedBytes += decoded.image->rgba().size();
-                require(decodedBytes <= 256 * 1024 * 1024,
+                require(decodedBytes <= objDecodedTextureLimit,
                         "OBJ export exceeds decoded texture budget");
                 const auto &bytes = asset.payload->bytes();
                 textureBytes += bytes.size();

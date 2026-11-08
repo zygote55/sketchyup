@@ -29,7 +29,9 @@ QByteArray encodeComponentBundle(const Document &source, Id definition,
 ComponentBundle decodeComponentBundle(const QByteArray &bytes);
 ComponentBundle loadComponentBundle(const QString &path);
 void writeComponentBundle(const QByteArray &bytes, const QString &newPath);
-inline constexpr qsizetype libraryBundleLimit = 130 * 1024 * 1024;
+// A library bundle holds component definitions, so it takes eight times its R112 value (130 MiB) in R115: a
+// definition of 800,000 faces is about 180 MB.
+inline constexpr qsizetype libraryBundleLimit = 1040LL * 1024 * 1024;
 QByteArray encodeTemplateBundle(const Document &source, const TemplateMetadata &metadata,
                                 const QByteArray &thumbnailPng);
 TemplateBundle decodeTemplateBundle(const QByteArray &bytes);

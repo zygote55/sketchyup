@@ -24,6 +24,14 @@ class WorkerError(Exception):
 VIDEO_FRAME_LIMIT = 240
 VIDEO_OUTPUT_LIMIT = 512 * 1024 * 1024
 FRAME_IMAGE_LIMIT = 64 * 1024 * 1024
+# The GLB bounds (R115): the same numbers as src/integrations/glb_export.hpp, eight times the R113
+# values where those were bytes. The corner bound is three indices for each triangle of the
+# materialized corner limit (2 x 7,200,000 edges = 14,400,000 triangles).
+GLB_BINARY_LIMIT = 2048 * 1024 * 1024
+GLB_JSON_LIMIT = 128 * 1024 * 1024
+GLB_MANIFEST_LIMIT = 1536 * 1024 * 1024
+GLB_CORNER_LIMIT = 3 * 2 * 7200000
+GLB_BLEND_LIMIT = 2048 * 1024 * 1024
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 # The text chunks Blender writes into a PNG: the date, the times and the Cycles statistics.
 PNG_TEXT_CHUNKS = (b'tEXt', b'zTXt', b'iTXt')
@@ -170,10 +178,10 @@ def prepare_sided_glb(data):
         if not condition:
             raise WorkerError('invalid_snapshot', message)
 
-    require(28 <= len(data) <= 256 * 1024 * 1024, 'Invalid GLB length')
+    require(28 <= len(data) <= GLB_BINARY_LIMIT, 'Invalid GLB length')
     magic, version, length, json_size, json_type = struct.unpack_from('<5I', data)
     require((magic, version, length, json_type) == (0x46546c67, 2, len(data), 0x4e4f534a)
-            and json_size <= 16 * 1024 * 1024 and json_size % 4 == 0
+            and json_size <= GLB_JSON_LIMIT and json_size % 4 == 0
             and json_size + 28 <= len(data), 'Invalid GLB header')
     root = json.loads(data[20:20 + json_size])
     binary_size, binary_type = struct.unpack_from('<2I', data, 20 + json_size)
@@ -215,7 +223,8 @@ def prepare_sided_glb(data):
             require(0 < width <= 4096 and 0 < height <= 4096 and depth == 8,
                     'Texture PNG exceeds supported dimensions or depth')
             image_pixels += width * height * 4
-            require(image_pixels <= 256 * 1024 * 1024, 'Decoded texture images exceed 256 MiB')
+            require(image_pixels <= GLB_BINARY_LIMIT,
+                    'Decoded texture images exceed %d MiB' % (GLB_BINARY_LIMIT // (1024 * 1024)))
             images[index] = pixels
         samplers = root.get('samplers', [])
         require(type(samplers) is list and len(samplers) <= 1024, 'Invalid texture sampler table')
@@ -278,7 +287,7 @@ def prepare_sided_glb(data):
         require(type(index) is int and 0 <= index < len(accessors), 'Invalid paired accessor')
         accessor = accessors[index]
         count, view_index = accessor.get('count'), accessor.get('bufferView')
-        require(type(count) is int and 0 < count <= 3000000 and count % 3 == 0
+        require(type(count) is int and 0 < count <= GLB_CORNER_LIMIT and count % 3 == 0
                 and accessor.get('componentType') == 5126
                 and accessor.get('type') == ('VEC2' if dimensions == 2 else 'VEC3')
                 and not accessor.get('sparse') and not accessor.get('normalized')
@@ -348,7 +357,7 @@ def prepare_sided_glb(data):
                     reordered[start+8:start+16] = bu[start+16:start+24]
                     reordered[start+16:start+24] = bu[start+8:start+16]
                 offset = len(binary) + len(extra)
-                require(offset + len(reordered) <= 256 * 1024 * 1024,
+                require(offset + len(reordered) <= GLB_BINARY_LIMIT,
                         'Derived UV buffers exceed GLB bound')
                 views.append({'buffer': 0, 'byteOffset': offset,
                               'byteLength': len(reordered), 'target': 34962})
@@ -366,12 +375,12 @@ def prepare_sided_glb(data):
     root['buffers'][0]['byteLength'] = len(binary) + len(extra)
     encoded = json.dumps(root, separators=(',', ':'), allow_nan=False).encode('utf-8')
     encoded += b' ' * (-len(encoded) % 4)
-    require(len(encoded) <= 16 * 1024 * 1024, 'Derived GLB JSON exceeds its bound')
+    require(len(encoded) <= GLB_JSON_LIMIT, 'Derived GLB JSON exceeds its bound')
     converted = (struct.pack('<5I', magic, version, len(encoded) + binary_size + len(extra) + 28,
                              len(encoded), json_type) + encoded
                  + struct.pack('<2I', binary_size + len(extra), binary_type)
                  + binary.tobytes() + extra)
-    require(len(converted) <= 256 * 1024 * 1024, 'Derived GLB exceeds its bound')
+    require(len(converted) <= GLB_BINARY_LIMIT, 'Derived GLB exceeds its bound')
     return converted, colors
 
 
@@ -598,11 +607,11 @@ def rendered_camera(camera):
 def render(request, directory):
     source = Path(request['sourceDirectory'])
     # The manifest bound (R099.f): must equal glbManifestByteLimit in glb_export.hpp.
-    manifest, manifest_bytes = load_json(source / 'manifest.json', 192 * 1024 * 1024)
+    manifest, manifest_bytes = load_json(source / 'manifest.json', GLB_MANIFEST_LIMIT)
     if sha(manifest_bytes) != request['manifestSha256']:
         raise WorkerError('invalid_snapshot', 'Snapshot manifest changed')
     scene_path = source / 'scene.glb'
-    if scene_path.is_symlink() or not scene_path.is_file() or scene_path.stat().st_size > 256 * 1024 * 1024:
+    if scene_path.is_symlink() or not scene_path.is_file() or scene_path.stat().st_size > GLB_BINARY_LIMIT:
         raise WorkerError('invalid_snapshot', 'Expected a bounded regular GLB file')
     scene_bytes = scene_path.read_bytes()
     if sha(scene_bytes) != manifest['scene']['sha256'] or len(scene_bytes) != manifest['scene']['bytes']:
@@ -689,7 +698,7 @@ def render(request, directory):
             'notice': 'Edits in Blender do not update the native SketchyUp model.'}, sort_keys=True))
         path = directory / 'scene.blend'
         bpy.ops.wm.save_as_mainfile(filepath=str(path), check_existing=False, compress=False)
-        if path.is_symlink() or not path.is_file() or not 17 < path.stat().st_size <= 512 * 1024 * 1024:
+        if path.is_symlink() or not path.is_file() or not 17 < path.stat().st_size <= GLB_BLEND_LIMIT:
             raise WorkerError('handoff_error', 'Blender did not save a bounded scene')
         data = path.read_bytes()
         return {**common, 'sceneFile': {'file': 'scene.blend', 'bytes': len(data),

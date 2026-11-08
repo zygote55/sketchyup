@@ -42,7 +42,7 @@ QByteArray read(const QString &path) {
         throw std::runtime_error(file.errorString().toStdString());
     if (file.size() > fileLimit)
         throw std::runtime_error("File exceeds supported container size");
-    auto bytes = file.read(fileLimit + 1);
+    auto bytes = file.read(qMin(file.size(), qint64(fileLimit)) + 1);
     if (file.error() != QFileDevice::NoError || bytes.size() > fileLimit)
         throw std::runtime_error("Could not read bounded document file");
     return bytes;

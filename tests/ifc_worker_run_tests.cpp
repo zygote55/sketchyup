@@ -273,9 +273,9 @@ int main(int argc, char **argv) {
             clock.start();
             const auto big = QDir(scratch.path()).filePath("big.ifc");
             QFile file(big);
-            check(file.open(QIODevice::WriteOnly) && file.resize(qint64(128) * 1024 * 1024 + 1), "a sparse 128 MiB + 1 byte file");
+            check(file.open(QIODevice::WriteOnly) && file.resize(qint64(1024) * 1024 * 1024 + 1), "a sparse 1 GiB + 1 byte file");
             file.close();
-            check(code(big) == "tooLarge", "I1: a file over 128 MiB is refused");
+            check(code(big) == "tooLarge", "I1: a file over 1 GiB is refused");
             check(clock.elapsed() < 1000, "I1: and quickly");
             QFile::remove(big);
         }

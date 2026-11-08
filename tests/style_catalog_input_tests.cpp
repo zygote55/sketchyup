@@ -497,8 +497,8 @@ void openCatalogFile(Window &window, const QTemporaryDir &files,
               "The refusal says first that nothing is listed");
         openFile("huge.sketchycat");
         auto *big = group(*list, "huge.sketchycat · could not be read");
-        check(big, "A file over 130 MiB is listed as refused");
-        checkText(big->child(0)->text(2), "130 MiB", "The refusal names the limit");
+        check(big, "A file over the library limit is listed as refused");
+        checkText(big->child(0)->text(2), "1040 MiB", "The refusal names the limit");
     });
 }
 
@@ -1931,7 +1931,7 @@ void importRefusals() {
         QByteArray header(24, '\0');
         std::copy_n("SKYLIB\0\1", 8, header.begin());
         qToLittleEndian<quint32>(2, header.data() + 8);
-        qToLittleEndian<quint64>(quint64(17) * 1024 * 1024, header.data() + 12);
+        qToLittleEndian<quint64>(quint64(65) * 1024 * 1024, header.data() + 12); // over the 64 MiB asset limit (R115)
         write(huge, header + QByteArray("{}"));
     }
 
@@ -1972,7 +1972,7 @@ void importRefusals() {
     refuse(gif, "Import style refused.", "not an image SketchyUp can read");
     refuse(catalog, "This file is a catalog, not a style.", "not imported as a style");
     refuse(wide, "Import style refused.", "outside 1 to 8 px");
-    refuse(huge, "Import refused: the texture is too large.", "17.0 MiB");
+    refuse(huge, "Import refused: the texture is too large.", "65.0 MiB");
     refuse(bad, "Import style refused.", "not a style SketchyUp can read");
     check(folder.isValid() && QDir(folder.path()).entryList({"*.sketchystyle"}).isEmpty(),
           "Refusals write nothing to the library");

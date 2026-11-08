@@ -103,7 +103,7 @@
 namespace sketchyup::ifc {
 namespace {
 
-const long long kMaxInputBytes = 128ll * 1024 * 1024;  // the application's input bound
+const long long kMaxInputBytes = 1024ll * 1024 * 1024;  // the application's input bound
 const double kCoordinateLimit = 1e6;  // metres (the package's coordinate bound, ADR 0172 §6)
 const double kDegenerateArea = 1e-12;  // m^2: a triangle this small is counted, not hidden
 const double kPi = 3.14159265358979323846;

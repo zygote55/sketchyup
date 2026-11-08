@@ -9,8 +9,11 @@ namespace sketchy {
 // RGB is sRGB, and alpha is linear coverage. Original managed bytes stay intact.
 class TextureImage {
   public:
-    static constexpr int dimensionLimit = 4096;
-    static constexpr size_t byteLimit = 64 * 1024 * 1024;
+    // R115 (2026-11-07): 8192 by 8192, the largest image a 64 MiB asset can hold in a PNG, which is the
+    // largest asset (AssetPayload::limit). Decoded RGBA is 256 MiB at that size, and the viewport's
+    // decoded budget (R118) does not hold one such image yet.
+    static constexpr int dimensionLimit = 8192;
+    static constexpr size_t byteLimit = size_t(dimensionLimit) * size_t(dimensionLimit) * 4;
     TextureImage(int width, int height, std::vector<std::uint8_t> rgba);
     int width() const { return width_; }
     int height() const { return height_; }

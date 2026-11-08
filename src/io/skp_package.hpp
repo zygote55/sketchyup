@@ -15,9 +15,9 @@
 
 namespace sketchy {
 struct SkpPackageLimits {
-  static constexpr std::size_t manifestBytes = 32 * 1024 * 1024;
-  static constexpr std::size_t geometryBytes = 256 * 1024 * 1024;
-  static constexpr std::size_t textureChunkBytes = 256 * 1024 * 1024;
+  static constexpr std::size_t manifestBytes = 256 * 1024 * 1024;
+  static constexpr std::size_t geometryBytes = 2048ull * 1024 * 1024;
+  static constexpr std::size_t textureChunkBytes = 2048ull * 1024 * 1024;
   static constexpr std::size_t headerBytes = 32;
   static constexpr std::size_t definitions = 100000;
   static constexpr std::size_t vertices = 5000000;  // the model, total
@@ -29,7 +29,7 @@ struct SkpPackageLimits {
   static constexpr std::size_t materials = 65536;
   static constexpr std::size_t tags = 65536;
   static constexpr std::size_t textures = 4096;
-  static constexpr std::size_t perTextureBytes = 16 * 1024 * 1024;  // one image
+  static constexpr std::size_t perTextureBytes = 64 * 1024 * 1024;  // one image
   static constexpr std::size_t textureDimension = 4096;  // after decoding
   static constexpr std::size_t stringBytes = 64 * 1024;
   static constexpr std::size_t nameBytes = 4096;

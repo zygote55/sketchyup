@@ -44,15 +44,20 @@
 #include <vector>
 namespace sketchy {
 struct IfcPackageLimits {
-    static constexpr std::size_t manifestBytes = 32 * 1024 * 1024;
-    static constexpr std::size_t meshBytes = 128 * 1024 * 1024;
+    // R115: the byte bounds are eight times their R113 values (32 MiB and 128 MiB), and the geometry
+    // counts are sized for the materialized limits (320,000 bodies and 80,000 placements, 800,000
+    // faces in one body, 4,800,000 placed faces).
+    static constexpr std::size_t manifestBytes = 256 * 1024 * 1024;
+    static constexpr std::size_t meshBytes = 1024 * 1024 * 1024;
     static constexpr std::size_t headerBytes = 24;
-    static constexpr std::size_t nodes = 400000;
-    static constexpr std::size_t meshes = 200000;
+    static constexpr std::size_t nodes = 800000;
+    static constexpr std::size_t meshes = 800000;
     static constexpr std::size_t materials = 65536;
-    // The kernel's own bounds (ADR 0171 section 6.4): 100,000 triangles per element, 1,000,000 in all.
-    static constexpr std::size_t meshTriangles = 100000;
-    static constexpr std::size_t totalTriangles = 1000000;
+    // The kernel's own bounds (ADR 0171 section 6.4): 1,600,000 triangles per element (two for each
+    // face of the one-body limit), 10,000,000 in all (two for each face of the materialized limit,
+    // rounded up). R115, from 100,000 and 1,000,000.
+    static constexpr std::size_t meshTriangles = 1600000;
+    static constexpr std::size_t totalTriangles = 10000000;
     static constexpr std::size_t meshVertices = 3 * meshTriangles;
     static constexpr std::size_t nodeProperties = 20000;
     static constexpr std::size_t nodeProvenance = 64;

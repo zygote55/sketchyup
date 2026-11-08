@@ -20,13 +20,21 @@
 #include <limits>
 namespace sketchy {
 namespace {
-// Scaled with the benchmark-only limit scale (R114); the published values at scale 1.
-constexpr qsizetype binaryLimit = 256 * 1024 * 1024 * DocumentLimits::scale,
-                    jsonLimit = 16 * 1024 * 1024 * DocumentLimits::scale;
+// Scaled with the benchmark-only limit scale (R114); the published values at scale 1. R115 (from
+// 256 MiB and 16 MiB) multiplies each GLB bound by eight. The binary bound is 2 GiB, below the 4 GiB
+// that a 32-bit glTF chunk length can hold.
+constexpr qsizetype binaryLimit = 2048LL * 1024 * 1024 * DocumentLimits::scale,
+                    jsonLimit = 128LL * 1024 * 1024 * DocumentLimits::scale;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
 }
+void require(bool ok, const std::string &message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+// A bound in MiB for a message, computed from the constant (the messages used to print 256 and 16).
+std::string mib(qsizetype bytes) { return std::to_string(bytes / (1024 * 1024)) + " MiB"; }
 // The bound is stated from its constant, so the message and the limit cannot disagree (R112).
 [[noreturn]] void manifestTooLarge() {
     throw std::runtime_error("GLB manifest exceeds " +
@@ -119,7 +127,7 @@ struct Writer {
         : snapshot(snapshot), doc(snapshot.document()), visibleFaceBudget(visibleFaces) {}
     int buffer(const QByteArray &data, bool attributes) {
         aligned(binary, 0);
-        require(data.size() <= binaryLimit - binary.size(), "GLB binary exceeds 256 MiB");
+        require(data.size() <= binaryLimit - binary.size(), "GLB binary exceeds " + mib(binaryLimit));
         QJsonObject view{
             {"buffer", 0}, {"byteOffset", int(binary.size())}, {"byteLength", int(data.size())}};
         if (attributes)
@@ -158,7 +166,7 @@ struct Writer {
         if (decoded.image) {
             const auto &image = *decoded.image;
             require(image.rgba().size() <= size_t(binaryLimit) - decodedImageBytes,
-                    "GLB decoded texture images exceed 256 MiB");
+                    "GLB decoded texture images exceed " + mib(binaryLimit));
             decodedImageBytes += image.rgba().size();
             const auto png = encodeTexturePng(image);
             result.texture = textures.size();
@@ -294,7 +302,7 @@ struct Writer {
                 require(++faces <= visibleFaceBudget, "GLB has too many visible faces");
             for (const auto &loop : record.loops) {
                 references += loop.size();
-                require(references <= 2000000 * DocumentLimits::scale,
+                require(references <= 16000000 * DocumentLimits::scale,
                         "GLB has too many face vertices");
             }
             if (!cuts.empty() && !retained.contains(face))
@@ -601,10 +609,10 @@ struct Writer {
                 {"magFilter", 9729}, {"minFilter", 9729}, {"wrapS", 10497}, {"wrapT", 10497}}};
         }
         auto json = QJsonDocument(gltf).toJson(QJsonDocument::Compact);
-        require(json.size() <= jsonLimit, "GLB JSON exceeds 16 MiB");
+        require(json.size() <= jsonLimit, "GLB JSON exceeds " + mib(jsonLimit));
         aligned(json, ' ');
         aligned(binary, 0);
-        require(json.size() + binary.size() + 28 <= binaryLimit, "GLB export exceeds 256 MiB");
+        require(json.size() + binary.size() + 28 <= binaryLimit, "GLB export exceeds " + mib(binaryLimit));
         QByteArray glb;
         glb.reserve(json.size() + binary.size() + 28);
         word(glb, 0x46546c67);

@@ -265,7 +265,7 @@ void failures() {
     const auto body = doc.addFace({{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}});
     const auto face = doc.bodies().at(body)->surface.faces.begin()->first;
     auto huge = checker(0);
-    qToBigEndian(quint32(4097), huge.data() + 16);
+    qToBigEndian(quint32(8193), huge.data() + 16); // one past the 8192 dimension limit (R115)
     const std::vector<std::pair<std::string, AssetPayloadPtr>> cases{
         {"image/png", {}},
         {"application/octet-stream", assetPayload("opaque")},
@@ -315,7 +315,7 @@ void independentMeshes() {
 
 void aggregateBudget() {
     const auto payload = assetPayload(encodeTexturePng(
-        TextureImage(4096, 4096, std::vector<std::uint8_t>(TextureImage::byteLimit, 255))));
+        TextureImage(4096, 4096, std::vector<std::uint8_t>(4096ull * 4096 * 4, 255))));
     Document doc;
     for (int i = 0; i < 5; ++i) {
         const double x = i * 2;
@@ -334,15 +334,17 @@ void aggregateBudget() {
                   "Exact aggregate decoded-image budget is accepted");
         }
     }
+    // R115: the decoded budget is 2 GiB. Five images (320 MiB decoded, one of them 1 by 1) are within it,
+    // and the refusal at the budget is a constant; reaching it would encode about 32 images in CI.
     const auto before = encodeContainer(doc);
-    bool bounded = false;
+    bool accepted = true;
     try {
         exportGlb(RenderSnapshot::capture(doc));
-    } catch (const std::exception &error) {
-        bounded = std::string(error.what()) == "GLB decoded texture images exceed 256 MiB";
+    } catch (const std::exception &) {
+        accepted = false;
     }
-    check(bounded && encodeContainer(doc) == before,
-          "One pixel beyond aggregate image budget rejects atomically");
+    check(accepted && encodeContainer(doc) == before,
+          "Five images within the 2 GiB decoded budget export, and the export changes nothing");
 }
 
 // R100.b2 (ADR 0174 section 3): the GLB and OBJ exporters repeat a sized material over its

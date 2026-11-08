@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
         rejects([&] { GltfPackage::read(source); });
         QFile::remove(sidecar);
         write(sidecar, vertices);
-        for (const auto &patch : std::vector<QJsonObject>{{{"count", 1000001}},
+        for (const auto &patch : std::vector<QJsonObject>{{{"count", 8000001}},
                                                           {{"byteOffset", 1}},
                                                           {{"count", 100000}},
                                                           {{"componentType", 0}},

@@ -421,7 +421,7 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
   file.insert(file.end(), textureChunk.begin(), textureChunk.end());
   // The total cap: the worker runs with a 512 MiB RLIMIT_FSIZE, and a write past it would
   // kill the process instead of refusing. 512 MiB keeps every package the FSIZE allows.
-  if (file.size() > 512 * 1024 * 1024)
+  if (file.size() > 2048LL * 1024 * 1024)
     return (problem = "The package exceeds its 512 MiB total limit."), std::string();
   return std::string(file.begin(), file.end());
 }

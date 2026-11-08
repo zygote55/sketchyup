@@ -1,4 +1,5 @@
 #include "core/model.hpp"
+#include <source_location>
 #include <iostream>
 #include <numbers>
 using namespace sketchy;
@@ -6,13 +7,13 @@ void check(bool value, const char *message) {
     if (!value)
         throw std::runtime_error(message);
 }
-template <class F> void rejects(F fn) {
+template <class F> void rejects(F fn, std::source_location where = std::source_location::current()) {
     try {
         fn();
     } catch (const std::exception &) {
         return;
     }
-    throw std::runtime_error("Expected guide rejection");
+    throw std::runtime_error("Expected guide rejection at line " + std::to_string(where.line()));
 }
 int main() {
     try {
@@ -106,7 +107,8 @@ int main() {
         });
         Document oversized;
         std::map<Id, BodyPtr> contexts;
-        for (Id id = 1; id <= 11; ++id) {
+        // 81 contexts of 1,000 guides are 81,000 guides, over the R115 unique guide limit of 80,000.
+        for (Id id = 1; id <= 81; ++id) {
             auto context = std::make_shared<Body>();
             context->id = id;
             for (Id guideId = 1; guideId <= 1000; ++guideId)
@@ -114,7 +116,7 @@ int main() {
             context->surface.nextId = 1001;
             contexts.emplace(id, context);
         }
-        rejects([&] { oversized.restore(oversized.identity(), 12, contexts); });
+        rejects([&] { oversized.restore(oversized.identity(), 82, contexts); });
         check(oversized.bodies().empty(),
               "Aggregate guide limit rejects otherwise valid contexts atomically");
         const auto transform = Transform::translation({2, 3, 4}) * Transform::scaling({-2, 3, 1});

@@ -34,12 +34,17 @@
 namespace sketchy {
 namespace {
 constexpr char alphabet[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$";
-constexpr std::size_t maxIfcBytes = 256u * 1024 * 1024;
-constexpr std::size_t maxManifestBytes = 32u * 1024 * 1024, maxMeshBytes = 128u * 1024 * 1024;
+// R115: the byte bounds are eight times their R113 values (256 MiB, 32 MiB and 128 MiB).
+constexpr std::size_t maxIfcBytes = 2048u * 1024 * 1024;
+constexpr std::size_t maxManifestBytes = 256u * 1024 * 1024, maxMeshBytes = 1024u * 1024 * 1024;
 const char *const privatePrefix = "sketchyup-ifc-";
 constexpr std::array<float, 3> defaultBodyColor{0.73f, 0.79f, 0.73f};
 constexpr std::size_t labelCodePoints = 255;
-constexpr std::size_t maxMeshVertices = 300000, maxMeshTriangles = 1000000, maxNodes = 400000, maxStyles = 65536;
+// The mesh counts match IfcPackageLimits (R115): the unique vertex limit, 1,600,000 triangles per mesh
+// (two for each face of the one-body limit), and 800,000 nodes (two times the materialized bodies and
+// placements, which is the same as the nodes IfcPackageLimits admits).
+constexpr std::size_t maxMeshVertices = 2400000, maxMeshTriangles = 1600000, maxNodes = 800000,
+                      maxStyles = 65536;
 
 using Value = std::variant<bool, double, std::string>;
 

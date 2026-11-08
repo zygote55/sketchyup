@@ -714,8 +714,9 @@ void CatalogDialog::openFile() {
         // The bounded loader refuses a larger file, but the size is named here, in the words
         // of 18.6.
         if (info.size() > qint64(libraryBundleLimit))
-            throw std::runtime_error(QStringLiteral("the file is %1 MiB, and the limit is 130 MiB")
+            throw std::runtime_error(QStringLiteral("the file is %1 MiB, and the limit is %2 MiB")
                                          .arg(double(info.size()) / (1024.0 * 1024.0), 0, 'f', 1)
+                                         .arg(libraryBundleLimit / (1024 * 1024))
                                          .toStdString());
         source.package = loadCatalog(source.path);
     } catch (const std::exception &failure) {

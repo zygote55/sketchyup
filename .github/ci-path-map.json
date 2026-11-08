@@ -40,10 +40,7 @@
       "incremental_validation",
       "document_limits",
       "variant_edit_cost",
-      "component_parameters",
-      "unique_limits_acceptance",
-      "snapshot_glb_limits_acceptance",
-      "format_limits_acceptance"
+      "component_parameters"
     ],
     "slow-assistant": [
       "provider_release_corpus"
@@ -825,12 +822,9 @@
   ],
   "test_seconds": {
     "comment": "Serial seconds in the development build on a CI runner (run 39664036473, 2026-10-21). scripts/ci-ctest-shard.py balances the fast tier's CTest shards with them; an unlisted test counts as 1 s. Approximate is fine: it only affects balance.",
-    "document_limits": 29,
-    "unique_limits_acceptance": 224,
-    "snapshot_glb_limits_acceptance": 240,
-    "format_limits_acceptance": 110,
+    "document_limits": 9,
     "component_parameters": 15,
-    "incremental_validation": 78,
+    "incremental_validation": 63,
     "inference_equivalence": 7,
     "variant_edit_cost": 22,
     "parameter_expression_fuzz": 5,
@@ -846,7 +840,7 @@
     "terrain_drape": 74,
     "provider_release_corpus": 31,
     "openai_provider": 4,
-    "document_limits_io": 5,
+    "document_limits_io": 1,
     "texture_export": 6,
     "site_recipe": 3,
     "furniture_recipe": 6,

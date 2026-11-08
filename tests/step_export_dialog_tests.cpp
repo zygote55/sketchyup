@@ -509,8 +509,8 @@ int main(int argc, char **argv) {
             dialog.setTriangleWarningLimit(10);
             dialog.setDocument(model);
             check(!warning->isHidden(), "a model over the threshold shows the size warning");
-            check(contains(warning->text(), "256 MiB") && contains(warning->text(), "refused"),
-                  "the size warning says the file may exceed 256 MiB and be refused: " + warning->text().toStdString());
+            check(contains(warning->text(), "512 MiB") && contains(warning->text(), "refused"),
+                  "the size warning says the file may exceed 512 MiB and be refused: " + warning->text().toStdString());
             check(!dialog.refused() && dialog.findChild<QPushButton *>("stepExportGo")->isEnabled(),
                   "the size warning does not block the export");
             dialog.setTriangleWarningLimit(StepExportDialog::kTriangleWarningLimit);

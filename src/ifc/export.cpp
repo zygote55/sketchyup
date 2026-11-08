@@ -33,7 +33,7 @@ namespace {
 
 using Base = express::base;
 
-constexpr std::size_t maxIfcBytes = 256u * 1024 * 1024;
+constexpr std::size_t maxIfcBytes = 2048u * 1024 * 1024;  // R115: 8x R113
 constexpr std::size_t labelCodePoints = 255;
 
 struct Refusal : std::runtime_error {

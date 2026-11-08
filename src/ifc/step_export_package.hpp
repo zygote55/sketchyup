@@ -14,14 +14,14 @@
 namespace sketchyup::ifc {
 
 struct StepExportLimits {
-  static constexpr std::size_t manifestBytes = 32u * 1024 * 1024;
-  static constexpr std::size_t meshBytes = 128u * 1024 * 1024;
+  static constexpr std::size_t manifestBytes = 256u * 1024 * 1024;
+  static constexpr std::size_t meshBytes = 1024u * 1024 * 1024;
   static constexpr std::size_t headerBytes = 24;
-  static constexpr std::size_t nodes = 400'000;
-  static constexpr std::size_t meshes = 400'000;
-  static constexpr std::size_t meshVertices = 300'000;
-  static constexpr std::size_t meshTriangles = 100'000;  // per element (ADR 0172 section 6)
-  static constexpr std::size_t totalTriangles = 1'000'000;
+  static constexpr std::size_t nodes = 800'000;
+  static constexpr std::size_t meshes = 800'000;
+  static constexpr std::size_t meshVertices = 2'400'000;
+  static constexpr std::size_t meshTriangles = 1'600'000;  // per element (ADR 0172 section 6; R115)
+  static constexpr std::size_t totalTriangles = 10'000'000;
   static constexpr std::size_t nameBytes = 2048;  // the product name cap (ADR 0172 section 4)
   static constexpr std::size_t layerBytes = 2048;
 };

@@ -1151,21 +1151,25 @@ if(SKETCHYUP_BUILD_DESKTOP OR SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_FUZZERS)
     target_link_libraries(outcome_store_tests PRIVATE sketchyup_io)
     add_test(NAME outcome_store COMMAND outcome_store_tests)
     # R110 (ADR 0005, 1.7.0): the raised unique limits at their limit, through save, reopen, a scripted
-    # transaction and undo. A slow core test (ci-path-map slow-core): about a minute of build and I/O.
-    add_executable(unique_limits_acceptance_tests tests/unique_limits_acceptance_tests.cpp)
+    # transaction and undo. R115 (2026-11-07): a manual at-limit acceptance program, not a CI test. Its
+    # at-limit builds take minutes of CPU, so CI checks the boundaries by counts (document_limits and
+    # incremental_validation). It is built and run on the GPU PC (docs/verification/R115-raised-limits.md).
+    add_executable(unique_limits_acceptance_tests EXCLUDE_FROM_ALL tests/unique_limits_acceptance_tests.cpp)
     target_link_libraries(unique_limits_acceptance_tests PRIVATE sketchyup_io)
-    add_test(NAME unique_limits_acceptance COMMAND unique_limits_acceptance_tests)
     # R112 (ADR 0005, ADR 0032, 1.8.0): the read-snapshot budget and the GLB visible-face cap at the
-    # published limits, through a catalog import, save and reopen, and export. A slow core test.
-    add_executable(snapshot_glb_limits_acceptance_tests tests/snapshot_glb_limits_acceptance_tests.cpp)
+    # published limits, through a catalog import, save and reopen, and export. R115: a manual at-limit
+    # acceptance program (EXCLUDE_FROM_ALL, no CTest entry), run on the GPU PC.
+    add_executable(snapshot_glb_limits_acceptance_tests EXCLUDE_FROM_ALL tests/snapshot_glb_limits_acceptance_tests.cpp)
     target_link_libraries(snapshot_glb_limits_acceptance_tests PRIVATE sketchyup_io)
-    add_test(NAME snapshot_glb_limits_acceptance COMMAND snapshot_glb_limits_acceptance_tests)
     # R113 (D-102, 1.9.0): the format count limits at the published limits, through export, save and
-    # reopen, with a refusal by name one past each. A slow core test (ADR 0170).
-    add_executable(format_limits_acceptance_tests tests/format_limits_acceptance_tests.cpp)
+    # reopen, with a refusal by name one past each. R115: a manual at-limit acceptance program (EXCLUDE_FROM_ALL,
+    # no CTest entry), run on the GPU PC.
+    add_executable(format_limits_acceptance_tests EXCLUDE_FROM_ALL tests/format_limits_acceptance_tests.cpp)
     target_link_libraries(format_limits_acceptance_tests PRIVATE sketchyup_io)
-    add_test(NAME format_limits_acceptance COMMAND format_limits_acceptance_tests)
-    set_tests_properties(format_limits_acceptance PROPERTIES TIMEOUT 1500)
+    # R115 (2026-11-07): the at-limit acceptance for the raised limits, one case per process, run on the
+    # GPU PC only (docs/verification/R115-raised-limits.md). Not a CTest test.
+    add_executable(limits_r115_acceptance EXCLUDE_FROM_ALL tests/limits_r115_acceptance.cpp)
+    target_link_libraries(limits_r115_acceptance PRIVATE sketchyup_io Qt6::Core Qt6::Gui)
     add_executable(staging_tests tests/staging_tests.cpp)
     target_link_libraries(staging_tests PRIVATE sketchyup_io)
     target_compile_definitions(staging_tests PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

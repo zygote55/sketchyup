@@ -39,7 +39,7 @@ void usage(std::FILE* stream) {
       "       sketchyup-skp-worker --import FILE.skp --output PACKAGE [--options]\n"
       "           parse a SketchUp file and write the SKSKPP01 conversion package (ADR 0176);\n"
       "           options:\n"
-      "           --size-limit-bytes N   the input size ceiling (default 256 MiB)\n"
+      "           --size-limit-bytes N   the input size ceiling (default 2 GiB)\n"
       "           --deadline-seconds N   the wall-clock deadline (default 120)\n"
       "           --rlimit-as BYTES      override the 4 GiB address limit (0 disables it)\n"
       "           --rlimit-cpu SECONDS   override the 480 s CPU limit\n"
@@ -65,7 +65,7 @@ void applyDefaults(sketchyup::skp::SkpImportOptions& options) {
 #endif
   }
   if (options.rlimitCpu == 0) options.rlimitCpu = 480;
-  if (options.rlimitFsize == 0) options.rlimitFsize = 512 * 1024 * 1024;
+  if (options.rlimitFsize == 0) options.rlimitFsize = 8192ull * 1024 * 1024;
 }
 
 }  // namespace

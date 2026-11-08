@@ -588,8 +588,8 @@ int runImport(const ImportOptions& options) {
       } else if (e.meshOfGeometry >= 0) {
         const long long triangles = static_cast<long long>(ctx.geometry.meshes[static_cast<std::size_t>(e.meshOfGeometry)].triangles.size() / 3);
         const bool seen = counted.contains(e.meshOfGeometry);
-        if (triangles > 100000) why = "meshTriangleLimit";
-        else if (!seen && total + triangles > 1000000) why = "triangleBudget";
+        if (triangles > 1600000) why = "meshTriangleLimit";
+        else if (!seen && total + triangles > 10000000) why = "triangleBudget";
         else if (!seen) {
           counted.insert(e.meshOfGeometry);
           total += triangles;

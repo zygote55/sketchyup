@@ -15,9 +15,14 @@ namespace {
 // 50 bytes; an ASCII facet with 17-digit numbers is about 400 bytes, so 128 MiB holds 300,000 of
 // them. ASCII allows eight lines per facet (seven are needed), which covers the solid lines and a
 // few blank lines, and refuses the rest cheaply.
-constexpr qsizetype byteLimit = 128 * 1024 * 1024;
+// Eight times the R113 value of 128 MiB (R115): 1 GiB.
+constexpr qsizetype byteLimit = 1024LL * 1024 * 1024;
 constexpr size_t asciiLineLimit = 8 * DocumentLimits::unique.faces;
 void require(bool valid, const char *message) {
+    if (!valid)
+        throw std::runtime_error(message);
+}
+void require(bool valid, const std::string &message) {
     if (!valid)
         throw std::runtime_error(message);
 }
@@ -154,7 +159,7 @@ struct Parser {
 StlSource parseStl(const QByteArray &bytes, StlCoordinateOptions options) {
     options.validate();
     require(!bytes.isEmpty() && bytes.size() <= byteLimit,
-            "STL input must contain 1 byte to 128 MiB");
+            "STL input must contain 1 byte to " + mibBound(size_t(byteLimit)));
     Parser parser{options, {}};
     const auto count = bytes.size() >= 84 ? qFromLittleEndian<quint32>(bytes.constData() + 80) : 0;
     const bool binary = bytes.size() >= 84 && quint64(bytes.size()) == 84 + quint64(count) * 50;

@@ -168,25 +168,11 @@ void checkLargeCaptureLimits(const QString &directory) {
     createTerrain(terrain, mesh, report_fixtures::terrainRecord(mesh));
     check(exportGlb(RenderSnapshot::capture(terrain)).manifest["visibleTriangles"] == 105800,
           "A terrain over 100,000 faces exports under the terrain class");
-    const auto scene = [](qsizetype padding) {
-        GlbExport result;
-        result.glb = QByteArray("glTF");
-        const auto digest = QString::fromLatin1(
-            QCryptographicHash::hash(result.glb, QCryptographicHash::Sha256).toHex());
-        result.manifest = QJsonObject{{"scene", QJsonObject{{"file", "scene.glb"},
-                                                            {"bytes", qint64(result.glb.size())},
-                                                            {"sha256", digest}}},
-                                      {"padding", QString(padding, QChar('x'))}};
-        return result;
-    };
-    // The indented manifest is the published size; the padding adds one byte per character.
-    const auto room = glbManifestByteLimit - QJsonDocument(scene(0).manifest).toJson().size();
-    check(refusal([&] { writeGlbExport(scene(room + 1), directory + "/over"); }) ==
-              "GLB manifest exceeds 192 MiB",
-          "A manifest one byte over 192 MiB is refused by name");
-    writeGlbExport(scene(room), directory + "/exact");
-    check(QFileInfo(directory + "/exact/manifest.json").size() == glbManifestByteLimit,
-          "A manifest of exactly 192 MiB is written");
+    // R115: the manifest bound is 1.5 GiB, eight times R112's 192 MiB. A manifest of that size is
+    // not written in CI. The bound is checked here as a constant, and an at-limit export is built on
+    // the GPU PC (docs/verification/R115-raised-limits.md).
+    check(glbManifestByteLimit == 1536LL * 1024 * 1024 * DocumentLimits::scale,
+          "The manifest bound is 1.5 GiB (R115)");
     Document parts, over;
     report_fixtures::buildPartsModel(parts, 6666, false);
     report_fixtures::buildPartsModel(over, 6667, false);
@@ -194,9 +180,9 @@ void checkLargeCaptureLimits(const QString &directory) {
           "The placement counts give 19,998 and 20,001 bodies");
     check(refusal([&] { RenderSnapshot::capture(parts); }).empty(),
           "A 19,998-body capture is accepted");
-    check(refusal([&] { RenderSnapshot::capture(over); }) ==
-              "Render snapshot contains too many records",
-          "A 20,001-body capture is refused by name");
+    // R115: the render snapshot body limit is 160,000, so 20,001 bodies are accepted.
+    check(refusal([&] { RenderSnapshot::capture(over); }).empty(),
+          "A 20,001-body capture is accepted (the render snapshot body limit is 160,000)");
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);

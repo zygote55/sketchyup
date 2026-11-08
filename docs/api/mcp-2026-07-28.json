@@ -5358,7 +5358,7 @@
                                                                 ],
                                                                 "type": "object"
                                                             },
-                                                            "maxItems": 40000,
+                                                            "maxItems": 320000,
                                                             "minItems": 0,
                                                             "type": "array"
                                                         },
@@ -5867,7 +5867,7 @@
                                                                 ],
                                                                 "type": "object"
                                                             },
-                                                            "maxItems": 40000,
+                                                            "maxItems": 320000,
                                                             "minItems": 0,
                                                             "type": "array"
                                                         },

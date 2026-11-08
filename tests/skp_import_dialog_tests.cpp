@@ -230,14 +230,14 @@ QByteArray standInPackage(const bool omittedFace) {
     return QByteArray(encoded.data(), static_cast<int>(encoded.size()));
 }
 
-// A file over the import's size budget: the header, then a sparse extension past 256 MiB, which the
+// A file over the import's size budget: the header, then a sparse extension past 2 GiB, which the
 // application refuses by its size before it reads any of it.
 QString writeOversize(const QString &dir) {
     const QString path = dir + "/oversize.skp";
     QFile file(path);
     check(file.open(QIODevice::WriteOnly), "write the oversize file");
     file.write(skpFile());
-    check(file.resize(qint64(256) * 1024 * 1024 + 1), "extend the oversize file");
+    check(file.resize(qint64(2048) * 1024 * 1024 + 1), "extend the oversize file");
     file.close();
     return path;
 }
@@ -490,7 +490,7 @@ int main(int argc, char **argv) {
             importAction->trigger();
             driver.stop();
             check(driver.sheets == (QStringList{"skpRefusal"}), "the oversize file is refused");
-            check(contains(driver.summaries["skpRefusal"], "larger than the 256 MiB"),
+            check(contains(driver.summaries["skpRefusal"], "larger than the 2048 MiB"),
                   "the refusal names the size budget: " + driver.summaries["skpRefusal"].toStdString());
             // The check is the first step ("Check the file") and runs before the helper's read step, so the
             // progress sheet may flash open at that step; it never reaches the helper's read.

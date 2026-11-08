@@ -9,7 +9,7 @@ class TransactionDispatcher {
   public:
     struct Limits {
         size_t drafts{4};
-        size_t retainedBytes{128 * 1024 * 1024};
+        size_t retainedBytes{1024 * 1024 * 1024}; // R115: 1 GiB, from 128 MiB
         int maximumTtlSeconds{300};
     };
     explicit TransactionDispatcher(TransactionCoordinator &actor);

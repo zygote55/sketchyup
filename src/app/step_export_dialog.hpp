@@ -32,11 +32,11 @@ int stepNotWrittenCount(const QJsonObject &plan, const StepNotWrittenKind &kind)
 class StepExportDialog : public QDialog {
     Q_OBJECT
   public:
-    // The triangles above which a file may exceed the 256 MiB limit (ADR 0172 section 6): an amber
+    // The triangles above which a file may exceed the STEP output limit (ADR 0172 section 6): an amber
     // note, not a refusal. A test may set its own threshold.
-    // A file of triangle faces reaches the 256 MiB export limit at about 110,000 faces (2.4 KB a
+    // A file of triangle faces reaches the 512 MiB export limit (R115) at about 220,000 faces (2.4 KB a
     // face, R098.d); the note comes before that, so it warns in time for the worst case.
-    static constexpr qint64 kTriangleWarningLimit = 100000;
+    static constexpr qint64 kTriangleWarningLimit = 200000;
     explicit StepExportDialog(QWidget *parent = nullptr);
     void setProbe(const IfcProbe &probe); // the helper line (the export needs the helper, not the kernel)
     void setDocument(const Document &document); // the capture's plan, or the cheap-refusal banner

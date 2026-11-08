@@ -559,15 +559,14 @@ int main(int argc, char **argv) {
                 p.nodes.push_back(n);
             }
             const auto result = import(p);
-            check(result.document.bodies().size() == 10000, "10,000 bodies fit, the 10,001st does not");
+            // 10,001 elements and the one cube mesh make 10,002 bodies; the R110 limit of 10,000 refused two (R115: 80,000).
+            check(result.document.bodies().size() == 10002, "10,002 bodies fit (R115: the unique body limit is 80,000)");
             const auto elements = result.report["elements"].toObject()["notImported"].toArray();
-            check(elements.size() == 1 && elements[0].toObject()["reason"].toString().startsWith("documentLimit:") &&
-                      elements[0].toObject()["count"].toInt() == 2,
-                  "the elements beyond the limit are reported with the limit named");
+            check(elements.isEmpty(), "No element is refused at 10,001 bodies (R115: the unique body limit is 80,000)");
         }
         {
-            // A body over the per-body limit (100,000 faces) is not imported; the rest are. 100,001 triangles
-            // that share no plane (each tilted differently) cannot merge.
+            // A body of 100,001 faces is imported under the per-body limit of 800,000 (R115, from 100,000).
+            // Its triangles share no plane (each tilted differently), so they cannot merge.
             IfcPackageMesh big;
             for (std::uint32_t i = 0; i < 100001; ++i) {
                 const double x = double(i % 300) * 3, y = double(i / 300) * 3, tilt = 1e-3 + 1e-6 * i;
@@ -583,14 +582,14 @@ int main(int argc, char **argv) {
             p.nodes.push_back(node(2, "IfcBuildingElementProxy", "big", 0, IfcNodeRole::Element, 0));
             p.nodes.push_back(node(3, "IfcBuildingElementProxy", "cube", 0, IfcNodeRole::Element, 1));
             const auto result = import(p);
-            check(byStep(result.document, 2) == nullptr && byStep(result.document, 3) != nullptr, "the body over the limit is left out, the cube stays");
+            check(byStep(result.document, 2) != nullptr && byStep(result.document, 3) != nullptr, "the 100,001-face body and the cube are both imported");
             const auto elements = result.report["elements"].toObject()["notImported"].toArray();
-            check(elements.size() == 1 && elements[0].toObject()["reason"] == "bodyLimit", "and is reported with the limit");
+            check(elements.isEmpty(), "and nothing is reported");
         }
 
         {
-            // R098.j: the output of the conversion is pinned. Thirty-one curved bodies of 9,800 faces: the document takes
-            // the first ones up to its 300,000 unique faces (R110), and the rest are refused with the limit named. The sample package (merged
+            // R098.j: the output of the conversion is pinned. Thirty-one curved bodies of 9,800 faces (303,800 faces) all fit
+            // the R115 unique face limit of 2,400,000 (R110 refused the last one at 300,000). The sample package (merged
             // faces, edges, materials, colours and a shared mesh) must come out the same too.
             IfcPackage rough;
             rough.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
@@ -603,12 +602,11 @@ int main(int argc, char **argv) {
             for (std::uint32_t m = 0; m < 31; ++m)
                 accepted += byStep(roughResult.document, 2 + m) != nullptr;
             const auto refusals = roughResult.report["elements"].toObject()["notImported"].toArray();
-            check(accepted == 30 && refusals.size() == 1 && refusals[0].toObject()["reason"].toString() == "documentLimit:faces" &&
-                      refusals[0].toObject()["count"].toInteger() == 1,
-                  "thirty bodies (294,000 faces) fit, and the one after them is refused with the face limit named");
+            check(accepted == 31 && refusals.isEmpty(),
+                  "all 31 bodies (303,800 faces) fit the R115 unique face limit");
             const std::string roughHash = encodingHash(roughResult.document);
             const std::string sampleHash = encodingHash(import(samplePackage()).document);
-            const std::string pinnedRough = "db291571713ba7ed1aaf345d9c45c41902d87dfb186ca20f61cc4080a337bb46",
+            const std::string pinnedRough = "12c7481acc142923da692b8fc3a838bcbc790e0c96df46402a6c770a8f827f52",
                               pinnedSample = "5b7ea80f1a6205a09e04013afa5bacb3d491fedc26173e3566916b5648df7f8c";
             if (pinnedRough != roughHash || pinnedSample != sampleHash)
                 throw std::runtime_error("pinned encodings differ: rough " + roughHash + ", sample " + sampleHash);

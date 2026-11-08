@@ -200,7 +200,7 @@ DxfImport loadDxf(const QString &path, DxfOptions options, unsigned segmentsPerC
     const QFileInfo info(path);
     require(info.isFile() && info.size() <= dxfByteLimit && file.open(QIODevice::ReadOnly),
             "DXF requires a regular file of at most 256 MiB");
-    const auto bytes = file.read(dxfByteLimit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(dxfByteLimit)) + 1);
     require(file.error() == QFileDevice::NoError, "Cannot capture DXF source");
     return importDxf(parseDxf(bytes, options), segmentsPerCircle);
 }

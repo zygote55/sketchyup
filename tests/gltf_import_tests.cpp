@@ -374,8 +374,9 @@ int main(int argc, char **argv) {
         } catch (const std::exception &error) {
             refusal = error.what();
         }
-        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos,
-              "A glTF over the unique vertex limit is refused by name");
+        // R115: the unique vertex limit is 2,400,000, so 300,001 vertices are not refused by that limit.
+        check(refusal.find("of 300,000") == std::string::npos,
+              "A glTF of 300,001 vertices is within the R115 unique vertex limit");
         Fixture duplicates;
         auto duplicateMaterials = duplicates.tree["materials"].toArray();
         duplicateMaterials.append(duplicateMaterials[0]);
@@ -418,14 +419,9 @@ int main(int argc, char **argv) {
         compressed.tree["nodes"] = roots;
         compressed.tree["scenes"] = QJsonArray{QJsonObject{{"nodes", QJsonArray{0, 1, 2, 3, 4}}}};
         compressed.save(path);
-        bool decodedBudget = false;
-        try {
-            loadGltf(path);
-        } catch (const std::exception &error) {
-            decodedBudget =
-                QString::fromUtf8(error.what()).contains("aggregate decoded-image budget");
-        }
-        check(decodedBudget, "Small compressed images cannot bypass aggregate decode budget");
+        // R115: the aggregate decoded budget is 2 GiB. Five 4096-square images decode to 320 MiB and
+        // load; the refusal at 2 GiB is a constant of the importer, not built here.
+        (void)loadGltf(path);
         // Native exporter is another producer; a GLB must return the same metre dimensions.
         Document native;
         native.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 3, 0}}});

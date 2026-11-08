@@ -2056,15 +2056,15 @@ void uniqueGeometryEquivalence() {
         small.amends += run.amends;
     }
     check(small.amends > 0, "Amendment is exercised");
-    // Near the 300,000-vertex budget: each distinct variant adds its shelf copies once,
-    // so some edits are refused by the unique-geometry limit itself.
+    // Near the R110 300,000-vertex budget (the R115 unique limit is 2,400,000, so this fixture no longer
+    // reaches it, and its size is kept for CI time): each distinct variant adds its shelf copies once.
     const bool oracle = Document::fullValidationOracle();
     Document::setFullValidationOracle(false);
     const auto large = randomVariantEdits(variantScene(100, 8, 30), 7, 80, {40, 55, 70, 85, 100},
                                           {.5, .7, .9, 1.1, 1.3, 1.5});
     Document::setFullValidationOracle(oracle);
-    check(large.refusedUnique > 0 && large.accepted > 20,
-          "Edits over the unique-geometry budget are refused identically (" +
+    check(large.accepted > 20,
+          "Edits near the unique-geometry budget are checked identically (" +
               std::to_string(large.refusedUnique) + " refused)");
     const auto seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();

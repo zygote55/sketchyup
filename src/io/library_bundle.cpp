@@ -85,8 +85,9 @@ QByteArray encodeBundle(const Document &source, const TemplateMetadata &metadata
     qToLittleEndian<quint32>(manifest.size(), result.data() + 8);
     qToLittleEndian<quint64>(model.size(), result.data() + 12);
     qToLittleEndian<quint32>(thumbnailPng.size(), result.data() + 20);
-    require(headerSize + manifest.size() + model.size() + thumbnailPng.size() <= libraryBundleLimit,
-            "Template bundle exceeds 130 MiB");
+    if (headerSize + manifest.size() + model.size() + thumbnailPng.size() > libraryBundleLimit)
+        throw std::runtime_error("Template bundle exceeds " + std::to_string(libraryBundleLimit / (1024 * 1024)) +
+                                 " MiB");
     result += manifest;
     result += model;
     result += thumbnailPng;

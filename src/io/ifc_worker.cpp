@@ -22,7 +22,8 @@
 #include <vector>
 namespace sketchy {
 namespace {
-constexpr qint64 maxFileBytes = 128 * 1024 * 1024;
+// The IFC input bound: eight times the R113 value of 128 MiB (R115).
+constexpr qint64 maxFileBytes = 1024LL * 1024 * 1024;
 constexpr qint64 maxPackageBytes = 24 + qint64(IfcPackageLimits::manifestBytes) + qint64(IfcPackageLimits::meshBytes);
 constexpr qint64 maxLogBytes = 2048;
 const char *const privatePrefix = "sketchyup-ifc-";
@@ -150,7 +151,7 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
     if (options.addressSpaceBytes > 0)
         args << "--rlimit-as" << QString::number(options.addressSpaceBytes);
     args << "--rlimit-cpu" << QString::number(qint64(options.deadlineSeconds) * 4) << "--rlimit-fsize"
-         << QString::number(qint64(256) * 1024 * 1024);
+         << QString::number(qint64(2048) * 1024 * 1024);  // at least maxPackageBytes (R115)
     if (!options.testFault.isEmpty())
         args << "--test-fault" << options.testFault;
     QProcess process;

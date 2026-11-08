@@ -241,9 +241,9 @@ int main(int argc, char **argv) {
         rejects(
             [] {
                 CatalogBuilder builder(metadata());
-                builder.addAsset("Large", "image/png", QByteArray(16 * 1024 * 1024 + 1, 'x'));
+                builder.addAsset("Large", "image/png", QByteArray(64 * 1024 * 1024 + 1, 'x'));
             },
-            "an asset over 16 MiB is refused");
+            "an asset over 64 MiB is refused");
         rejects(
             [] {
                 CatalogBuilder builder(metadata());

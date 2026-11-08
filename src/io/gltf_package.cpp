@@ -1,4 +1,6 @@
 #include "io/gltf_package.hpp"
+#include "core/asset_records.hpp"
+#include "io/format_limits.hpp"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -16,8 +18,17 @@
 #include <vector>
 namespace sketchy {
 namespace {
-constexpr size_t fileLimit = 128 * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
-constexpr size_t imageLimit = 16 * 1024 * 1024, imagesLimit = 64 * 1024 * 1024;
+// R115: the file, URI and element bounds are eight times their R113 values, so an import at the
+// unique limit (2,400,000 faces, 7,200,000 indices) is admitted. The JSON bound is a parse bound and
+// is unchanged. The image bounds are the asset bounds, so every imported image can be stored.
+constexpr size_t fileLimit = 1024ull * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
+constexpr size_t imageLimit = AssetPayload::limit, imagesLimit = assetTotalLimit;
+constexpr size_t accessorCountLimit = 8000000, accessorElementsLimit = 16000000,
+                 primitiveElementsLimit = 8000000, uriLimit = 192ull * 1024 * 1024;
+void require(bool condition, const std::string &message) {
+    if (!condition)
+        throw std::runtime_error(message);
+}
 void require(bool condition, const char *message) {
     if (!condition)
         throw std::runtime_error(message);
@@ -53,7 +64,7 @@ QByteArray readFile(const QString &path, size_t maximum) {
     require(QFileInfo(path).isFile() && file.open(QIODevice::ReadOnly) && !file.isSequential() &&
                 file.size() >= 0 && quint64(file.size()) <= maximum,
             "Cannot read bounded glTF file");
-    auto bytes = file.read(qint64(maximum) + 1);
+    auto bytes = file.read(qMin(file.size(), qint64(maximum)) + 1);
     require(file.error() == QFileDevice::NoError && size_t(bytes.size()) <= maximum,
             "glTF file exceeds its byte limit");
     return bytes;
@@ -66,7 +77,7 @@ quint32 word(const QByteArray &bytes, qsizetype offset) {
     return qFromLittleEndian<quint32>(bytes.constData() + offset);
 }
 void range(size_t offset, size_t count, size_t stride, size_t element, size_t length) {
-    require(count > 0 && count <= 1000000 && element > 0 && stride >= element && stride <= 256 &&
+    require(count > 0 && count <= accessorCountLimit && element > 0 && stride >= element && stride <= 256 &&
                 offset <= length && element <= length - offset &&
                 count - 1 <= (length - offset - element) / stride,
             "glTF accessor range exceeds its captured buffer view");
@@ -84,7 +95,7 @@ struct GltfPackage::Impl {
             cgltf_free(parsed);
     }
     QByteArray uri(const char *raw, size_t maximum, bool image) {
-        require(raw && std::strlen(raw) <= 24 * 1024 * 1024, "Missing or oversized glTF URI");
+        require(raw && std::strlen(raw) <= uriLimit, "Missing or oversized glTF URI");
         const QByteArray uri(raw);
         if (uri.startsWith("data:")) {
             const auto comma = uri.indexOf(',');
@@ -203,7 +214,7 @@ struct GltfPackage::Impl {
         for (size_t i = 0; i < parsed->buffers_count; ++i) {
             auto &buffer = parsed->buffers[i];
             require(buffer.size > 0 && buffer.size <= fileLimit - total,
-                    "glTF buffers exceed 128 MiB");
+                    "glTF buffers exceed " + mibBound(fileLimit));
             total += buffer.size;
             QByteArray bytes;
             if (buffer.uri)
@@ -232,10 +243,10 @@ struct GltfPackage::Impl {
             const auto &a = parsed->accessors[i];
             const auto component = cgltf_component_size(a.component_type),
                        element = cgltf_calc_size(a.type, a.component_type);
-            require(component && element && a.count > 0 && a.count <= 1000000 &&
+            require(component && element && a.count > 0 && a.count <= accessorCountLimit &&
                         a.stride % component == 0,
                     "Invalid or oversized glTF accessor");
-            require(a.count <= 2000000 - accessorElements,
+            require(a.count <= accessorElementsLimit - accessorElements,
                     "glTF accessor work exceeds its element budget");
             accessorElements += a.count;
             if (a.buffer_view) {
@@ -292,7 +303,7 @@ struct GltfPackage::Impl {
                         "glTF primitive attribute count exceeds limits");
                 const auto count = primitive.indices ? primitive.indices->count
                                                      : primitive.attributes[0].data->count;
-                require(count <= 1000000 - primitiveElements,
+                require(count <= primitiveElementsLimit - primitiveElements,
                         "glTF primitive validation exceeds its work budget");
                 primitiveElements += count;
             }
@@ -325,7 +336,8 @@ struct GltfPackage::Impl {
                 bytes = QByteArray(static_cast<const char *>(view.buffer->data) + view.offset,
                                    qsizetype(view.size));
             }
-            require(size_t(bytes.size()) <= imagesLimit - total, "glTF images exceed 64 MiB");
+            require(size_t(bytes.size()) <= imagesLimit - total,
+                    "glTF images exceed " + mibBound(imagesLimit));
             total += size_t(bytes.size());
             images.push_back(std::move(bytes));
         }

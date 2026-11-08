@@ -16,9 +16,8 @@ namespace {
 // Parse bounds that stop hostile files, sized to the unique limits (R113, D-102). A file may hold
 // up to the unique vertex records, the faces and the wires, and normal and texture records up to
 // recordLimit each: a corner may cite one of each per vertex and per face. Each bound is named
-// where it is checked, and each refuses cheaply. 128 MiB holds 300,000 vertices and faces with
-// 20-digit numbers.
-constexpr qsizetype byteLimit = 128 * 1024 * 1024, lineLimit = 64 * 1024;
+// where it is checked, and each refuses cheaply. 1 GiB is eight times the R113 value of 128 MiB (R115).
+constexpr qsizetype byteLimit = 1024 * 1024 * 1024, lineLimit = 64 * 1024;
 constexpr std::size_t recordLimit = DocumentLimits::unique.vertices + DocumentLimits::unique.faces;
 // A reference may cite any record, so it is bounded by the record limit.
 constexpr std::size_t indexLimit = recordLimit;

@@ -25,7 +25,7 @@ QByteArray read(const QString &path) {
     QFile file(path);
     if (!QFileInfo(path).isFile() || !file.open(QIODevice::ReadOnly) || file.size() > fileLimit)
         throw std::runtime_error("Native inspection requires a regular file of at most 256 MiB");
-    const auto bytes = file.read(fileLimit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(fileLimit)) + 1);
     if (file.error() != QFileDevice::NoError || bytes.size() > fileLimit)
         throw std::runtime_error("Could not read bounded native document");
     return bytes;

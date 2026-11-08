@@ -246,9 +246,10 @@ void StepExportDialog::updateSizeWarning() {
     const qint64 triangles = plan_.value("triangles").toInteger(0);
     const bool over = !refused_ && triangles > triangleLimit_;
     if (over)
-        sizeWarning->setText(QString("⚠ This model has %1 triangles. A file this large may exceed the 256 MiB limit and be "
+        sizeWarning->setText(QString("⚠ This model has %1 triangles. A file this large may exceed the %2 MiB limit and be "
                                      "refused; a refused export writes nothing.")
-                                 .arg(triangles));
+                                 .arg(triangles)
+                                 .arg(qulonglong(stepOutputLimit / (1024 * 1024))));
     sizeWarning->setVisible(over);
 }
 

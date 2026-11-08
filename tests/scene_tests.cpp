@@ -122,8 +122,9 @@ int main() {
             payload->properties["property" + std::to_string(i)] = std::string(2048, 'x');
         bounded.apply({"Bounded metadata", {{boundedId, beforeProperties, payload}}},
                       bounded.revision());
-        // Each paint charges the body's before and after, about 0.56 MB with the payload above, so
-        // 400 paints exceed the 192 MiB budget (R110) and force eviction.
+        // Each paint charges the body's before and after, about 0.56 MB with the payload above. R115
+        // raised the undo budget to 4 GiB, so 400 paints (about 224 MB) stay within it and nothing is
+        // evicted: this checks the bound and the undo and redo path, not eviction.
         constexpr int paints = 400;
         for (int i = 0; i < paints; ++i)
             bounded.paint(boundedId, {float(i % 10) / 10, .2f, .3f});
@@ -135,8 +136,8 @@ int main() {
             bounded.undo();
             ++undoCount;
         }
-        check(undoCount > 0 && undoCount < paints + 2,
-              "Budget eviction removes oldest undo entries");
+        check(undoCount >= paints,
+              "Every paint stays in undo history within the 4 GiB budget (R115)");
         while (bounded.canRedo())
             bounded.redo();
         check(*bounded.bodies().at(boundedId) == finalBody,

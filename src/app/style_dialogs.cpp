@@ -298,9 +298,10 @@ StyleImportDialog::StyleImportDialog(Document &doc, Viewport &view, const QStrin
             if (payload > quint64(AssetPayload::limit))
                 throw StyleImportRefusal{
                     "Import refused: the texture is too large.",
-                    "The texture is " + fileSize(qsizetype(payload)) + ", and the limit is 16 MiB.",
-                    {"Reduce the texture to 16 MiB or less, export the style again, then import "
-                     "it."}};
+                    "The texture is " + fileSize(qsizetype(payload)) + ", and the limit is " +
+                        fileSize(qsizetype(AssetPayload::limit)) + ".",
+                    {"Reduce the texture to " + fileSize(qsizetype(AssetPayload::limit)) +
+                     " or less, export the style again, then import it."}};
         }
         require(file.size() <= styleFileLimit, "The file is larger than a style file can be");
         file.seek(0);

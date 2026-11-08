@@ -32,7 +32,7 @@ QByteArray read(const QString &path, qint64 limit) {
             "Invalid retained render artifact");
     QFile file(path);
     require(file.open(QIODevice::ReadOnly), "Cannot read retained render artifact");
-    const auto bytes = file.read(limit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(limit)) + 1);
     require(bytes.size() <= limit && file.error() == QFileDevice::NoError,
             "Retained render artifact exceeds limits or cannot be read");
     return bytes;

@@ -284,10 +284,12 @@ class Document {
     bool canUndo() const { return !undo_.empty(); }
     bool canRedo() const { return !redo_.empty(); }
     size_t historyBytes() const { return historyBytes_; }
-    // R110 (1.7.0, owner decision 2026-11-01): 192 MiB, three times the 1.6.1 budget. An edit is
-    // charged its records before and after, in full, so the budget limits one edit's size (ADR 0005,
-    // R110, has the measured limits). The refusal message states this number (src/core/model.cpp).
-    static constexpr size_t historyLimit = 192 * 1024 * 1024;
+    // R115 (owner decision 2026-11-07): 4 GiB, from 192 MiB (R110, 1.7.0). An edit is charged its
+    // records before and after, in full, so the budget limits one edit's size. R114 measured that a
+    // definition edit charges every placement it regenerates and that a move charges about 640 bytes
+    // per face (D-104), so 192 MiB refused edits the published limits admit. The refusal message
+    // states this number (src/core/model.cpp), computed from this constant.
+    static constexpr size_t historyLimit = 4ull * 1024 * 1024 * 1024;
     // Terrain's own history limit class (ADR 0168 decision 3, D-043). A terrain operation
     // replaces whole tile sets in one edit, so the record and tile changes of terrain
     // edits are charged here (Edit::terrainBytes), not against historyLimit. Sized for a
@@ -352,12 +354,12 @@ class Document {
     // Share immutable scene records and preserve identity, allocator floors,
     // session and saved-state markers, without retaining undo/redo history.
     Document readSnapshot() const;
-    // R112 (1.8.0, owner approval 2026-11-06): the one read-snapshot budget. A component's geometry
-    // is charged twice, in its definition and in each placement, so the published unique and
-    // materialized limits need more than the 256 MiB this was before 1.8.0 (ADR 0005, R112). Every
-    // admission check that reads readSnapshotBytes() uses this constant, and no refusal message
+    // The one read-snapshot budget. R112 (1.8.0) set it at 512 MiB; R115 (2026-11-07) sets it at 4 GiB,
+    // because a component's geometry is charged twice, in its definition and in each placement, and
+    // the published materialized limits charge up to 4,800,000 placed faces (ADR 0005, R112, R114).
+    // Every admission check that reads readSnapshotBytes() uses this constant, and no refusal message
     // states a number.
-    static constexpr size_t readSnapshotByteLimit = 512 * 1024 * 1024 * DocumentLimits::scale;
+    static constexpr size_t readSnapshotByteLimit = 4ull * 1024 * 1024 * 1024 * DocumentLimits::scale;
     // Conservative admission charge for all retained records, including assets
     // and allocator bookkeeping; shared records are charged at full size.
     size_t readSnapshotBytes() const;

@@ -388,8 +388,8 @@ QByteArray CatalogBuilder::encode() const {
                         {"entries", entryRecords}})
             .toJson(QJsonDocument::Compact);
     require(manifest.size() <= manifestLimit, "Catalog manifest exceeds 32 KiB");
-    require(headerSize + manifest.size() + region.size() <= libraryBundleLimit,
-            "Catalog exceeds 130 MiB");
+    if (headerSize + manifest.size() + region.size() > libraryBundleLimit)
+        throw std::runtime_error("Catalog exceeds " + std::to_string(libraryBundleLimit / (1024 * 1024)) + " MiB");
     QByteArray result(headerSize, '\0');
     std::copy(magic.begin(), magic.end(), result.begin());
     qToLittleEndian<quint32>(quint32(manifest.size()), result.data() + 8);

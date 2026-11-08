@@ -194,7 +194,7 @@ bool isNewerThanTested(int major) { return major > kNewestTestedMajor; }
 
 int runProbe(const std::string& input, Progress& progress) {
   progress.phase("read");
-  const std::vector<std::uint8_t> bytes = readWholeFile(input, 1024 * 1024 * 1024);
+  const std::vector<std::uint8_t> bytes = readWholeFile(input, 2048ull * 1024 * 1024);
   if (bytes.size() < 4 || bytes[0] != 0xFF || bytes[1] != 0xFE || bytes[2] != 0xFF || bytes[3] != 0x0E) {
     JsonOut json;
     json.beginObject().field("status", "refused").field("code", "notSkp")

@@ -187,9 +187,12 @@ struct Importer {
         if (decoded.status != TextureImageStatus::Ready)
             throw std::runtime_error("glTF texture is not a supported bounded PNG/JPEG image");
         decodedBytes += decoded.image->rgba().size();
-        if (decodedBytes > 256 * 1024 * 1024)
-            throw std::runtime_error(
-                "glTF textures exceed the 256 MiB aggregate decoded-image budget");
+        // Eight times the R113 value of 256 MiB (R115).
+        constexpr size_t decodedImageLimit = 2048ull * 1024 * 1024;
+        if (decodedBytes > decodedImageLimit)
+            throw std::runtime_error("glTF textures exceed the " +
+                                     std::to_string(decodedImageLimit / (1024 * 1024)) +
+                                     " MiB aggregate decoded-image budget");
         if (alpha == cgltf_alpha_mode_opaque && decoded.image->hasTransparency()) {
             auto rgba = decoded.image->rgba();
             for (size_t i = 3; i < rgba.size(); i += 4)

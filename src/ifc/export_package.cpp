@@ -195,7 +195,7 @@ ExportPackage readExportPackage(std::string_view bytes) {
     if (package.meshes.size() >= ExportLimits::meshes) bad("too many meshes");
     const long long vertices = entry.at("vertices").asInteger(), triangles = entry.at("triangles").asInteger(),
                     colors = entry.at("colors").asInteger();
-    if (vertices < 3 || triangles < 1 || colors < 0 || vertices > 3 * 100'000 || triangles > 1'000'000 || colors > 1'000'000)
+    if (vertices < 3 || triangles < 1 || colors < 0 || vertices > 3 * 1'600'000 || triangles > 1'600'000 || colors > 1'600'000)
       bad("a mesh count is out of range");
     ExportMesh m;
     const unsigned char* v = take(static_cast<std::uint64_t>(vertices) * 3, 8);

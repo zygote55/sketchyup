@@ -25,7 +25,7 @@ TransactionDispatcher::TransactionDispatcher(TransactionCoordinator &actor, Limi
                                              StagingSession::Now now)
     : actor_(actor), limits_(limits), now_(std::move(now)) {
     if (!limits.drafts || limits.drafts > 4 || !limits.retainedBytes ||
-        limits.retainedBytes > 128 * 1024 * 1024 || limits.maximumTtlSeconds < 1 ||
+        limits.retainedBytes > 1024 * 1024 * 1024 || limits.maximumTtlSeconds < 1 ||
         limits.maximumTtlSeconds > maximumTrustedStagingTtlSeconds || !now_)
         fail("INVALID_REQUEST", "Invalid transaction draft limits");
 }

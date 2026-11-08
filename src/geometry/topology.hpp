@@ -29,8 +29,9 @@ struct Adjacency {
 struct Topology {
     std::map<Id, EdgeRecord> edges;
     Id nextId{1};
-    // Scales with the benchmark-only limit scale (R114); 300,000 at every product build.
-    static constexpr size_t edgeLimit = 300000 * DocumentLimits::scale;
+    // Scales with the benchmark-only limit scale (R114); 2,400,000 at every product build (R115,
+    // from 300,000).
+    static constexpr size_t edgeLimit = 2400000 * DocumentLimits::scale;
     static Topology rebuild(const Surface &surface, const Topology &previous, Id floor = 1);
     Adjacency adjacency(const Surface &surface) const;
     void validate(const Surface &surface) const;

@@ -12,6 +12,10 @@
 #include <set>
 namespace sketchy {
 namespace {
+// The OBJ import byte bounds (R113, D-102), eight times their R113 values in R115: a 1 GiB input
+// file and 2 GiB of decoded textures. The input bound is the one the OBJ reader checks.
+constexpr std::size_t objInputLimit = 1024ull * 1024 * 1024;
+constexpr std::size_t objDecodedTextureLimit = 2048ull * 1024 * 1024;
 struct Importer {
     QString root;
     size_t captured{}, mtlBytes{}, assetSize{}, decodedBytes{}, vertexCount{}, faceCount{},
@@ -60,12 +64,13 @@ struct Importer {
         QFile file(path);
         if (!file.open(QIODevice::ReadOnly))
             throw std::runtime_error("Cannot read OBJ input");
-        auto bytes = file.read(limit + 1);
+        auto bytes = file.read(qMin(file.size(), qint64(limit)) + 1);
         if (bytes.size() > limit || file.error() != QFileDevice::NoError)
             throw std::runtime_error("Cannot capture bounded OBJ input");
         captured += size_t(bytes.size());
-        if (captured > 128 * 1024 * 1024)
-            throw std::runtime_error("OBJ package exceeds 128 MiB");
+        if (captured > objInputLimit)
+            throw std::runtime_error("OBJ package exceeds " + std::to_string(objInputLimit / (1024 * 1024)) +
+                                     " MiB");
         return bytes;
     }
     Id image(const NamedMaterial &m) {
@@ -101,8 +106,10 @@ struct Importer {
                     loss("unsupportedTextures");
                 else {
                     decodedBytes += decoded.image->rgba().size();
-                    if (decodedBytes > 256 * 1024 * 1024)
-                        throw std::runtime_error("OBJ decoded textures exceed 256 MiB");
+                    if (decodedBytes > objDecodedTextureLimit)
+                        throw std::runtime_error("OBJ decoded textures exceed " +
+                                                 std::to_string(objDecodedTextureLimit / (1024 * 1024)) +
+                                                 " MiB");
                 }
             }
         }
@@ -324,7 +331,7 @@ struct Importer {
         if (!input.isFile())
             throw std::runtime_error("OBJ requires a regular source file");
         root = QFileInfo(input.canonicalFilePath()).absolutePath();
-        source = parseObj(read(input.canonicalFilePath(), 128 * 1024 * 1024), options);
+        source = parseObj(read(input.canonicalFilePath(), qsizetype(objInputLimit)), options);
         for (const auto &library : source.materialLibraries) {
             const auto file = sidecar(root, library);
             if (!QFileInfo::exists(file)) {

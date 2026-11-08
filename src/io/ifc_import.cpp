@@ -349,7 +349,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     }
     result.stats.faces = surface.faces.size();
     result.stats.vertices = surface.vertices.size();
-    if (surface.faces.size() > 100000 || surface.vertices.size() > 100000) {
+    if (surface.faces.size() > Surface::bodyLimit || surface.vertices.size() > Surface::bodyLimit) {
         result.stats.tooLarge = true;
         return result;
     }

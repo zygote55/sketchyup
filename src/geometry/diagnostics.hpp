@@ -1,4 +1,5 @@
 #pragma once
+#include "core/document_limits.hpp"
 #include "geometry/solid.hpp"
 #include <compare>
 namespace sketchy {
@@ -26,7 +27,9 @@ struct GeometryDiagnostics {
     std::string solidStatus;
     std::optional<double> materialVolume;
     bool analysisComplete{};
-    static constexpr size_t findingLimit = 16, referenceLimit = 64, cornerLimit = 2000000;
+    // Face corners per body, the same bound as Shading normals (R115: 16,000,000 at every product build).
+    static constexpr size_t findingLimit = 16, referenceLimit = 64,
+                            cornerLimit = 16000000 * DocumentLimits::scale;
 };
 // Read-only bounded findings for an authoritative valid surface/topology pair.
 // Topological defects prevent deeper solid analysis; no clean-volume claim is

@@ -14,7 +14,7 @@ class StagingSession {
     using Now = std::function<Clock::time_point()>;
     struct Limits {
         size_t proposals{4};
-        size_t retainedBytes{128 * 1024 * 1024};
+        size_t retainedBytes{1024 * 1024 * 1024}; // R115: 1 GiB, from 128 MiB
         int maximumTtlSeconds{300};
     };
     StagingSession();

@@ -3565,11 +3565,11 @@
             "maximumDiffPage": 100,
             "maximumTtlSeconds": 300,
             "minimumOutcomeRetentionDays": 30,
-            "outcomeBytes": 403030200,
+            "outcomeBytes": 2810560696,
             "outcomes": 10000,
             "requestBytes": 65536,
             "responseBytes": 278528,
-            "retainedBytes": 134217728
+            "retainedBytes": 1073741824
         },
         "operations": [
             {
@@ -5153,7 +5153,7 @@
                                                                     ],
                                                                     "type": "object"
                                                                 },
-                                                                "maxItems": 40000,
+                                                                "maxItems": 320000,
                                                                 "minItems": 0,
                                                                 "type": "array"
                                                             },
@@ -5662,7 +5662,7 @@
                                                                     ],
                                                                     "type": "object"
                                                                 },
-                                                                "maxItems": 40000,
+                                                                "maxItems": 320000,
                                                                 "minItems": 0,
                                                                 "type": "array"
                                                             },
