@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
         QImage sixteen(2, 2, QImage::Format_RGBA64);
         sixteen.fill(Qt::red);
         status(asset(encoded(sixteen)), TextureImageStatus::Unsupported);
-        QImage wide(4097, 1, QImage::Format_RGB32);
+        QImage wide(8193, 1, QImage::Format_RGB32); // one past the 8192 dimension limit (R115)
         wide.fill(Qt::white);
         status(asset(encoded(wide)), TextureImageStatus::TooLarge);
         status(asset(encoded(wide, "JPEG"), "image/jpeg"), TextureImageStatus::TooLarge);
@@ -204,12 +204,12 @@ int main(int argc, char **argv) {
             const auto compressed = encoded(maximum);
             maximum = {};
             const auto limit = ready(asset(compressed));
-            check(limit->rgba().size() == TextureImage::byteLimit && limit->rgba().back() == 127 &&
+            check(limit->rgba().size() == 4096ull * 4096 * 4 && limit->rgba().back() == 127 &&
                       limit->hasTransparency(),
-                  "Exact 64 MiB and 4096-square boundary decodes without rescaling");
+                  "A 4096-square image (64 MiB decoded) decodes without rescaling");
         }
         rejects([] { TextureImage(0, 1, {}); });
-        rejects([] { TextureImage(4097, 1, {}); });
+        rejects([] { TextureImage(8193, 1, {}); });
         rejects([] { TextureImage(1, 1, {1, 2, 3}); });
         rejects([&] { decoded->sampleLinear({std::numeric_limits<double>::infinity(), 0}); });
         rejects([&] { decoded->sampleLinear({0, std::numeric_limits<double>::quiet_NaN()}); });

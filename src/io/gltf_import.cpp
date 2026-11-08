@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cgltf.h>
 #include <numbers>
+#include <array>
+#include <map>
 #include <set>
 namespace sketchy {
 namespace {
@@ -68,17 +70,17 @@ struct Importer {
     // Primitives over the one-body limit, as name and body count (R113, D-102).
     QJsonArray bodySplits;
     size_t assetSize{}, decodedBytes{};
+    size_t decodedImageLimit{gltfDecodedImageLimit};
+    LimitCounts uniqueBounds{DocumentLimits::unique};
     std::set<const cgltf_node *> visited;
-    explicit Importer(const GltfPackage &p) : package(p), data(p.data()) {}
+    Importer(const GltfPackage &p, size_t decodedBudget, const LimitCounts &unique)
+        : package(p), data(p.data()), decodedImageLimit(decodedBudget), uniqueBounds(unique) {}
     void loss(const char *key, int count = 1) { losses[key] = losses[key].toInt() + count; }
     void checkTotals() const {
         const auto operation = "glTF import";
-        checkFormatCount(operation, "vertices", unique.vertices, DocumentLimits::unique.vertices,
-                         "unique geometry");
-        checkFormatCount(operation, "faces", unique.faces, DocumentLimits::unique.faces,
-                         "unique geometry");
-        checkFormatCount(operation, "bodies", unique.bodies, DocumentLimits::unique.bodies,
-                         "unique geometry");
+        checkFormatCount(operation, "vertices", unique.vertices, uniqueBounds.vertices, "unique geometry");
+        checkFormatCount(operation, "faces", unique.faces, uniqueBounds.faces, "unique geometry");
+        checkFormatCount(operation, "bodies", unique.bodies, uniqueBounds.bodies, "unique geometry");
         checkFormatCount(operation, "vertices", materialized.vertices,
                          DocumentLimits::materialized.vertices, "materialized");
         checkFormatCount(operation, "faces", materialized.faces,
@@ -187,9 +189,10 @@ struct Importer {
         if (decoded.status != TextureImageStatus::Ready)
             throw std::runtime_error("glTF texture is not a supported bounded PNG/JPEG image");
         decodedBytes += decoded.image->rgba().size();
-        if (decodedBytes > 256 * 1024 * 1024)
-            throw std::runtime_error(
-                "glTF textures exceed the 256 MiB aggregate decoded-image budget");
+        if (decodedBytes > decodedImageLimit)
+            throw std::runtime_error("glTF textures exceed the " +
+                                     std::to_string(decodedImageLimit / (1024 * 1024)) +
+                                     " MiB aggregate decoded-image budget");
         if (alpha == cgltf_alpha_mode_opaque && decoded.image->hasTransparency()) {
             auto rgba = decoded.image->rgba();
             for (size_t i = 3; i < rgba.size(); i += 4)
@@ -252,9 +255,13 @@ struct Importer {
                 checkPoint(vertexPoint(*position, i));
             const auto materialId = material(p.material);
             const auto primitiveName = "Primitive " + std::to_string(pi + 1);
+            // A body's vertices are welded by position (R115, review finding 5). A glTF written without indices (the
+            // app's own export) repeats every corner, so a model at the unique limit of 2,400,000 triangles has
+            // 7,200,000 corners but far fewer positions; counting corners refused it at 2,400,001 vertices.
             struct Piece {
                 std::shared_ptr<Body> body;
                 BodyBudget budget;
+                std::map<std::array<double, 3>, Id> welded;  // the body's vertex at each position
             };
             std::vector<Piece> pieces;
             // The next body of the primitive, continuing the last one (R113, D-102).
@@ -266,7 +273,7 @@ struct Importer {
                 piece->materials = {materialId, materialId};
                 piece->surface.nextId = position->count + 1;
                 definedGeometry(0, 0, 1);
-                pieces.push_back({piece, {}});
+                pieces.push_back({piece, {}, {}});
                 return pieces.back();
             };
             const auto *normal = attribute(p, cgltf_attribute_type_normal);
@@ -327,20 +334,26 @@ struct Importer {
                 }
                 // The first body of the primitive with room under the one-body limits takes the
                 // triangle: its new vertices, one face and three edges.
+                const auto keyOf = [](const Vec3 &point) { return std::array<double, 3>{point.x, point.y, point.z}; };
                 auto *piece = pieces.empty() ? &startPiece() : &pieces.back();
                 size_t fresh = 0;
-                for (const auto v : index)
-                    fresh += !piece->body->surface.vertices.contains(v + 1);
+                for (const auto &point : points)
+                    fresh += !piece->welded.contains(keyOf(point));
                 if (!piece->budget.admits(1, fresh, 3))
                     piece = &startPiece();
                 auto &surface = piece->body->surface;
-                const std::array<Id, 3> ids{index[0] + 1, index[1] + 1, index[2] + 1};
+                std::array<Id, 3> ids{};
                 for (size_t k = 0; k < 3; ++k) {
                     used[index[k]] = true;
-                    if (!surface.vertices.contains(ids[k])) {
-                        surface.vertices[ids[k]] = points[k];
-                        definedGeometry(1, 0, 0);
+                    const auto key = keyOf(points[k]);
+                    if (const auto found = piece->welded.find(key); found != piece->welded.end()) {
+                        ids[k] = found->second;
+                        continue;
                     }
+                    ids[k] = surface.nextId++;
+                    piece->welded.emplace(key, ids[k]);
+                    surface.vertices[ids[k]] = points[k];
+                    definedGeometry(1, 0, 0);
                 }
                 const Id face = surface.nextId++;
                 surface.faces[face] = Face{face, {{ids[0], ids[1], ids[2]}}};
@@ -559,6 +572,8 @@ struct Importer {
     }
 };
 } // namespace
-GltfImport importGltf(const GltfPackage &package) { return Importer(package).run(); }
+GltfImport importGltf(const GltfPackage &package, size_t decodedImageBudget, const LimitCounts &uniqueBounds) {
+    return Importer(package, decodedImageBudget, uniqueBounds).run();
+}
 GltfImport loadGltf(const QString &path) { return importGltf(GltfPackage::read(path)); }
 } // namespace sketchy

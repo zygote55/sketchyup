@@ -179,7 +179,8 @@ QByteArray encodeContainer(const Document &doc) {
                                   {"chunks", chunks}})
             .toJson(QJsonDocument::Compact);
     if (manifest.size() > manifestLimit)
-        throw std::runtime_error("Container manifest exceeds 4 MiB");
+        throw std::runtime_error("Container manifest exceeds " + std::to_string(manifestLimit / (1024 * 1024)) +
+                                 " MiB");
     QByteArray header(16, '\0');
     header.replace(0, magic.size(), magic);
     qToLittleEndian<quint32>(nativeContainerVersion, header.data() + 8);
@@ -190,7 +191,8 @@ Document decodeContainer(const QByteArray &bytes) {
     // Explicit legacy migration, without rewriting the source file.
     if (!bytes.startsWith(magic)) {
         if (bytes.size() > qsizetype(NativeLimits::rawJsonBytes))
-            throw std::runtime_error("Raw document exceeds 128 MiB");
+            throw std::runtime_error("Raw document exceeds " +
+                                     std::to_string(NativeLimits::rawJsonBytes / (1024 * 1024)) + " MiB");
         return decodeDocument(bytes);
     }
     if (bytes.size() < 16 || bytes.size() > qsizetype(NativeLimits::containerBytes))

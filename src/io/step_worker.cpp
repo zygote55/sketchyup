@@ -23,7 +23,8 @@
 #include <vector>
 namespace sketchy {
 namespace {
-constexpr qint64 maxFileBytes = 128 * 1024 * 1024;
+// The STEP input bound: eight times the R113 value of 128 MiB (R115).
+constexpr qint64 maxFileBytes = 1024LL * 1024 * 1024;
 constexpr qint64 maxPackageBytes = 24 + qint64(IfcPackageLimits::manifestBytes) + qint64(IfcPackageLimits::meshBytes);
 constexpr qint64 maxLogBytes = 2048;
 const char *const privatePrefix = "sketchyup-step-";
@@ -177,7 +178,7 @@ StepScan checkStepSource(const QString &path) {
     if (!info.isFile())
         refuse("notAFile", "The STEP source must be a regular file.");
     if (info.size() > maxFileBytes)
-        refuse("tooLarge", "The STEP file is larger than 128 MiB (" + std::to_string(info.size()) + " bytes).");
+        refuse("tooLarge", "The STEP file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB (" + std::to_string(info.size()) + " bytes).");
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         refuse("unreadable", "The STEP file cannot be read.");
@@ -255,7 +256,7 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
     if (options.addressSpaceBytes > 0)
         args << "--rlimit-as" << QString::number(options.addressSpaceBytes);
     args << "--rlimit-cpu" << QString::number(qint64(options.deadlineSeconds) * 4) << "--rlimit-fsize"
-         << QString::number(qint64(256) * 1024 * 1024);
+         << QString::number(qint64(2048) * 1024 * 1024);  // at least maxPackageBytes (R115)
     QProcess process;
     process.setProgram(worker);
     process.setArguments(args);
@@ -444,7 +445,7 @@ void copyBounded(const QString &source, const QString &destination) {
     ::close(in);
     ::close(out);
     if (tooLarge)
-        refuse("tooLarge", "The STEP file is larger than 128 MiB.");
+        refuse("tooLarge", "The STEP file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB.");
     if (failed)
         refuse("unreadable", "The STEP file could not be copied into the private working directory.");
 }
@@ -458,7 +459,7 @@ IfcImport importStepFile(const QString &path, const StepWorkerOptions &worker) {
         if (!info.isFile())
             refuse("notAFile", "The STEP source must be a regular file.");
         if (info.size() > maxFileBytes)
-            refuse("tooLarge", "The STEP file is larger than 128 MiB (" + std::to_string(info.size()) + " bytes).");
+            refuse("tooLarge", "The STEP file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB (" + std::to_string(info.size()) + " bytes).");
     }
     // The STEP import runs in the IFC helper (ADR 0172 section 8: one component, one helper, two directions).
     const QString workerPath = findIfcWorker(worker.workerPath);

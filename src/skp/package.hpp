@@ -68,9 +68,11 @@
 
 namespace sketchyup::skp {
 struct SkpPackageLimits {
-  static constexpr std::size_t manifestBytes = 32 * 1024 * 1024;
-  static constexpr std::size_t geometryBytes = 256 * 1024 * 1024;
-  static constexpr std::size_t textureChunkBytes = 256 * 1024 * 1024;
+  static constexpr std::size_t manifestBytes = 256 * 1024 * 1024;
+  static constexpr std::size_t geometryBytes = 2048ull * 1024 * 1024;
+  static constexpr std::size_t textureChunkBytes = 2048ull * 1024 * 1024;
+  // The whole package: header, manifest and both chunks. Checked before it is assembled (R115).
+  static constexpr std::size_t packageBytes = 2048ull * 1024 * 1024;
   static constexpr std::size_t headerBytes = 32;
   static constexpr std::size_t definitions = 100000;
   static constexpr std::size_t vertices = 5000000;  // the model, total
@@ -82,8 +84,8 @@ struct SkpPackageLimits {
   static constexpr std::size_t materials = 65536;
   static constexpr std::size_t tags = 65536;
   static constexpr std::size_t textures = 4096;
-  static constexpr std::size_t perTextureBytes = 16 * 1024 * 1024;  // one image
-  static constexpr std::size_t textureDimension = 4096;  // after decoding
+  static constexpr std::size_t perTextureBytes = 64 * 1024 * 1024;  // one image
+  static constexpr std::size_t textureDimension = 8192;  // after decoding (R115: the product texture limit)
   static constexpr std::size_t stringBytes = 64 * 1024;
   static constexpr std::size_t nameBytes = 4096;
   static constexpr std::size_t locationsPerKind = 32;
@@ -108,8 +110,8 @@ struct SkpPackageTexture {
   std::string filename;
   double width{};
   double height{};
-  std::vector<std::uint8_t> bytes;  // the image bytes as stored (the 4096 x 4096 after decoding,
-                                    // the 16 MiB per image)
+  std::vector<std::uint8_t> bytes;  // the image bytes as stored (the 8192 x 8192 after decoding,
+                                    // the 64 MiB per image)
 };
 
 struct SkpPackageEdge {

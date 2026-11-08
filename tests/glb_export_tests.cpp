@@ -8,6 +8,7 @@
 #include "dem_export_fixture.hpp"
 #include "integrations/glb_export.hpp"
 #include "io/document_io.hpp"
+#include "io/texture_image.hpp"
 #include "report_fixtures.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -168,6 +169,11 @@ void checkLargeCaptureLimits(const QString &directory) {
     createTerrain(terrain, mesh, report_fixtures::terrainRecord(mesh));
     check(exportGlb(RenderSnapshot::capture(terrain)).manifest["visibleTriangles"] == 105800,
           "A terrain over 100,000 faces exports under the terrain class");
+    // R115: the manifest bound is 1.5 GiB, eight times R112's 192 MiB. A manifest of that size is not written
+    // in CI: writeGlbExport takes the bound as a parameter, so the boundary is reached with a small manifest.
+    // One byte over the bound is refused by name, and a manifest of exactly the bound is written.
+    check(glbManifestByteLimit == 1536LL * 1024 * 1024 * DocumentLimits::scale,
+          "The product manifest bound is 1.5 GiB (R115)");
     const auto scene = [](qsizetype padding) {
         GlbExport result;
         result.glb = QByteArray("glTF");
@@ -180,23 +186,27 @@ void checkLargeCaptureLimits(const QString &directory) {
         return result;
     };
     // The indented manifest is the published size; the padding adds one byte per character.
-    const auto room = glbManifestByteLimit - QJsonDocument(scene(0).manifest).toJson().size();
-    check(refusal([&] { writeGlbExport(scene(room + 1), directory + "/over"); }) ==
-              "GLB manifest exceeds 192 MiB",
-          "A manifest one byte over 192 MiB is refused by name");
-    writeGlbExport(scene(room), directory + "/exact");
-    check(QFileInfo(directory + "/exact/manifest.json").size() == glbManifestByteLimit,
-          "A manifest of exactly 192 MiB is written");
-    Document parts, over;
+    const qsizetype manifestSize = QJsonDocument(scene(0).manifest).toJson().size();
+    check(refusal([&] { writeGlbExport(scene(10), directory + "/over", manifestSize + 9); })
+                  .rfind("GLB manifest exceeds", 0) == 0,
+          "A manifest one byte over the bound is refused by name");
+    writeGlbExport(scene(9), directory + "/exact", manifestSize + 9);
+    check(QFileInfo(directory + "/exact/manifest.json").size() == manifestSize + 9,
+          "A manifest of exactly the bound is written");
+    // R115: the render snapshot body bound is 160,000. The capture takes the bound as a parameter of
+    // requireSnapshotBodies, so one over it and exact are checked without building 160,001 bodies.
+    check(refusal([&] { requireSnapshotBodies(20001, 20000); }) == "Render snapshot contains too many records",
+          "A 20,001-body capture over a bound of 20,000 is refused by name");
+    check(refusal([&] { requireSnapshotBodies(20000, 20000); }).empty(),
+          "A capture of exactly the bound is accepted");
+    check(refusal([&] { requireSnapshotBodies(160001); }) == "Render snapshot contains too many records" &&
+              refusal([&] { requireSnapshotBodies(160000); }).empty(),
+          "The product render snapshot body bound is 160,000");
+    Document parts;
     report_fixtures::buildPartsModel(parts, 6666, false);
-    report_fixtures::buildPartsModel(over, 6667, false);
-    check(parts.bodies().size() == 19998 && over.bodies().size() == 20001,
-          "The placement counts give 19,998 and 20,001 bodies");
+    check(parts.bodies().size() == 19998, "The placement count gives 19,998 bodies");
     check(refusal([&] { RenderSnapshot::capture(parts); }).empty(),
           "A 19,998-body capture is accepted");
-    check(refusal([&] { RenderSnapshot::capture(over); }) ==
-              "Render snapshot contains too many records",
-          "A 20,001-body capture is refused by name");
 }
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -299,6 +309,23 @@ int main(int argc, char **argv) {
                   losses["textureAssetsPreservedWithoutUVMapping"] == 2 &&
                   losses["missingAssets"] == 1,
               "Appearance losses explicit");
+    {
+        // R115: the decoded texture budget is the GLB binary bound (2 GiB), and the budget is a parameter of
+        // exportGlb. A 8 x 8 PNG decodes to 256 bytes: a budget of 255 is refused by name, and 256 is exact.
+        const TextureImage pixels(8, 8, std::vector<std::uint8_t>(8 * 8 * 4, 128));
+        const auto png = encodeTexturePng(pixels);
+        auto textured = box();
+        const auto decoded = createAsset(textured, "Decoded swatch", "image/png",
+                                         std::make_shared<AssetPayload>(std::vector<std::uint8_t>(png.begin(), png.end())));
+        const auto texturedMaterial = createMaterial(textured, "Textured", {1, 1, 1}, 1, decoded);
+        assignMaterial(textured, 1, {}, texturedMaterial, true, true);
+        const auto texturedSnapshot = RenderSnapshot::capture(textured);
+        check(refusal([&] { exportGlb(texturedSnapshot, glbVisibleFaceLimit, 255); })
+                      .rfind("GLB decoded texture images exceed", 0) == 0,
+              "A decoded texture over the decoded budget is refused by name");
+        const auto exact = exportGlb(texturedSnapshot, glbVisibleFaceLimit, 256);
+        check(exact.manifest["decodedTextureBytes"] == 256, "A decoded texture of exactly the budget is exported");
+    }
         const auto mat = materialParsed.root["materials"].toArray()[0].toObject();
         check(mat["doubleSided"] == false && mat["alphaMode"] == "BLEND" &&
                   materialParsed.root["materials"].toArray().size() == 2,

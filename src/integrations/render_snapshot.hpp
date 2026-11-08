@@ -16,9 +16,15 @@ struct RenderOptions {
     std::optional<RenderCamera> camera;
     std::optional<RenderEnvironment> environment;
 };
-// Bodies a capture may hold (ADR 0032). R099.f keeps it: a 20,000-body capture already takes
-// 1.7 s to prepare (p50), over the 1 s per-frame budget, so no higher limit is within budget.
-inline constexpr std::size_t renderSnapshotBodyLimit = 20000 * DocumentLimits::scale;
+// Bodies a capture may hold (ADR 0032). R115 (2026-11-07) raises it from 20,000 to 160,000, eight
+// times the published value, as the brief sets for every render snapshot bound. R099.f measured a
+// 20,000-body capture at 1.7 s to prepare (p50), over the 1 s per-frame budget; the 160,000 value
+// was not measured for its preparation time, so that budget is a known contradiction (recorded in
+// ADR 0005 "Implementation notes (R115)").
+inline constexpr std::size_t renderSnapshotBodyLimit = 160000 * DocumentLimits::scale;
+// The body bound of a capture, with its limit as a parameter so that a test reaches the refusal boundary
+// with a small count (R115). RenderSnapshot::capture passes the product constant.
+void requireSnapshotBodies(std::size_t bodies, std::size_t limit = renderSnapshotBodyLimit);
 RenderCamera renderSceneCamera(const SceneCamera &camera);
 Transform renderCameraTransform(const RenderCamera &camera);
 QJsonObject describeRenderSettings(const RenderSettings &settings);

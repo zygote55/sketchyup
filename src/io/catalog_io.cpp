@@ -20,6 +20,8 @@
 namespace sketchy {
 namespace {
 using namespace library_envelope;
+// A byte bound as text for a message, from its constant (R115: the messages printed the R110 values).
+std::string mibOf(std::size_t bytes) { return std::to_string(bytes / (1024 * 1024)) + " MiB"; }
 const QRegularExpression catalogIdPattern("\\A[A-Za-z0-9._-]{1,64}\\z");
 const QRegularExpression mediaTypePattern("\\A[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*\\z");
 const QRegularExpression digestPattern("\\A[0-9a-f]{64}\\z");
@@ -50,12 +52,12 @@ void validateAsset(const QString &name, const QString &mediaType, qsizetype size
                 mediaTypePattern.match(mediaType).hasMatch(),
             "Catalog asset media type must be lowercase type/subtype");
     require(size >= 1 && std::size_t(size) <= CatalogLimits::assetBytes,
-            "Catalog asset must be 1 byte to 16 MiB");
+            "Catalog asset must be 1 byte to " + mibOf(CatalogLimits::assetBytes));
 }
 void requireUnitInterval(float value, const char *message) {
     require(std::isfinite(value) && value >= 0 && value <= 1, message);
 }
-qsizetype wholeNumber(const QJsonValue &value, qsizetype maximum, const char *message) {
+qsizetype wholeNumber(const QJsonValue &value, qsizetype maximum, const std::string &message) {
     require(value.isDouble(), message);
     const auto number = value.toDouble();
     require(number == std::floor(number) && number >= 0 && number <= double(maximum), message);
@@ -239,12 +241,13 @@ std::uint32_t CatalogBuilder::addAsset(const QString &name, const QString &media
     for (const auto id : candidates)
         if (assets_[id - 1].mediaType == mediaType && assets_[id - 1].bytes == bytes)
             return id;
-    require(assets_.size() < CatalogLimits::assets, "Catalog has more than 256 assets");
+    require(assets_.size() < CatalogLimits::assets,
+            "Catalog has more than " + std::to_string(CatalogLimits::assets) + " assets");
     qsizetype total = bytes.size();
     for (const auto &asset : assets_)
         total += asset.bytes.size();
     require(std::size_t(total) <= CatalogLimits::assetTotalBytes,
-            "Catalog assets exceed 64 MiB together");
+            "Catalog assets exceed " + mibOf(CatalogLimits::assetTotalBytes) + " together");
     assets_.push_back({name, mediaType, bytes, digest});
     const auto id = std::uint32_t(assets_.size());
     candidates.push_back(id);
@@ -260,7 +263,7 @@ std::uint32_t CatalogBuilder::addEntry(EntryDraft entry) {
                 std::size_t(entry.payload.size()) <=
                     (record ? CatalogLimits::recordBytes : CatalogLimits::payloadBytes),
             record ? "Catalog style and material records are limited to 16 KiB"
-                   : "Catalog payload is empty or exceeds 256 MiB");
+                   : "Catalog payload is empty or exceeds " + mibOf(CatalogLimits::payloadBytes));
     const auto &deps = entry.dependencies;
     require(deps.size() <= CatalogLimits::dependencies,
             "Catalog entry has more than 64 dependencies");
@@ -368,7 +371,7 @@ QByteArray CatalogBuilder::encode() const {
         region += entry.payload;
     }
     require(std::size_t(region.size()) <= CatalogLimits::payloadBytes,
-            "Catalog payload exceeds 256 MiB");
+            "Catalog payload exceeds " + mibOf(CatalogLimits::payloadBytes));
     QJsonArray labels;
     for (const auto &label : metadata_.labels)
         labels.append(label);
@@ -388,8 +391,8 @@ QByteArray CatalogBuilder::encode() const {
                         {"entries", entryRecords}})
             .toJson(QJsonDocument::Compact);
     require(manifest.size() <= manifestLimit, "Catalog manifest exceeds 32 KiB");
-    require(headerSize + manifest.size() + region.size() <= libraryBundleLimit,
-            "Catalog exceeds 130 MiB");
+    if (headerSize + manifest.size() + region.size() > libraryBundleLimit)
+        throw std::runtime_error("Catalog exceeds " + std::to_string(libraryBundleLimit / (1024 * 1024)) + " MiB");
     QByteArray result(headerSize, '\0');
     std::copy(magic.begin(), magic.end(), result.begin());
     qToLittleEndian<quint32>(quint32(manifest.size()), result.data() + 8);
@@ -477,7 +480,7 @@ CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &
     std::vector<CatalogAssetReport> assets;
     require(m["assets"].isArray() &&
                 m["assets"].toArray().size() <= qsizetype(CatalogLimits::assets),
-            "Catalog has more than 256 assets");
+            "Catalog has more than " + std::to_string(CatalogLimits::assets) + " assets");
     qsizetype assetTotal{};
     for (const auto &value : m["assets"].toArray()) {
         require(value.isObject(), "Catalog asset must be an object");
@@ -490,7 +493,8 @@ CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &
         asset.name = text(record["name"], qsizetype(CatalogLimits::assetNameBytes));
         asset.mediaType = text(record["mediaType"], qsizetype(CatalogLimits::mediaTypeBytes));
         asset.bytes = wholeNumber(record["bytes"], qsizetype(CatalogLimits::assetBytes),
-                                  "Catalog asset must be 1 byte to 16 MiB");
+                                  "Catalog asset must be 1 byte to " +
+                                      mibOf(CatalogLimits::assetBytes));
         validateAsset(asset.name, asset.mediaType, asset.bytes);
         require(wholeNumber(record["offset"], qsizetype(payloadSize),
                             "Catalog asset offset is out of range") == cursor,
@@ -499,7 +503,7 @@ CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &
         asset.sha256 = digestText(record["sha256"]);
         assetTotal += asset.bytes;
         require(std::size_t(assetTotal) <= CatalogLimits::assetTotalBytes,
-                "Catalog assets exceed 64 MiB together");
+                "Catalog assets exceed " + mibOf(CatalogLimits::assetTotalBytes) + " together");
         cursor += asset.bytes;
         assets.push_back(std::move(asset));
     }
@@ -533,7 +537,8 @@ CatalogPackage decodeCatalog(const QByteArray &bytes, const CatalogCancelCheck &
                     std::size_t(entry.bytes) <=
                         (record_kind ? CatalogLimits::recordBytes : CatalogLimits::payloadBytes),
                 record_kind ? "Catalog style and material records are limited to 16 KiB"
-                            : "Catalog payload is empty or exceeds 256 MiB");
+                            : "Catalog payload is empty or exceeds " +
+                                  mibOf(CatalogLimits::payloadBytes));
         require(wholeNumber(record["offset"], qsizetype(payloadSize),
                             "Catalog entry offset is out of range") == cursor,
                 "Catalog payload must be contiguous in id order");
@@ -681,7 +686,8 @@ CatalogPackage loadCatalogLibraryEntry(const QString &folder, const QString &nam
 }
 
 CatalogLibrary scanCatalogLibrary(const QString &folder) {
-    constexpr qsizetype scanByteLimit = 256 * 1024 * 1024;
+    // One scan may read one bundle at the bundle limit (R115), as in io/library_catalog.cpp.
+    constexpr qsizetype scanByteLimit = libraryBundleLimit;
     CatalogLibrary result;
     if (folder.isEmpty() || !QFileInfo::exists(folder))
         return result;
@@ -717,7 +723,8 @@ CatalogLibrary scanCatalogLibrary(const QString &folder) {
                         fileInfo.size() <= qsizetype(libraryBundleLimit),
                     "Catalog file exceeds size limits");
             require(fileInfo.size() <= scanByteLimit - readBytes,
-                    "Catalog scan reached its 256 MiB read budget. Use a smaller catalog library.");
+                    "Catalog scan reached its " + std::to_string(scanByteLimit / (1024 * 1024)) +
+                        " MiB read budget. Use a smaller catalog library.");
             const auto package = loadCatalog(fileInfo.absoluteFilePath());
             readBytes += package.file.size();
             entry.catalogId = package.metadata.catalogId;

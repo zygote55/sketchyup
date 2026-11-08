@@ -8,6 +8,8 @@
 #include <cstring>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include "core/document_limits.hpp"
 namespace sketchy {
 namespace {
 const QByteArray magic("SKIFCP01", 8);
@@ -15,7 +17,7 @@ constexpr std::uint32_t none = IfcPackageMesh::noMaterial;
 [[noreturn]] void fail(const std::string &message) {
     throw std::runtime_error("Invalid IFC conversion package: " + message);
 }
-void require(bool ok, const char *message) {
+void require(bool ok, const std::string &message) {
     if (!ok)
         fail(message);
 }
@@ -186,8 +188,10 @@ IfcPackage decodeIfcPackage(const QByteArray &bytes, IfcPackageDecodeOptions opt
     const std::uint64_t reserved = qFromLittleEndian<quint32>(data + 12);
     const std::uint64_t meshBytes = qFromLittleEndian<quint64>(data + 16);
     require(reserved == 0, "reserved header word is not zero");
-    require(manifestBytes <= IfcPackageLimits::manifestBytes, "manifest exceeds 32 MiB");
-    require(meshBytes <= IfcPackageLimits::meshBytes, "mesh chunk exceeds 128 MiB");
+    require(manifestBytes <= IfcPackageLimits::manifestBytes,
+            "manifest exceeds " + std::to_string(IfcPackageLimits::manifestBytes / (1024 * 1024)) + " MiB");
+    require(meshBytes <= IfcPackageLimits::meshBytes,
+            "mesh chunk exceeds " + std::to_string(IfcPackageLimits::meshBytes / (1024 * 1024)) + " MiB");
     require(size == IfcPackageLimits::headerBytes + manifestBytes + meshBytes,
             "length disagrees with the header");
     const auto manifestData = bytes.mid(IfcPackageLimits::headerBytes, qsizetype(manifestBytes));
@@ -247,7 +251,8 @@ IfcPackage decodeIfcPackage(const QByteArray &bytes, IfcPackageDecodeOptions opt
         require(m["colors"].isBool(), "mesh colour flag must be a boolean");
         d.colors = m["colors"].toBool();
         triangleTotal += d.triangles;
-        require(triangleTotal <= IfcPackageLimits::totalTriangles, "meshes exceed 1,000,000 triangles");
+        require(triangleTotal <= IfcPackageLimits::totalTriangles,
+                "meshes exceed " + groupedCount(IfcPackageLimits::totalTriangles) + " triangles");
         total += meshBlockBytes(d.vertices, d.triangles, d.edges, d.colors);
         require(total <= meshBytes, "mesh chunk is shorter than its meshes");
         descriptors.push_back(d);

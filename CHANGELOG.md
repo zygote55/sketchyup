@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Raised model limits (R115, [PR_ROADMAP R115](docs/PR_ROADMAP.md#r115), [ADR 0005](docs/decisions/0005-document-protocol.md#implementation-notes-r115)): the published limits are set to the largest values measured on real hardware in [R114](docs/verification/R114-hardware-limits.md). The product limits are no longer tied to the development laptop's memory ceiling.
+- Changed (R115): a document holds 2,400,000 unique vertices, faces and wires and 7,200,000 edges, 80,000 bodies, curves and guides, and 80,000 placements. Its materialized totals are 4,800,000 vertices, faces and wires, 7,200,000 edges, 320,000 bodies, curves and guides, and 80,000 placements. One component definition holds 800,000 vertices, faces and wires and 2,400,000 edges. One body holds 800,000 faces or vertices and 2,400,000 edges. Component definitions stay at 1,024.
+- Changed (R115): a native file is at most 2 GiB, a model chunk 768 MiB, the raw JSON bound 1 GiB and the manifest 32 MiB. One asset is at most 64 MiB, and the assets of a document at most 512 MiB. A texture may be 8,192 by 8,192 pixels.
+- Changed (R115): the undo budget is 4 GiB (was 192 MiB), so a definition edit or a move of a dense body is no longer refused by the history budget. The read-snapshot budget is 4 GiB (was 512 MiB).
+- Changed (R115): every GLB bound is eight times its R112 value: the binary is 2 GiB, the JSON 128 MiB, the manifest 1.5 GiB, and a GLB export writes up to 4,800,000 visible faces. The Blender worker follows these bounds.
+- Changed (R115): OBJ and DXF exports and STL export may write 2 GiB, and OBJ and STL imports read up to 1 GiB. glTF imports read up to 1 GiB, with images of 64 MiB each. The format count limits follow the document limits.
+- Changed (R115): a STEP export writes at most 512 MiB (was 256 MiB), and a STEP file has at most 1,600,000 triangles per element and 10,000,000 in total (was 100,000 and 1,000,000). Its size refusal and the export dialog's note print the limit.
+- Changed (R115): the message of each refused limit prints its value. The render snapshot takes up to 160,000 bodies (was 20,000).
+- Changed (R113): the file formats take the document's limits, not 100,000. A mesh over the one-body limit imports as several bodies, named "Name (2)", "Name (3)" and so on, and the import report lists the splits under `bodySplits`. Shading does not carry across a split.
+- Changed (R113): a glTF mesh is charged once as unique geometry and again for each placement as materialized geometry.
+- Changed (R113): the `.skp` import keeps the first 1,024 component definitions and counts the rest in the notices (`definitionLimit`).
+- Fixed (R113, D-102): OBJ import took time quadratic in the faces because the body encoder inserted face records into JSON objects in id order; it now sorts them first.
+- Fixed (R115): a read of a bounded file reserves the file's own size, not the whole bound, so a 2 GiB limit does not reserve 2 GiB for a small file.
+- Open (R115, [D-103](docs/verification/R089a-defect-triage.md)): the STEP export result at 512 MiB is recorded in [R115](docs/verification/R115-raised-limits.md).
+
 Edit path, push/pull on large bodies and the definition count (R117, [D-104, D-106, D-107](docs/verification/R089a-defect-triage.md)): see [R117](docs/verification/R117-edit-path.md).
 
 - Changed (R117, D-107): an edit that changes no component definition no longer re-validates every definition, and an edit that changes one checks that definition and the definitions that place it. At 1,024 definitions a placement move takes 5 to 6 ms p95 on the GPU PC (was 268 ms) and a definition edit 14 ms (was 1,057 ms). Creating many definitions is still superlinear: 1,024 take 6 to 8 s on the development laptop (was 160 s), and 4,096 take 223 s.
@@ -19,8 +34,8 @@ Format count limits (R113, D-102, [PR_ROADMAP R113](docs/PR_ROADMAP.md#r113)): t
 - Changed (R113): OBJ, STL and DXF exports may write 256 MiB (were 64 MiB), the native file bound. OBJ and STL imports read up to 128 MiB and DXF imports up to 256 MiB (all were 64 MiB). A DXF polyline may hold 300,000 vertices.
 - Changed (R113): the GLB export's triangle cap is 1,800,000 (was 1,000,000), because a 600,000-face model with different front and back appearances writes 1,200,000 triangles. The Blender worker's bound moves with it.
 - Fixed (R113, D-102): OBJ import took time quadratic in the faces (12 s for 96,800 faces) because the body encoder inserted face records into JSON objects in id order; it now sorts them first (4 s in the same run).
-- Unchanged: the STEP export's 256 MiB output bound; a model of 300,000 distinct triangles is refused by name and a raised bound did not let the helper finish it ([D-103](docs/verification/R089a-defect-triage.md)). The IFC export takes 300,000 distinct faces.
-- Unchanged: the 192 MiB undo budget, which refuses a glTF import whose one edit places 600,000 faces ([D-103](docs/verification/R089a-defect-triage.md)).
+- Unchanged by R117 (R115 changed it, see above): the STEP export's output bound, now 512 MiB. The IFC export takes its own limits.
+- Unchanged by R117 (R115 raised it): the undo budget, now 4 GiB. The 192 MiB budget before it refused a glTF import whose one edit places 600,000 faces ([D-103](docs/verification/R089a-defect-triage.md)).
 
 ## 1.8.0 — 2026-11-07
 

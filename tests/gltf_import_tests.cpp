@@ -163,8 +163,11 @@ int main(int argc, char **argv) {
                   imported.report["losses"].toObject()["customNormalsRecomputed"] == 1,
               "Per-feature normal loss explicit");
         const auto &canonical = *doc.definitions().begin()->second->members.at(2);
-        check(canonical.surface.vertices.at(3) == Vec3{0, 0, 3},
-              "Y-up metres become native Z-up metres");
+        // Vertices are welded by position (R115), so the vertex is found by its position, not by a glTF index.
+        bool zUpPoint = false;
+        for (const auto &[id, point] : canonical.surface.vertices)
+            zUpPoint = zUpPoint || point == Vec3{0, 0, 3};
+        check(zUpPoint, "Y-up metres become native Z-up metres");
         size_t positive = 0, negative = 0;
         for (const auto &[id, body] : doc.bodies())
             if (body->kind == BodyKind::Geometry) {
@@ -355,13 +358,15 @@ int main(int argc, char **argv) {
         auto view = huge.views[0].toObject();
         view["byteLength"] = hugeCount * 12;
         huge.views[0] = view;
-        huge.buffer.resize(hugeCount * 12);
+        // Every byte is written: QByteArray::resize leaves new bytes uninitialized, and an unwritten z
+        // read as garbage made the import refuse a coordinate first (seen in the Arch package job).
+        huge.buffer.fill('\0', hugeCount * 12);
         for (int i = 0; i < hugeCount; ++i) {
             const float position[3] = {float(i) * .001f, float(i % 2) * .5f, 0};
-            const auto bits = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[0]));
-            std::memcpy(huge.buffer.data() + i * 12, &bits, 4);
-            const auto y = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[1]));
-            std::memcpy(huge.buffer.data() + i * 12 + 4, &y, 4);
+            for (int k = 0; k < 3; ++k) {
+                const auto bits = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[k]));
+                std::memcpy(huge.buffer.data() + i * 12 + k * 4, &bits, 4);
+            }
         }
         auto p = huge.primitive();
         p["attributes"] = QJsonObject{{"POSITION", 0}};
@@ -369,13 +374,18 @@ int main(int argc, char **argv) {
         huge.primitive(p);
         huge.save(path);
         std::string refusal;
+        // R115: the bound is a parameter of importGltf. At the R113 value of 300,000 this file, of 300,001 vertices,
+        // is refused by name (the product unique vertex limit is 2,400,000).
+        LimitCounts vertexBounds = DocumentLimits::unique;
+        vertexBounds.vertices = 300000;
         try {
-            loadGltf(path);
+            importGltf(GltfPackage::read(path), gltfDecodedImageLimit, vertexBounds);
         } catch (const std::exception &error) {
             refusal = error.what();
         }
-        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos,
-              "A glTF over the unique vertex limit is refused by name");
+        const std::string vertexBoundMessage = std::string("A glTF of 300,001 vertices is refused by name at a unique vertex bound of 300,000 (got: '") +
+                              refusal + "')";
+        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos, vertexBoundMessage.c_str());
         Fixture duplicates;
         auto duplicateMaterials = duplicates.tree["materials"].toArray();
         duplicateMaterials.append(duplicateMaterials[0]);
@@ -418,14 +428,18 @@ int main(int argc, char **argv) {
         compressed.tree["nodes"] = roots;
         compressed.tree["scenes"] = QJsonArray{QJsonObject{{"nodes", QJsonArray{0, 1, 2, 3, 4}}}};
         compressed.save(path);
-        bool decodedBudget = false;
+        // R115: the aggregate decoded budget is a parameter of importGltf (the product value is 2 GiB). One byte
+        // under the first image's decode (4096 by 4096 RGBA, 64 MiB) is refused on that image. The five images
+        // decode to 320 MiB and load under the product budget.
+        std::string decodedRefusal;
         try {
-            loadGltf(path);
+            importGltf(GltfPackage::read(path), std::size_t(4096) * 4096 * 4 - 1);
         } catch (const std::exception &error) {
-            decodedBudget =
-                QString::fromUtf8(error.what()).contains("aggregate decoded-image budget");
+            decodedRefusal = error.what();
         }
-        check(decodedBudget, "Small compressed images cannot bypass aggregate decode budget");
+        check(decodedRefusal.find("aggregate decoded-image budget") != std::string::npos,
+              "Small compressed images cannot bypass the aggregate decode budget");
+        (void)loadGltf(path);
         // Native exporter is another producer; a GLB must return the same metre dimensions.
         Document native;
         native.addFace({{{0, 0, 0}, {2, 0, 0}, {0, 3, 0}}});

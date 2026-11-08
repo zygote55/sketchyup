@@ -703,7 +703,7 @@ int main(int argc, char **argv) {
             check(driver.hows["stepImportReport"] ==
                           "Schema: ap214\n"
                           "Units: millimetre (the file declares it)\n"
-                          "Tessellation: 1.00 mm deviation · 30.0° crease angle · 100000 per element · 1000000 total\n"
+                          "Tessellation: 1.00 mm deviation · 30.0° crease angle · 1600000 per element · 10000000 total\n"
                           "No georeference: the STEP import keeps the helper's axes",
                   "the how-it-was-read block is filled: " +
                       driver.hows["stepImportReport"].toStdString());

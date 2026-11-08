@@ -155,16 +155,20 @@ void ReferenceImagesPanel::importFile(const QString &path) {
     }
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly) || file.size() > qint64(AssetPayload::limit))
-        throw std::runtime_error("Choose a readable image no larger than 16 MiB");
-    const auto data = file.read(AssetPayload::limit + 1);
+        throw std::runtime_error("Choose a readable image no larger than " +
+                                 std::to_string(AssetPayload::limit / (1024 * 1024)) + " MiB");
+    const auto data = file.read(qMin(file.size(), qint64(AssetPayload::limit)) + 1);
     if (data.size() > qsizetype(AssetPayload::limit) || file.error() != QFileDevice::NoError)
-        throw std::runtime_error("Could not read the image within the 16 MiB limit");
+        throw std::runtime_error("Could not read the image within the " +
+                                 std::to_string(AssetPayload::limit / (1024 * 1024)) + " MiB limit");
     const auto type = data.startsWith("\x89PNG\r\n\x1a\n") ? "image/png" : "image/jpeg";
     const auto payload =
         std::make_shared<AssetPayload>(std::vector<std::uint8_t>(data.begin(), data.end()));
     const auto decoded = decodeTextureImage({1, "Reference", type, payload});
     if (!decoded.image)
-        throw std::runtime_error("Choose a complete PNG or JPEG up to 4096 × 4096 pixels");
+        throw std::runtime_error("Choose a complete PNG or JPEG up to " +
+                                 std::to_string(TextureImage::dimensionLimit) + " × " +
+                                 std::to_string(TextureImage::dimensionLimit) + " pixels");
     const auto stamp = doc_.saveStamp();
     const auto revision = doc_.revision();
     QDialog dialog(this);

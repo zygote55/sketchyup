@@ -3,7 +3,8 @@ namespace sketchy {
 namespace {
 const std::vector<std::uint8_t> &bounded(const std::vector<std::uint8_t> &bytes) {
     if (bytes.empty() || bytes.size() > AssetPayload::limit)
-        throw std::runtime_error("Asset payload must contain 1 byte to 16 MiB");
+        throw std::runtime_error("Asset payload must contain 1 byte to " +
+                                 std::to_string(AssetPayload::limit / (1024 * 1024)) + " MiB");
     return bytes;
 }
 } // namespace
@@ -29,7 +30,9 @@ void validateAssetRecords(const AssetRecords &assets, Id next) {
             total += bounded(asset->payload->bytes()).size();
     }
     if (total > assetTotalLimit)
-        throw std::runtime_error("Assets exceed the 64 MiB document budget");
+        throw std::runtime_error("Assets exceed the " +
+                                 std::to_string(assetTotalLimit / (1024 * 1024)) +
+                                 " MiB document budget");
 }
 void validateMaterialAssets(const MaterialRecords &materials, const AssetRecords &assets) {
     for (const auto &[id, material] : materials)

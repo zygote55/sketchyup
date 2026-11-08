@@ -33,6 +33,12 @@
 
 namespace sketchy {
 
+// The most bytes one STEP file may hold (ADR 0172 section 6). R115 raises it from 256 MiB to 512 MiB,
+// the bound the brief asks to try (D-103): the helper's own memory limit is 4 GiB, and the R113 test
+// at 256 MiB did not finish a 300,000-face distinct model. Whether 512 MiB completes is recorded in
+// docs/verification/R115-raised-limits.md.
+inline constexpr std::size_t stepOutputLimit = 512ull * 1024 * 1024;
+
 struct StepExportOptions {
     // "ap214" (the default: AP214 CC2 DIS) or "ap203". AP242 writing is not supported and is refused.
     QString schema{"ap214"};
@@ -58,7 +64,7 @@ struct StepExportCapture {
 };
 
 // Captures the document. Throws StepExportError("emptyModel") when nothing can be written, "meshTooLarge" for a body
-// over 100,000 triangles, "tooManyTriangles" beyond 1,000,000, and "packageTooLarge" when the package would pass its
+// over 1,600,000 triangles (R115), "tooManyTriangles" beyond 10,000,000, and "packageTooLarge" when the package would pass its
 // bounds.
 StepExportCapture captureStepExport(const Document &document, const QString &fileName);
 

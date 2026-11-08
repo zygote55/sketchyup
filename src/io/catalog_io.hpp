@@ -20,9 +20,10 @@ namespace sketchy {
 // offset. Nothing is stored by absolute path, so a moved catalog still resolves.
 struct CatalogLimits {
     static constexpr std::size_t manifestBytes = 32768;            // the envelope manifest limit
-    // The whole payload region (shared assets, then every entry) takes the native file bound, so
-    // that one largest native container (containerBytes, with at most 64 MiB of assets) fits beside
-    // the catalog's full 64 MiB of shared assets. R110 (1.7.0) raised the bound from 128 to 256 MiB.
+    // The whole payload region (shared assets, then every entry) takes the native file bound (R110
+    // rule; R115 raised it to 2 GiB). A catalog file is also bounded by libraryBundleLimit (1040 MiB),
+    // which binds first, so this bound is not reached by a file that decodes. R115 finding: one largest
+    // native container no longer fits in a catalog file, and the owner should decide whether it must.
     static constexpr std::size_t payloadBytes = NativeLimits::fileBytes;
     static constexpr std::size_t recordBytes = 16 * 1024;          // one style or material payload
     static constexpr std::size_t entries = 128;
@@ -40,8 +41,8 @@ struct CatalogLimits {
     static constexpr std::size_t assetNameBytes = 1024;
     static constexpr std::size_t mediaTypeBytes = 128;
     static constexpr std::size_t materialNameBytes = 1024;
-    static constexpr std::size_t assetBytes = AssetPayload::limit;  // one asset, 16 MiB
-    static constexpr std::size_t assetTotalBytes = assetTotalLimit; // all assets, 64 MiB
+    static constexpr std::size_t assetBytes = AssetPayload::limit;  // one asset, 64 MiB (R115)
+    static constexpr std::size_t assetTotalBytes = assetTotalLimit; // all assets, 512 MiB (R115)
 };
 enum class CatalogEntryKind { Component, Template, Style, Material };
 struct CatalogDependency {
@@ -173,7 +174,8 @@ struct CatalogLibrary {
     QStringList notices;
 };
 // Scans a flat folder: at most 4096 folder entries and 128 catalogs, each fully decoded, within a
-// 256 MiB read budget. A folder that does not exist is an empty library.
+// read budget of one bundle at the bundle limit (libraryBundleLimit, R115). A folder that does not
+// exist is an empty library.
 CatalogLibrary scanCatalogLibrary(const QString &folder);
 QJsonObject encodeCatalogLibrary(const CatalogLibrary &library);
 } // namespace sketchy

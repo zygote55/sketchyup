@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
         rejects([&] { GltfPackage::read(source); });
         QFile::remove(sidecar);
         write(sidecar, vertices);
-        for (const auto &patch : std::vector<QJsonObject>{{{"count", 1000001}},
+        for (const auto &patch : std::vector<QJsonObject>{{{"count", 8000001}},
                                                           {{"byteOffset", 1}},
                                                           {{"count", 100000}},
                                                           {{"componentType", 0}},
@@ -198,6 +198,22 @@ int main(int argc, char **argv) {
         qToLittleEndian<quint32>(3, broken.data() + 4);
         write(glb, broken);
         rejects([&] { GltfPackage::read(glb); });
+        // R115 (review finding 5): the parse budgets admit a GLB that the app's export writes for a model inside the
+        // unique limit. Such a model has at most 2,400,000 faces; double-sided and textured, each face writes two
+        // sides of three corners, each with POSITION, NORMAL and TEXCOORD_0 (the export's own triangle bound is
+        // materializedCornerLimit). The file is 2 GiB at most, its JSON 128 MiB, and records follow the materialized
+        // bodies and placements. Checked by counts: a file of that size is not built in CI.
+        const auto budgets = gltfParseBudgets();
+        const std::size_t corners = 2 * 3 * DocumentLimits::unique.faces;  // both sides of every unique face
+        check(budgets.accessorCount >= corners, "an accessor of 14,400,000 corners is admitted");
+        check(budgets.accessorElements >= 3 * corners && budgets.primitiveElements >= corners,
+              "accessor elements admit POSITION, NORMAL and TEXCOORD_0 for 14,400,000 corners");
+        check(budgets.file >= 2048ull * 1024 * 1024 && budgets.json == 128ull * 1024 * 1024 &&
+                  budgets.values >= budgets.json,
+              "the file bound is the export's 2 GiB and the JSON bound its 128 MiB");
+        check(budgets.records >= DocumentLimits::materialized.bodies + DocumentLimits::materialized.placements &&
+                  budgets.primitives >= 2 * DocumentLimits::unique.faces,
+              "records and primitives admit a unique-limit model, double-sided");
         std::cout << "Bounded GLB/glTF parsing, immutable buffers and contained sidecars passed\n";
         return 0;
     } catch (const std::exception &error) {

@@ -9,10 +9,14 @@
 namespace sketchy {
 namespace {
 // The most bytes of an STL file (R113, D-102). A model at the materialized face limit (600,000
-// facets) measured 30 MB in binary and 183 MB in ASCII, so 64 MiB refused it; 256 MiB is the native
-// file bound.
-constexpr std::size_t stlByteLimit = 256 * 1024 * 1024;
+// facets) measured 30 MB in binary and 183 MB in ASCII, so 64 MiB refused it. R113 set 256 MiB; R115
+// sets 2 GiB, eight times that, for the 4,800,000-facet materialized limit.
+constexpr std::size_t stlByteLimit = 2048ull * 1024 * 1024;
 void require(bool ok, const char *message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+void require(bool ok, const std::string &message) {
     if (!ok)
         throw std::runtime_error(message);
 }
@@ -81,7 +85,9 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         const auto transform = doc.worldTransform(id);
         for (const auto &[faceId, face] : body->surface.faces) {
             (void)face;
-            for (const auto &t : body->surface.triangulate(faceId)) {
+            // The exact corners (triangulateExact): the grid triangulation returns corners that differ by up to
+            // 1.6e-8 m between faces, so a shared vertex was written as several points (R115 review, finding 5).
+            for (const auto &t : body->surface.triangulateExact(faceId)) {
                 checkFormatCount("STL export", "facets", ++count, materializedCornerLimit, "materialized");
                 std::array<Vec3, 3> points{axis(transform.point(t.a)), axis(transform.point(t.b)),
                                            axis(transform.point(t.c))};
@@ -120,7 +126,8 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
                         result.bytes += "vertex " + vector(p) + "\n";
                     result.bytes += "endloop\nendfacet\n";
                 }
-                require(result.bytes.size() <= stlByteLimit - 32, "STL export exceeds 256 MiB");
+                require(result.bytes.size() <= stlByteLimit - 32,
+                        "STL export exceeds " + mibBound(stlByteLimit));
             }
         }
     }

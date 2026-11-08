@@ -742,7 +742,7 @@ int main(int argc, char **argv) {
               "not carried: the helper's sample joins the report, with its total");
     }
 
-    // R102.f, F5: the texture cap at 4096 pixels. A PNG whose header says 4097 by 1 is refused by its
+    // R102.f, F5 (R115: 8192 pixels). A PNG whose header says 8193 by 1 is refused by its
     // header, before any pixel is read, and the import keeps no image for it. The rest of the PNG is
     // not needed: the refusal is decided at the IHDR chunk.
     {
@@ -751,13 +751,13 @@ int main(int argc, char **argv) {
         package.textures[0].bytes = {
             0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A,  // the signature
             0x00, 0x00, 0x00, 0x0D, 'I', 'H', 'D', 'R',  // IHDR, 13 bytes
-            0x00, 0x00, 0x10, 0x01,                      // width 4097
+            0x00, 0x00, 0x20, 0x01,                      // width 8193
             0x00, 0x00, 0x00, 0x01,                      // height 1
             0x08, 0x06, 0x00, 0x00, 0x00,                // 8-bit RGBA, compression, filter, interlace
             0x00, 0x00, 0x00, 0x00};                     // the CRC, which the header check does not read
         const auto imported = importSkpPackage(package);
         check(imported.report["notices"].toObject()["textureTooLarge"].toInt() == 1,
-              "textureTooLarge: a texture over 4096 pixels is a notice");
+              "textureTooLarge: a texture over 8192 pixels is a notice");
         check(imported.document.assets().empty(), "textureTooLarge: no image is kept");
     }
 
@@ -856,7 +856,11 @@ int main(int argc, char **argv) {
                 package.definitions[0].faces.push_back(first);
                 package.definitions[0].faces.push_back(second);
             }
-        const auto imported = importSkpPackage(package);
+        // The per-body bound is lowered to 100,000 faces here (R115: the product bound is 800,000), so that
+        // 150,152 faces in one bucket become two bodies, as they did before R115.
+        SkpImportOptions bounds;
+        bounds.bodyLimit = 100000;
+        const auto imported = importSkpPackage(package, bounds);
         const auto splits = imported.report["bodySplits"].toArray();
         check(splits.size() == 1 && splits[0].toObject()["bodies"].toInt() == 2,
               "body split: 150,152 faces in one bucket become two bodies");

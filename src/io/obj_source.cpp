@@ -16,9 +16,8 @@ namespace {
 // Parse bounds that stop hostile files, sized to the unique limits (R113, D-102). A file may hold
 // up to the unique vertex records, the faces and the wires, and normal and texture records up to
 // recordLimit each: a corner may cite one of each per vertex and per face. Each bound is named
-// where it is checked, and each refuses cheaply. 128 MiB holds 300,000 vertices and faces with
-// 20-digit numbers.
-constexpr qsizetype byteLimit = 128 * 1024 * 1024, lineLimit = 64 * 1024;
+// where it is checked, and each refuses cheaply. 1 GiB is eight times the R113 value of 128 MiB (R115).
+constexpr qsizetype byteLimit = 1024 * 1024 * 1024, lineLimit = 64 * 1024;
 constexpr std::size_t recordLimit = DocumentLimits::unique.vertices + DocumentLimits::unique.faces;
 // A reference may cite any record, so it is bounded by the record limit.
 constexpr std::size_t indexLimit = recordLimit;
@@ -75,8 +74,10 @@ struct Parser {
     }
     size_t currentState() {
         if (stateDirty) {
-            if (result.states.size() == 10000)
-                fail("too many object/group/material states");
+            // A state is an object, group or material change. Bounded by the unique faces (R115: a fixed 10,000 refused
+            // a unique-limit model of 12,000 bodies).
+            checkFormatCount("OBJ import", "object, group and material states", result.states.size() + 1,
+                             DocumentLimits::unique.faces, "unique geometry");
             result.states.push_back(state);
             stateIndex = result.states.size() - 1;
             stateDirty = false;
@@ -213,7 +214,8 @@ struct Parser {
 ObjSource parseObj(const QByteArray &bytes, ObjImportOptions options) {
     options.validate();
     if (bytes.size() > byteLimit || bytes.contains('\0'))
-        throw std::runtime_error("OBJ text exceeds 64 MiB or contains NUL");
+        throw std::runtime_error("OBJ text exceeds " + std::to_string(byteLimit / (1024 * 1024)) +
+                                 " MiB or contains NUL");
     auto payload = bytes;
     if (payload.startsWith("\xef\xbb\xbf"))
         payload.remove(0, 3);

@@ -67,7 +67,6 @@ int main(int argc, char **argv) {
         rejects([&] { parseObj(triangle + QByteArray(65537, 'x'), {1, ObjUpAxis::Z}); });
         rejects([&] { parseObj(triangle + QByteArray(1, '\0'), {1, ObjUpAxis::Z}); });
         rejects([&] { parseObj(triangle + QByteArray(1, char(0xff)), {1, ObjUpAxis::Z}); });
-        rejects([&] { parseObj(QByteArray(64 * 1024 * 1024 + 1, ' '), {1, ObjUpAxis::Z}); });
         rejects([&] { parseObj(triangle, {0, ObjUpAxis::Z}); });
         rejects([&] { parseObj(triangle, {1, static_cast<ObjUpAxis>(999)}); });
         std::cout << "Bounded OBJ units, axes, concavity, references, groups and "

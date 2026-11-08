@@ -51,8 +51,7 @@ std::string utf8Prefix(std::string_view text, std::size_t bytes) {
     return std::string(text.substr(0, bytes));
 }
 } // namespace
-std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits) {
-    const auto &max = maximum(limits);
+std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits, const LimitCounts &max) {
     for (const auto &[name, field] : fields) {
         if (!countedBy(limits, field))
             continue;
@@ -60,6 +59,9 @@ std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits) 
             return name;
     }
     return {};
+}
+std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits) {
+    return exceededLimit(attempted, limits, maximum(limits));
 }
 void checkLimits(const LimitCounts &attempted, LimitClass limits, std::string_view operation,
                  std::string_view context) {

@@ -29,14 +29,19 @@ namespace sketchy {
 namespace {
 
 const char privatePrefix[] = "sketchyup-step-";
-const qint64 kMaxStepBytes = qint64(256) * 1024 * 1024;  // the ADR's output cap (ADR 0172 section 6)
-const std::size_t kMaxManifestBytes = 32u * 1024 * 1024;
-const std::size_t kMaxMeshChunkBytes = 128u * 1024 * 1024;
-const std::size_t kMaxNodes = 400'000;
-const std::size_t kMaxMeshes = 400'000;
-const std::size_t kMaxMeshTriangles = 100'000;  // per element (ADR 0172 section 6)
-const std::size_t kMaxTotalTriangles = 1'000'000;
-const std::size_t kMaxMeshVertices = 300'000;
+const qint64 kMaxStepBytes = qint64(stepOutputLimit);  // the ADR's output cap (ADR 0172 section 6; R115)
+// R115: eight times the R113 values for the manifest and the mesh chunk (32 MiB and 128 MiB).
+const std::size_t kMaxManifestBytes = 256u * 1024 * 1024;
+const std::size_t kMaxMeshChunkBytes = 1024u * 1024 * 1024;
+// Two times the materialized bodies plus placements (320,000 + 80,000), so a model at the limit
+// has room for its root nodes; not measured.
+const std::size_t kMaxNodes = 800'000;
+const std::size_t kMaxMeshes = 800'000;
+// R115: the element and model triangle counts and the element vertex count match IfcPackageLimits and
+// the unique limits (were 100,000, 1,000,000 and 300,000; ADR 0172 section 6).
+const std::size_t kMaxMeshTriangles = 1'600'000;  // per element
+const std::size_t kMaxTotalTriangles = 10'000'000;
+const std::size_t kMaxMeshVertices = 2'400'000;
 const std::size_t kMaxNameBytes = 2048;
 // The native model is in metres; the STEP file is in millimetres (ADR 0172 section 2: the export writes millimetres, so the
 // package carries millimetres, scaled once here and never rescaled by the helper).
@@ -258,7 +263,7 @@ private:
             return false;
         }
         if (mesh.triangles.size() / 3 > kMaxMeshTriangles)
-            refuse("meshTooLarge", "The body \"" + cleanText(b.name, 80) + "\" has more triangles than an element takes (100,000).");
+            refuse("meshTooLarge", "The body \"" + cleanText(b.name, 80) + "\" has more triangles than an element takes (" + groupedCount(kMaxMeshTriangles) + ").");
         if (mesh.vertices.size() / 3 > kMaxMeshVertices)
             refuse("meshTooLarge", "The body \"" + cleanText(b.name, 80) + "\" has more vertices than an element takes.");
         mesh.chunk = meshChunk(mesh);
@@ -267,7 +272,7 @@ private:
         if (found == meshIndex_.end()) {
             totalTriangles_ += mesh.triangles.size() / 3;
             if (totalTriangles_ > kMaxTotalTriangles)
-                refuse("tooManyTriangles", "The model has more than 1,000,000 triangles; nothing was written.");
+                refuse("tooManyTriangles", "The model has more than " + groupedCount(kMaxTotalTriangles) + " triangles; nothing was written.");
             meshes_.push_back(std::move(mesh));
             found = meshIndex_.emplace(digest, meshes_.size() - 1).first;
         }
@@ -401,7 +406,9 @@ private:
                                    {"nodes", nodes}};
         const QByteArray body = QJsonDocument(manifest).toJson(QJsonDocument::Compact);
         if (std::size_t(body.size()) > kMaxManifestBytes)
-            refuse("packageTooLarge", "The model's description is larger than the STEP export package takes; nothing was written.");
+            refuse("packageTooLarge",
+                    "The model's description is larger than the STEP export package takes (" +
+                        std::to_string(kMaxManifestBytes / (1024 * 1024)) + " MiB); nothing was written.");
 
         StepExportCapture capture;
         capture.package.reserve(24 + body.size() + chunk.size());
@@ -530,7 +537,10 @@ StepExportResult exportStepFile(const Document &document, const QString &path, c
                    "The IFC helper was stopped by its sandbox; nothing was written.", report);
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= kMaxStepBytes)
-            refuse("outputTooLarge", "The STEP file would be larger than 256 MiB; nothing was written.", report);
+            refuse("outputTooLarge",
+                "The STEP file would be larger than " + std::to_string(kMaxStepBytes / (1024 * 1024)) +
+                    " MiB; nothing was written.",
+                report);
         report["logTail"] = QString(run.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>");
         refuse("workerFailed", "The STEP helper stopped (" + run.reason.toStdString() + "); nothing was written.", report);
     }
@@ -540,13 +550,16 @@ StepExportResult exportStepFile(const Document &document, const QString &path, c
     if (!produced.isFile() || produced.isSymLink() || produced.size() <= 0)
         refuse("workerOutput", "The STEP helper produced no file.", report);
     if (produced.size() > kMaxStepBytes)
-        refuse("outputTooLarge", "The STEP file would be larger than 256 MiB; nothing was written.", report);
+        refuse("outputTooLarge",
+                "The STEP file would be larger than " + std::to_string(kMaxStepBytes / (1024 * 1024)) +
+                    " MiB; nothing was written.",
+                report);
     QByteArray bytes;
     {
         QFile file(outputPath);
         if (!file.open(QIODevice::ReadOnly))
             refuse("workerOutput", "The STEP helper's file cannot be read.", report);
-        bytes = file.read(kMaxStepBytes + 1);
+        bytes = file.read(qMin(file.size(), kMaxStepBytes) + 1);
     }
     if (bytes.size() != produced.size() || !bytes.startsWith("ISO-10303-21;") || !bytes.right(64).trimmed().endsWith("END-ISO-10303-21;"))
         refuse("workerOutput", "The STEP helper's file is not a complete STEP file.", report);

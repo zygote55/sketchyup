@@ -13,12 +13,14 @@ QByteArray assetByteArray(const AssetPayloadPtr &payload) {
 }
 AssetPayloadPtr assetPayload(const QByteArray &bytes) {
     if (bytes.isEmpty() || bytes.size() > qsizetype(AssetPayload::limit))
-        throw std::runtime_error("Asset payload must contain 1 byte to 16 MiB");
+        throw std::runtime_error("Asset payload must contain 1 byte to " +
+                                 std::to_string(AssetPayload::limit / (1024 * 1024)) + " MiB");
     return std::make_shared<AssetPayload>(std::vector<std::uint8_t>(bytes.begin(), bytes.end()));
 }
 AssetPayloadPtr decodeAssetPayload(const QString &base64) {
     if (base64.size() > qsizetype(4 * ((AssetPayload::limit + 2) / 3)))
-        throw std::runtime_error("Encoded asset exceeds 16 MiB");
+        throw std::runtime_error("Encoded asset exceeds " + std::to_string(AssetPayload::limit / (1024 * 1024)) +
+                                 " MiB");
     const auto encoded = base64.toLatin1();
     if (QString::fromLatin1(encoded) != base64)
         throw std::runtime_error("Asset data must be canonical base64");
@@ -53,8 +55,9 @@ AssetFile readAssetFile(const QString &path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly) || file.isSequential() ||
         file.size() > qsizetype(AssetPayload::limit))
-        throw std::runtime_error("Cannot read asset or file exceeds 16 MiB");
-    const auto bytes = file.read(AssetPayload::limit + 1);
+        throw std::runtime_error("Cannot read asset or file exceeds " +
+                                 std::to_string(AssetPayload::limit / (1024 * 1024)) + " MiB");
+    const auto bytes = file.read(qMin(file.size(), qint64(AssetPayload::limit)) + 1);
     if (file.error() != QFileDevice::NoError)
         throw std::runtime_error("Asset read failed");
     const auto payload = assetPayload(bytes);

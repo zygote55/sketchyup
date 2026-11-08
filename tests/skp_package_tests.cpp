@@ -328,12 +328,12 @@ int main() {
     auto trailing = good;
     trailing.insert(trailing.end(), 5, 0);
     checkDecode(trailing, "length disagrees");
-    // An oversize manifest: the header announces 32 MiB + 1.
+    // An oversize manifest: the header announces 256 MiB + 1 (R115, from 32 MiB + 1).
     auto bigManifest = good;
-    std::uint32_t big = 32 * 1024 * 1024 + 1;
+    std::uint32_t big = 256 * 1024 * 1024 + 1;
     std::memcpy(bigManifest.data() + 8, &big, 4);
     checkDecode(bigManifest, "manifest exceeds");
-    // R102.f, F5: a texture over 16 MiB (SkpPackageLimits::perTextureBytes) is refused, and exactly 16 MiB is
+    // R102.f, F5 (R115: 64 MiB): a texture over SkpPackageLimits::perTextureBytes is refused, and exactly that size is
     // read. The bytes start with the PNG signature, so only the size is in question.
     const auto pngOf = [](std::size_t size) {
         std::vector<std::uint8_t> bytes(size, 0);
@@ -343,8 +343,8 @@ int main() {
         bytes[3] = 'G';
         return bytes;
     };
-    checkDecode(validPackage(geometry, pngOf(16 * 1024 * 1024 + 1)), "texture bytes is out of range");
-    // R102.f, F5: a geometry or texture chunk over 256 MiB is refused from the header alone: the sizes are
+    checkDecode(validPackage(geometry, pngOf(64 * 1024 * 1024 + 1)), "texture bytes is out of range");
+    // R102.f, F5 (R115: 2 GiB): a geometry or texture chunk over the chunk bound is refused from the header alone: the sizes are
     // checked before the length of the file is compared with them, so a 32-byte header is enough.
     const auto headerWith = [](std::uint64_t geometrySize, std::uint64_t textureSize) {
         std::vector<std::uint8_t> out(8, 0);
@@ -355,13 +355,13 @@ int main() {
         putU64(out, textureSize);
         return out;
     };
-    checkDecode(headerWith(256ULL * 1024 * 1024 + 1, 0), "geometry chunk exceeds 256 MiB");
-    checkDecode(headerWith(0, 256ULL * 1024 * 1024 + 1), "texture chunk exceeds 256 MiB");
+    checkDecode(headerWith(2048ULL * 1024 * 1024 + 1, 0), "geometry chunk exceeds 2048 MiB");
+    checkDecode(headerWith(0, 2048ULL * 1024 * 1024 + 1), "texture chunk exceeds 2048 MiB");
     {
-        const auto atLimit = sketchy::decodeSkpPackage(validPackage(geometry, pngOf(16 * 1024 * 1024)),
+        const auto atLimit = sketchy::decodeSkpPackage(validPackage(geometry, pngOf(64 * 1024 * 1024)),
                                                        sketchy::SkpPackageDecodeOptions{false, true});
-        check(atLimit.textures.size() == 1 && atLimit.textures[0].bytes.size() == 16 * 1024 * 1024,
-              "a texture of exactly 16 MiB is read");
+        check(atLimit.textures.size() == 1 && atLimit.textures[0].bytes.size() == 64 * 1024 * 1024,
+              "a texture of exactly 64 MiB is read");
     }
     // A material whose texture index is one past the end of the texture table (the table has
     // one texture, so 1 is out of range): found by the decoder fuzz smoke on its first full run.

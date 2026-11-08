@@ -120,7 +120,7 @@ std::optional<std::string> readFile(const fs::path& path) {
   std::ostringstream buffer;
   buffer << in.rdbuf();
   std::string text = buffer.str();
-  if (text.size() > 128ull * 1024 * 1024) return std::nullopt;  // the application's input bound
+  if (text.size() > 1024ull * 1024 * 1024) return std::nullopt;  // the application's input bound
   return text;
 }
 

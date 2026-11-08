@@ -21,6 +21,12 @@ void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
 }
+void require(bool ok, const std::string &message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+// The STL input bound (R113, D-102): eight times the R113 value of 128 MiB (R115).
+constexpr std::size_t stlInputLimit = stlInputByteLimit;
 struct Builder {
     const StlSource &source;
     StlRepairOptions repairs;
@@ -258,9 +264,9 @@ StlImport loadStl(const QString &path, StlCoordinateOptions coordinates, StlRepa
     repairs.validate();
     const QFileInfo info(path);
     QFile file(path);
-    require(info.isFile() && info.size() <= 128 * 1024 * 1024 && file.open(QIODevice::ReadOnly),
-            "STL requires a readable regular file of at most 128 MiB");
-    const auto bytes = file.read(128 * 1024 * 1024 + 1);
+    require(info.isFile() && info.size() <= qint64(stlInputLimit) && file.open(QIODevice::ReadOnly),
+            "STL requires a readable regular file of at most " + mibBound(stlInputLimit));
+    const auto bytes = file.read(qMin(file.size(), qint64(stlInputLimit)) + 1);
     require(file.error() == QFileDevice::NoError, "Cannot capture STL source");
     return importStl(parseStl(bytes, coordinates), repairs);
 }

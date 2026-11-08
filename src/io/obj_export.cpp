@@ -18,10 +18,16 @@
 namespace sketchy {
 namespace {
 // The text of one OBJ file, and of the package's files together (R113, D-102). A model at the
-// materialized face limit (600,000 faces) measured 54 MB of OBJ, so 64 MiB refused the limits; the
-// bound is the native file bound, 256 MiB.
-constexpr std::size_t objTextLimit = 256 * 1024 * 1024;
+// materialized face limit (600,000 faces) measured 54 MB of OBJ, so 64 MiB refused the limits. R113
+// set 256 MiB; R115 sets 2 GiB, eight times that, for the 4,800,000-face materialized limit.
+// R115: the manifest is a format byte bound, eight times its R113 value of 16 MiB.
+constexpr std::size_t objManifestLimit = 128ull * 1024 * 1024;
+constexpr std::size_t objTextLimit = 2048ull * 1024 * 1024, objDecodedTextureLimit = 2048ull * 1024 * 1024;
 void require(bool ok, const char *message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+void require(bool ok, const std::string &message) {
     if (!ok)
         throw std::runtime_error(message);
 }
@@ -60,7 +66,7 @@ struct Writer {
     void textBudget() const {
         require(positions.size() + coordinates.size() + normals.size() + elements.size() <=
                     objTextLimit - 256,
-                "OBJ export exceeds 256 MiB geometry text");
+                "OBJ export exceeds " + std::to_string(objTextLimit / (1024 * 1024)) + " MiB geometry text");
     }
     QString texture(Id id) {
         if (!id)
@@ -77,7 +83,7 @@ struct Writer {
                 loss("unsupportedTextures");
             else {
                 decodedBytes += decoded.image->rgba().size();
-                require(decodedBytes <= 256 * 1024 * 1024,
+                require(decodedBytes <= objDecodedTextureLimit,
                         "OBJ export exceeds decoded texture budget");
                 const auto &bytes = asset.payload->bytes();
                 textureBytes += bytes.size();
@@ -243,7 +249,7 @@ struct Writer {
                     require(identity != 0, "OBJ triangulation cannot resolve an original vertex");
                     return identity;
                 };
-                for (const auto &triangle : body.surface.triangulate(faceId)) {
+                for (const auto &triangle : body.surface.triangulateExact(faceId)) {  // exact corners, as the STL export (R115)
                     const auto smooth = shading.triangle(triangle);
                     const std::vector<Id> ids{original(triangle.a), original(triangle.b),
                                               original(triangle.c)};
@@ -364,8 +370,8 @@ struct Writer {
                 written.append(QString::fromStdString(notice));
             result.manifest["credits"] = written;
         }
-        require(QJsonDocument(result.manifest).toJson().size() <= 16 * 1024 * 1024,
-                "OBJ manifest exceeds 16 MiB");
+        require(QJsonDocument(result.manifest).toJson().size() <= objManifestLimit,
+                "OBJ manifest exceeds " + std::to_string(objManifestLimit / (1024 * 1024)) + " MiB");
         return std::move(result);
     }
 };

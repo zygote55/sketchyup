@@ -33,7 +33,7 @@ namespace {
 
 using Base = express::base;
 
-constexpr std::size_t maxIfcBytes = 256u * 1024 * 1024;
+constexpr std::size_t maxIfcBytes = 2048u * 1024 * 1024;  // R115: 8x R113
 constexpr std::size_t labelCodePoints = 255;
 
 struct Refusal : std::runtime_error {
@@ -660,7 +660,7 @@ int runExport(const ExportOptions& options) {
       std::ifstream in(options.output, std::ios::binary | std::ios::ate);
       size = static_cast<std::size_t>(in.tellg());
     }
-    if (size > maxIfcBytes) throw Refusal("outputTooLarge", "The IFC file is larger than 256 MiB.");
+    if (size > maxIfcBytes) throw Refusal("outputTooLarge", "The IFC file is larger than " + std::to_string(maxIfcBytes / (1024 * 1024)) + " MiB.");
     std::printf("R %s\n", builder.finish(size).c_str());
     std::fflush(stdout);
     return 0;

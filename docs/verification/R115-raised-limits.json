@@ -1,0 +1,171 @@
+{
+  "record": "R115-raised-limits",
+  "updated": "2026-11-08",
+  "branch": "feat/r115-raise-limits",
+  "pull_request": 585,
+  "base": "origin/main 0038456f",
+  "revisions": {
+    "pre_review_head": "cf16b05c7a4da994d26fe42e1f2a2ee7d40f1f37",
+    "review_and_at_limit_fixes": [
+      "6c63c880",
+      "c07dd622",
+      "5cb16404"
+    ],
+    "merge_of_origin_main_R117": "1f061e90 (origin/main fa41f744, PR #584 merged 2026-11-08 11:57)",
+    "branch_head_for_the_final_pass": "1f061e90 (the record and PR body are updated after it)"
+  },
+  "machine": {
+    "laptop": {
+      "cpu": "Intel Core Ultra 7 155H, 22 threads",
+      "memory_gib": 30,
+      "kernel": "7.2.15-1-omarchy",
+      "build": "build/ci-fast (Debug, -g0, shared libraries, Ninja); tests under ulimit -v 8000000; builds under systemd-run MemoryMax=10G"
+    },
+    "gpu_pc": {
+      "host": "sketchyup-gpu",
+      "checks": [
+        {
+          "at": "2026-11-08 02:53",
+          "gpu_busy_percent": 99,
+          "blender_job": {
+            "pid": 2605,
+            "started_by_this_worker": false
+          },
+          "acceptance": "not run; job not stopped"
+        },
+        {
+          "at": "2026-11-08 04:03",
+          "gpu_busy_percent": "3 to 10",
+          "blender_job": null,
+          "acceptance": "ran"
+        }
+      ]
+    }
+  },
+  "binaries": {
+    "limits_r115_acceptance_executable_sha256": "b20edf56cde32d408645d65b629deea8e35318049c743bd0401cfd424d2e71f7",
+    "libsketchyup_io_sha256_final": "1da882a8c435577600f638abbdf4318af655acc6f1fe45dcde9954fce1941164",
+    "libsketchyup_core_sha256_final": "a93d3ebd05d0d6b4843917067ca5036c511abadacc53ec7a4bece2c0ee5cc2fa",
+    "libsketchyup_io_sha256_before_merge": "f8be48689ed2e12b48fe3d30e5b833763965ff54b452ea8e2ea7b9cefa10bfa7",
+    "first_review_executable_sha256": "c6fe485b1694975941568c2aeebec5957252529723070baffeac9e3ec5437fc5",
+    "pre_review_executable_sha256": "33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8"
+  },
+  "acceptance": {
+    "final_pass": "runs (merged code, 2026-11-08 07:04 to 07:23 GPU time)",
+    "earlier_passes": [
+      "runs-pass1",
+      "runs-pass2",
+      "runs-pass3"
+    ],
+    "cases": [
+      {
+        "brief": 1,
+        "program_case": "unique",
+        "result": "passed",
+        "history_bytes_move_body": 67695,
+        "peak_rss_mib": 4463
+      },
+      {
+        "brief": 2,
+        "program_case": "materialized",
+        "result": "passed",
+        "definition_edit_history_charge_bytes": 1792016139,
+        "rss_growth_mib": 2326,
+        "peak_rss_mib": 7698
+      },
+      {
+        "brief": 3,
+        "program_case": "one-body",
+        "result": "passed",
+        "history_bytes": 256003695
+      },
+      {
+        "brief": 4,
+        "program_case": "chunk",
+        "result": "passed",
+        "model_chunk_bytes": 796135248,
+        "bodies": 595,
+        "peak_rss_mib": 8098
+      },
+      {
+        "brief": 5,
+        "program_case": "textures",
+        "result": "passed",
+        "stored_asset_bytes": 527246051
+      },
+      {
+        "brief": 6,
+        "program_cases": [
+          "export-glb",
+          "export-obj",
+          "export-stl",
+          "export-dxf"
+        ],
+        "result": "passed",
+        "blender_import": "not run"
+      },
+      {
+        "brief": 7,
+        "program_cases": [
+          "import-obj",
+          "import-stl"
+        ],
+        "result": "passed"
+      },
+      {
+        "brief": 7,
+        "program_cases": [
+          "import-gltf"
+        ],
+        "result": "failed",
+        "reason": "Invalid component definition allocator or count: one definition per glTF mesh, 12,000 here; count 4,096"
+      },
+      {
+        "brief": 8,
+        "program_case": null,
+        "result": "not run",
+        "reason": "the STEP helper is not built on the GPU PC"
+      }
+    ]
+  },
+  "laptop_smoke": {
+    "flag": "--smoke",
+    "cases": 12,
+    "all_steps_ok": true,
+    "note": "small sizes; prove code paths, not limits"
+  },
+  "tests": {
+    "affected_set_final": {
+      "registered": 58,
+      "passed": 58,
+      "of_which_real_tool_skipped": 6,
+      "failed": 0,
+      "parallel": 2
+    },
+    "serial_seconds_after_review": {
+      "document_limits": 29.96,
+      "incremental_validation": 44.25,
+      "ifc_convert": 27.33,
+      "glb_export": 10.62,
+      "skp_mapping": 7.0,
+      "gltf_import": 2.65,
+      "asset_io": 1.06,
+      "document_limits_io": 0.16,
+      "history": 0.58,
+      "stl_source": 0.06,
+      "gltf_package": 0.02
+    },
+    "not_run_locally": [
+      "ifc_import_worker_tests.py (the IFC helper is not built here)",
+      "the *_real tests (need Blender, pdftoppm or CI variables)"
+    ],
+    "full_fast_tier_after_merge": {
+      "registered": 283,
+      "passed_including_skipped": 283,
+      "real_tool_tests_skipped": 6,
+      "failed": 0,
+      "parallel": 2,
+      "wall_seconds": 445
+    }
+  }
+}

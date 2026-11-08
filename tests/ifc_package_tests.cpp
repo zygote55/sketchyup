@@ -106,12 +106,12 @@ int main(int argc, char **argv) {
         rejects("reserved word", [&] { decodeIfcPackage(raw(manifestOf(bytes), meshOf(bytes), 1)); });
         rejects("manifest over 32 MiB", [&] {
             auto b = bytes;
-            qToLittleEndian<quint32>(quint32(32 * 1024 * 1024 + 1), b.data() + 8);
+            qToLittleEndian<quint32>(quint32(256 * 1024 * 1024 + 1), b.data() + 8);
             decodeIfcPackage(b);
         });
-        rejects("mesh chunk over 128 MiB", [&] {
+        rejects("mesh chunk over 1 GiB", [&] {
             auto b = bytes;
-            qToLittleEndian<quint64>(quint64(128) * 1024 * 1024 + 1, b.data() + 16);
+            qToLittleEndian<quint64>(quint64(1024) * 1024 * 1024 + 1, b.data() + 16);
             decodeIfcPackage(b);
         });
         rejects("lengths overflow", [&] {
@@ -226,10 +226,10 @@ int main(int argc, char **argv) {
                 m["meshes"] = meshes;
             }));
         });
-        rejects("meshes over 1,000,000 triangles", [&] {
+        rejects("meshes over 10,000,000 triangles", [&] {
             QJsonArray meshes;
             for (int i = 0; i < 11; ++i)
-                meshes.append(QJsonObject{{"vertices", 300000}, {"triangles", 100000}, {"edges", 0}, {"colors", false}});
+                meshes.append(QJsonObject{{"vertices", 3000000}, {"triangles", 1000000}, {"edges", 0}, {"colors", false}});
             auto manifest = manifestOf(bytes);
             manifest["meshes"] = meshes;
             manifest["nodes"] = QJsonArray{};

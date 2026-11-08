@@ -408,19 +408,19 @@ int main(int argc, char **argv) {
             check(file.open(QIODevice::WriteOnly), "the over-limit file opens");
             check(file.write("ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 2 10303 214 0 1 1 1 }'));\nENDSEC;\n"
                              "DATA;\nENDSEC;\nEND-ISO-10303-21;\n") > 0, "the over-limit header is written");
-            check(file.resize(128 * 1024 * 1024), "the file is resized to 128 MiB");
+            check(file.resize(1024LL * 1024 * 1024), "the file is resized to 1 GiB (R115)");
             file.close();
-            check(checkStepSource(big).schema == "ap214", "128 MiB exactly passes the application's size check");
+            check(checkStepSource(big).schema == "ap214", "1 GiB exactly passes the application's size check");
             QFile grown(big);
-            check(grown.open(QIODevice::ReadWrite) && grown.resize(128 * 1024 * 1024 + 1), "the file is resized to 128 MiB + 1 byte");
+            check(grown.open(QIODevice::ReadWrite) && grown.resize(1024LL * 1024 * 1024 + 1), "the file is resized to 1 GiB + 1 byte");
             grown.close();
             try {
                 importStepFile(big, workerOptions(hang, 30));
-                check(false, "a file of 128 MiB + 1 byte is refused");
+                check(false, "a file of 1 GiB + 1 byte is refused");
             } catch (const IfcImportError &error) {
-                check(error.code() == "tooLarge", "128 MiB + 1 byte is refused as tooLarge: " + error.code());
+                check(error.code() == "tooLarge", "1 GiB + 1 byte is refused as tooLarge: " + error.code());
                 const std::string words(error.what());
-                check(words.find("134217729") != std::string::npos && words.find("128 MiB") != std::string::npos,
+                check(words.find("1073741825") != std::string::npos && words.find("1024 MiB") != std::string::npos,
                       "the refusal names the size and the limit: " + words);
             }
         }
@@ -606,7 +606,7 @@ sys.exit(0)' || exit 1
         // R098.k (ADR 0172 section 6): the entity cap. The helper refuses a file over the cap with its count and the limit, the
         // refusal is not restarted, and the application passes the cap it was given (2,000,000 by default).
         {
-            check(StepWorkerOptions{}.maxEntities == 2000000, "R098.k: the entity cap defaults to 2,000,000");
+            check(StepWorkerOptions{}.maxEntities == 16000000, "R098.k: the entity cap defaults to 16,000,000 (R115)");
             const QString runs = root.path() + "/runs-entities.log";
             const QString worker = executable(root.path(), "worker-entities", standIn("{\"ok\":true}", entityLimitBody(runs)));
             StepWorkerOptions options = workerOptions(worker, 30);

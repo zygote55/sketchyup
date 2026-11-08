@@ -57,7 +57,8 @@ QByteArray encodeBundle(const Document &source, const TemplateMetadata &metadata
     validateMetadata(metadata, source);
     const auto [width, height] = thumbnail(thumbnailPng);
     const auto model = encodeContainer(source);
-    require(model.size() <= modelLimit, "Template native payload exceeds 256 MiB");
+    require(model.size() <= modelLimit,
+            "Template native payload exceeds " + std::to_string(modelLimit / (1024 * 1024)) + " MiB");
     const auto verified = decodeContainer(model);
     validateMetadata(metadata, verified);
     QJsonArray labels;
@@ -85,8 +86,9 @@ QByteArray encodeBundle(const Document &source, const TemplateMetadata &metadata
     qToLittleEndian<quint32>(manifest.size(), result.data() + 8);
     qToLittleEndian<quint64>(model.size(), result.data() + 12);
     qToLittleEndian<quint32>(thumbnailPng.size(), result.data() + 20);
-    require(headerSize + manifest.size() + model.size() + thumbnailPng.size() <= libraryBundleLimit,
-            "Template bundle exceeds 130 MiB");
+    if (headerSize + manifest.size() + model.size() + thumbnailPng.size() > libraryBundleLimit)
+        throw std::runtime_error("Template bundle exceeds " + std::to_string(libraryBundleLimit / (1024 * 1024)) +
+                                 " MiB");
     result += manifest;
     result += model;
     result += thumbnailPng;
@@ -151,7 +153,7 @@ QByteArray loadBundleBytes(const QString &path) {
     QFile file(path);
     require(file.open(QIODevice::ReadOnly) && file.size() <= libraryBundleLimit,
             "Cannot read bounded library bundle");
-    const auto bytes = file.read(libraryBundleLimit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(libraryBundleLimit)) + 1);
     require(file.error() == QFileDevice::NoError, "Library bundle read failed");
     return bytes;
 }

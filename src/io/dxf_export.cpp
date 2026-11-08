@@ -15,6 +15,10 @@ void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
 }
+void require(bool ok, const std::string &message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
 QString hash(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
 }
@@ -41,7 +45,7 @@ struct Writer {
     void loss(const QString &name, int n = 1) { losses[name] = losses[name].toInt() + n; }
     void field(int code, const QByteArray &value) {
         bytes += QByteArray::number(code) + '\n' + value + '\n';
-        require(bytes.size() <= dxfByteLimit, "DXF export exceeds 256 MiB");
+        require(bytes.size() <= dxfByteLimit, "DXF export exceeds " + mibBound(dxfByteLimit));
     }
     void text(int code, const QString &value) {
         require(!value.contains('\n') && !value.contains('\r') && !value.contains(QChar(0)),

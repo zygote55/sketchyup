@@ -428,7 +428,7 @@ int main(int argc, char **argv) {
                  {"materializedEdges", qint64(DocumentLimits::materialized.edges)},
                  {"materializedPlacements", qint64(DocumentLimits::materialized.placements)},
                  {"uniqueBodies", qint64(DocumentLimits::unique.bodies)},
-                 {"oneBodyFaces", qint64(100000 * DocumentLimits::scale)},
+                 {"oneBodyFaces", qint64(800000 * DocumentLimits::scale)},
                  {"readSnapshotBytes", qint64(Document::readSnapshotByteLimit)},
                  {"fileBytes", qint64(NativeLimits::fileBytes)},
                  {"modelBytes", qint64(NativeLimits::modelBytes)},

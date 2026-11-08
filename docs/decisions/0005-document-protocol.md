@@ -599,6 +599,72 @@ scale. Neither is scaled by the benchmark, so push-pull was not measured on the 
 of R110 considers the definition's faces only. The placements' records are part of the charge, so the
 definition limit alone does not keep a definition's edit inside the budget.
 
+## Implementation notes (R115)
+
+R115 (2026-11-07) raises the document limits to the largest tiers measured on the GPU PC in R114, at the owner's
+approval ("Forget about that limit - it was completely arbitrary"). The values, and the limits that move with them,
+are in [R115](../verification/R115-raised-limits.md), with the sweep of every other literal that would refuse a model
+inside the new limits. The decisions of this ADR stand: the document is one container, the unique and materialized
+classes are counted as before, and a limit is refused by name with its value.
+
+- **Values.** Unique geometry 2,400,000 vertices, faces and wires, 7,200,000 edges, 80,000 bodies, curves and guides.
+  Materialized 4,800,000 vertices, faces and wires, 7,200,000 edges, 320,000 bodies, curves and guides, 80,000
+  placements. A component definition 800,000 vertices, faces and wires and 2,400,000 edges. The undo budget is 4 GiB
+  and the read-snapshot budget 4 GiB; both were 192 MiB and 512 MiB. A model chunk is 768 MiB and a file 2 GiB.
+- **Why these values.** R114 measured the frame budget (33.3 ms p95) and the edit budget (100 ms p95) at the scale of
+  8 times the product values, and the largest tiers within both are the values above: 2.4 million unique faces,
+  4.8 million placed faces (the dense family, 4.75 million, measured at a frame p95 of 5.4 ms), and 80,000 placements
+  (a frame p95 of 127 ms, which is slow and works). The one-body and definition limits are 800,000, which R114 frame
+  timing supports. The moves of such bodies are slow (3.9 microseconds per face); this is recorded, not fixed here.
+- **Undo budget (D-104).** A definition edit charges the records of every placement it regenerates, and a move of a
+  body charges about 640 bytes a face. At 4 GiB, the at-limit cases of R115 record the charge and the RSS growth side
+  by side (see the results in R115). The charge is not reduced here: R117 owns the edit path.
+- **The model chunk (D-099).** A model with imported UVs stores about 528 bytes of mapping per textured face (front
+  and back). A chunk near 768 MiB is about 1.2 million textured faces. The one-record storage change of D-099 is not
+  made here.
+- **Textures.** An asset is 64 MiB, so a texture may be 8192 by 8192 pixels. The viewport holds 128 MiB of decoded
+  textures (R118), so such a texture shows its placeholder until R118 raises the budget.
+- **Read budget and exports.** A GLB export takes 4,800,000 visible faces and writes a binary of up to 2 GiB and a
+  manifest of up to 1.5 GiB. The GLB decoded-texture cap uses the binary bound, so a model with 512 MiB of stored
+  textures is refused for its GLB export (its decoded images are about 2.4 GB; R114 measured this).
+
+**Contradictions with this ADR and its records:**
+
+- The R114 notes said that the at-limit budgets of the edit path would not be met at these sizes. R115 raises the
+  budget and does not change the edit path: the at-limit results are recorded in R115, not assumed.
+- The render snapshot body limit (160,000, from 20,000) contradicts the R099.f reason for 20,000: a 20,000-body capture
+  took 1.7 s to prepare, above the 1 s per-frame budget. The preparation time at 160,000 bodies was not measured here.
+- ADR 0005's statement that a definition fits the budget once it is limited to 200,000 faces (R110, 2026-11-01) is now
+  about the new limits; the R114 contradiction (a definition edit also charges its placements) still holds, and the
+  4 GiB budget is what makes it fit.
+- The 3.75 GiB and 8 GiB ceilings of R082w and R112 were protections for the development laptop. They are void, and no
+  product limit is derived from them.
+- The STEP output bound: the brief asks for 512 MiB inside the helper's memory limit. The result is in R115.
+
+**Review fixes (2026-11-08, PR #585).** A review of the PR found places that still refused or broke a model inside
+the new limits. The product values did not change; the fixes are:
+
+- The glTF import's parse budgets now follow the export's own bounds: a GLB the export writes for a model inside the
+  unique limit imports, double-sided faces included. Before, the import refused it at 16,000,000 accessor elements,
+  16 MiB of JSON, 10,000 nodes or meshes, 10,000 primitives and 1,000,000 JSON values. The file bound is the export's
+  2 GiB binary bound, and the JSON bound its 128 MiB.
+- The IFC import's node bound is the package's, 800,000 (it was the R110 materialized bound of 40,000), and the app
+  passes the package's node and triangle bounds to the helper.
+- A GLB's byte bounds stop at INT_MAX at any benchmark scale. At scale 8 the binary bound was 16 GiB, and the writer's
+  int offsets and 32-bit chunk lengths wrapped.
+- A catalog or template library scan may read one bundle at the bundle limit (1,040 MiB, not 256 MiB). A bounded read
+  reserves its file's size, not its bound.
+- The SKP helper's address-space limit is 8 GiB (it was 4 GiB), and the package total (2 GiB) is checked before the
+  package is assembled. The SKP texture limit is 8,192 pixels (it was 4,096).
+- The at-limit run on the GPU PC found four more: the OBJ importer's fixed cap of 10,000 object and material states (now
+  the unique faces); the glTF importer counted every triangle corner as a vertex, and the STL, GLB and OBJ exporters
+  took their corners from the grid triangulation, which is not the model's vertex positions (now
+  `Surface::triangulateExact`, and the glTF importer welds a body's corners by position); and the scene decoder's
+  body-flag bound of 10,000 (now the record's bound, the materialized bodies).
+
+**Contradiction with ADR 0176 section 9,** which says the SKP import takes no options. `SkpImportOptions`
+now has one field, `bodyLimit`, which the tests lower to reach the split of a body. The product does not set it.
+
 ## Implementation notes (R117: history charge and definition count)
 
 Measured on 2026-11-07 on the development laptop and on the GPU PC. The full record is

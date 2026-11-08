@@ -184,9 +184,11 @@ SkpPackage decodeSkpPackage(const std::vector<std::uint8_t> &bytes,
     const std::uint64_t textureBytes = qFromLittleEndian<quint64>(data + 24);
     require(reserved == 0, "reserved header word is not zero");
     require(std::uint64_t(manifestBytes) <= SkpPackageLimits::manifestBytes,
-            "manifest exceeds 32 MiB");
-    require(geometryBytes <= SkpPackageLimits::geometryBytes, "geometry chunk exceeds 256 MiB");
-    require(textureBytes <= SkpPackageLimits::textureChunkBytes, "texture chunk exceeds 256 MiB");
+            "manifest exceeds " + std::to_string(SkpPackageLimits::manifestBytes / (1024 * 1024)) + " MiB");
+    require(geometryBytes <= SkpPackageLimits::geometryBytes,
+            "geometry chunk exceeds " + std::to_string(SkpPackageLimits::geometryBytes / (1024 * 1024)) + " MiB");
+    require(textureBytes <= SkpPackageLimits::textureChunkBytes,
+            "texture chunk exceeds " + std::to_string(SkpPackageLimits::textureChunkBytes / (1024 * 1024)) + " MiB");
     require(size == SkpPackageLimits::headerBytes + std::uint64_t(manifestBytes) + geometryBytes +
                       textureBytes,
             "length disagrees with the header");

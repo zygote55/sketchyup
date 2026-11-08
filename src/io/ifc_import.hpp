@@ -2,6 +2,8 @@
 // R097.b: the application's side of the IFC import (ADR 0171 sections 3 and 4): a decoded conversion
 // package becomes one new unsaved document in one edit, and the worker's findings and the
 // conversion's own become the import report (apiVersion 1, format IFC).
+#include "core/document_limits.hpp"
+#include "geometry/surface.hpp"
 #include "io/document_io.hpp"
 #include "io/ifc_package.hpp"
 #include <QJsonObject>
@@ -18,6 +20,12 @@ struct IfcImportOptions {
     // Grid: a map conversion with a rotation turns the model by it (so +X is east) and sets the site origin; the
     // default keeps the project axes and reports the conversion. Without a rotation both do the same.
     IfcGeoreference georeference{IfcGeoreference::KeepAxes};
+    // The conversion's bounds: a body's faces and vertices, and the document's unique, materialized and
+    // definition classes. The product values by default; a test lowers them to reach each refusal with a small model.
+    std::size_t bodyLimit{Surface::bodyLimit};
+    LimitCounts unique{DocumentLimits::unique};
+    LimitCounts materialized{DocumentLimits::materialized};
+    LimitCounts definition{DocumentLimits::definition};
 };
 // What the application knows about the source and the run, which the worker does not.
 struct IfcRunFacts {

@@ -438,13 +438,11 @@ without changing the model:
 ```
 
 **Large scripted edits (scripting and MCP).** A transaction stages its whole edit in memory, within a
-128 MiB staging budget. An edit that moves or rewrites many dense bodies at once can exceed it, and the
-transaction is refused with "Proposal exceeds the retained staging budget"; nothing changes. In the 1.7.0
-limit tests, a transaction that moves 100 dense bodies (300,000 vertices in all) stages about 261 MiB and is
-refused, while one that moves 20 of them stages about 52 MiB and commits. Split a bulk scripted edit into
-transactions of about 20 dense bodies each, and check each commit before you send the next. A component
-definition is limited to 200,000 faces, vertices or wires and 600,000 edges, so that one edit to it fits
-the undo budget.
+1 GiB staging budget (128 MiB before R115). An edit that moves or rewrites very many dense bodies at once can
+still exceed it, and the transaction is refused with "Proposal exceeds the retained staging budget"; nothing
+changes. Split a bulk scripted edit into several transactions, and check each commit before you send the next.
+A component definition is limited to 800,000 faces, vertices or wires and 2,400,000 edges (R115), and the undo
+budget is 4 GiB, so one edit to a definition at that size fits it.
 
 ## Exchange and present a model
 
@@ -454,29 +452,32 @@ materials or hierarchy. Imported content becomes an unsaved native model; Save
 chooses its native destination. Keep multi-file OBJ/MTL/image packages together.
 Use the [format matrix](SUPPORT_MATRIX.md#exchange-boundaries) for losses and limits.
 
-**Export limits.** A GLB export writes up to 600,000 visible modelling faces, with a manifest of up to 192 MiB. In 1.7.0
-the limits were 100,000 faces and 128 MiB. The exports, renders and library inserts that take a read snapshot share one
-budget of 512 MiB of document data (256 MiB before 1.8.0). A model over the budget is refused by name, and nothing is
-written. A model with per-face colours or texture mappings can exceed it at the model limits; it still opens and saves,
+**Export limits.** A GLB export writes up to 4,800,000 visible modelling faces, with a binary of up to 2 GiB and a
+manifest of up to 1.5 GiB (R115; 600,000 faces and a 192 MiB manifest before). The exports, renders and library inserts
+that take a read snapshot share one budget of 4 GiB of document data (512 MiB before R115). A model over the budget is
+refused by name, and nothing is written. A model with per-face colours or texture mappings can exceed it at the model limits; it still opens and saves,
 and its exports refuse ([release notes](RELEASE_NOTES.md#180), D-100).
 
-**Format limits.** An export takes the model's limits: up to 600,000 faces and 900,000 edges, placements
+**Format limits.** An export takes the model's limits: up to 4,800,000 faces and 7,200,000 edges, placements
 included, in OBJ, STL (binary and ASCII), GLB and, for a planar model, DXF. An import takes the document's
-limits for distinct geometry: up to 300,000 faces, vertices and wires and 900,000 edges. A file over a limit
-is refused by name, with the count and the limit, and nothing is created. A GLB export writes up to 1,800,000
-triangles, because a face with different front and back appearances writes its triangles twice. A glTF mesh is also limited to
-200,000 faces, which is the limit of one component definition.
+limits for distinct geometry: up to 2,400,000 faces, vertices and wires and 7,200,000 edges. A file over a limit
+is refused by name, with the count and the limit, and nothing is created. A GLB export writes up to 14,400,000
+triangles, because a face with different front and back appearances writes its triangles twice. A glTF mesh is
+charged once as distinct geometry and again for each placement. Each glTF mesh becomes a component
+definition, so a glTF file of more than 4,096 meshes is refused whole, including a GLB that SketchyUp exported from a
+model of more than 4,096 bodies (D-108).
 
-A mesh over 100,000 faces or vertices imports as several bodies, named "Name (2)", "Name (3)" and so on,
+A mesh over 800,000 faces or vertices (one body) imports as several bodies, named "Name (2)", "Name (3)" and so on,
 rather than being refused. The import report lists the splits under `bodySplits`. Shading does not carry
 across a split: the faces on either side share no vertices, so an edge on the split is not smooth. A DXF
 polyline is split the same way, and a DXF file has at most 10,000 entities, one body each.
 
-STEP export writes at most 256 MiB. A model of distinct geometry that writes more is refused by name:
-150,000 distinct faces (167 MB) export, and 300,000 distinct faces (more than 256 MiB) do not
-([D-102](verification/R089a-defect-triage.md), [R113](PR_ROADMAP.md#r113)). Instances of one definition
-share its geometry in a STEP file, so a model placed many times exports at its distinct size. IFC export
-writes 300,000 distinct faces (15 MB) and the placed model at 600,000 faces (30 MB).
+STEP export writes at most 512 MiB (R115; 256 MiB before). A model of distinct geometry that writes more is
+refused by name. Before R115, R113 measured 150,000 distinct faces at 167 MB, and 300,000 distinct faces above
+256 MiB, which were refused ([D-102](verification/R089a-defect-triage.md), [R113](PR_ROADMAP.md#r113)); the result
+at 512 MiB is in [R115](verification/R115-raised-limits.md). Instances of one definition share its geometry in a
+STEP file, so a model placed many times exports at its distinct size. Before R115, IFC export wrote 300,000
+distinct faces (15 MB) and the placed model at 600,000 faces (30 MB).
 
 **File → Export measured PDF/SVG** exports an orthographic drawing with explicit
 page size and scale. Technical lines produce vector geometry; current appearance
@@ -512,9 +513,9 @@ unit, the spaces choice, the georeference choice and the maximum deviation.
   is not the metre (US survey feet, for example), several conversions and several model contexts are
   reported and not georeferenced.
   A world coordinate system that is not the identity refuses the file.
-- **Limits.** A file over 128 MiB, or with more than 2,000,000 entities, is refused with the limit
-  named. A model over the document limits (300,000 unique vertices or faces, 10,000 bodies, from 1.7.0) imports
-  partly, and the report names the elements left out. A model of about 10,000 bodies imports in about 12 s; that is an accepted limit (2026-10-28), unchanged in 1.5.0. Geometry more than 1,000,000 m from the
+- **Limits.** A file over 1 GiB, or with more than 16,000,000 entities, is refused with the limit
+  named (R115; 128 MiB and 2,000,000 before). A model over the document limits (2,400,000 unique vertices or faces, 80,000
+  bodies, from R115) imports partly, and the report names the elements left out. A model of about 10,000 bodies imports in about 12 s; that is an accepted limit (2026-10-28), unchanged in 1.5.0. Geometry more than 1,000,000 m from the
   origin is refused.
 - **Not imported.** Advanced breps, NURBS, CSG, swept solids, revolutions and parametric profiles may
   produce geometry, but they are not claimed; check the report. IFC 4.3 infrastructure (alignments,
@@ -589,17 +590,18 @@ be edited as a curve in SketchyUp: you edit the flat faces it becomes, as you ed
 export writes the mesh only, so the original NURBS or parametric definition is not kept in the round
 trip. The import dialog and the import report say the same.
 
-**Limits.** Import refuses a file over 128 MiB before the helper starts. The helper may run for 120
-seconds by default (`--step-deadline` changes that, up to an hour). Import converts at most 1,000,000
-triangles in total and 100,000 per element. A document holds at most 300,000 faces of unique
-geometry (100,000 before 1.7.0), and a curved surface becomes one face per triangle, so a curved model fills the document at
-about 300,000 triangles; the bodies that would go over it are left out and reported as not imported. An export
-writes into a 256 MiB file and is refused above it. The largest model a document held before 1.7.0, five placements of a 100,000-triangle grid, exports in about 19 s (its budget is 23 s), and the export helper keeps its 4 GiB address-space cap. Measured: about 2.4 KB per triangle face, so a
-model made of triangle faces reaches the limit at about 110,000 faces; large flat faces take about
-0.9 KB per triangle, so the limit is reached at about 280,000 triangles. In R113 a model of closed spheres
-measured about 1.1 KB per triangle (167 MB for 150,000 triangles), so the limit is reached at about 240,000
-distinct triangles; a model of 300,000 distinct triangles writes more than 256 MiB and is refused. The export
-dialog's size note appears above 100,000 triangles, before a model of triangle faces reaches the limit.
+**Limits.** Import refuses a file over 1 GiB before the helper starts (R115; 128 MiB before). The helper may run
+for 120 seconds by default (`--step-deadline` changes that, up to an hour). Import converts at most 10,000,000
+triangles in total and 1,600,000 per element (R115; 1,000,000 and 100,000 before). A document holds at most
+2,400,000 faces of unique geometry, and a curved surface becomes one face per triangle; the bodies that would go
+over the limits are left out and reported as not imported. An export writes into a 512 MiB file and is refused
+above it (R115; 256 MiB before). The export helper keeps its 4 GiB address-space cap.
+
+The measured sizes below are from R113, before R115. They show the bound's effect, and the R115 result at 512 MiB
+is in [R115](verification/R115-raised-limits.md). About 2.4 KB per triangle face for a model of triangle faces, and about
+0.9 KB per triangle for large flat faces. In R113 a model of closed spheres measured about 1.1 KB per triangle (167 MB
+for 150,000 triangles), and a model of 300,000 distinct triangles wrote more than 256 MiB and was refused. The export
+dialog's size note appears above 200,000 triangles, before a model of triangle faces reaches the limit.
 
 **Speed and crashes.** In 1.5.0, importing a 100-sphere model with a new native file takes about 10.2 s (10.17 s measured) against a 10 s budget, and about 6.9 s without a file. Exporting a 90,954-face model takes about 10 s (9.96 s measured) against a 5 s budget. The owner accepted both misses as limits (2026-10-28). A STEP file whose tessellation crashes the helper or overruns its limits is restarted without the part it stopped on, up to three times, and the import names that part. A file that a sandbox kill stops, or that stops before tessellation, is still refused whole, and the model is unchanged. A file over 2,000,000 entities is refused before any transfer.
 
@@ -669,19 +671,19 @@ does not change the size of the model.
 
 ### Limits
 
-- The file: 256 MiB at most. A larger file is refused before the helper starts.
-- The helper: 4 GiB of address space, 480 seconds of CPU time, 512 MiB of output, and the time
-  allowance above. A helper that goes over one of these limits stops, and nothing is created.
-- The model: one body of up to 100,000 faces or vertices and 300,000 edges. A file's mesh over that
+- The file: 2 GiB at most (R115; 256 MiB before). A larger file is refused before the helper starts.
+- The helper: 8 GiB of address space (R115; 4 GiB before), 480 seconds of CPU time, 8 GiB of output, and the time
+  allowance above. A package over 2 GiB is refused. A helper that goes over one of these limits stops, and nothing is created.
+- The model: one body of up to 800,000 faces or vertices and 2,400,000 edges (R115). A file's mesh over that
   continues in the next body (named "Name (2)", and so on) and is reported under `bodySplits`, as described
   under [Format limits](#exchange-and-present-a-model); shading does not carry across the split. One component
-  of up to 200,000 faces, vertices or wires and 600,000 edges. A component over those limits is left out and
-  reported, and the rest of the model comes across. The document also takes at most 10,000 distinct
-  geometry records, 300,000 faces, vertices and wires and 900,000 edges of distinct geometry (a component
-  counts once), 600,000 faces after placement and 1,024 materials, and 4,096 component definitions besides
+  of up to 800,000 faces, vertices or wires and 2,400,000 edges. A component over those limits is left out and
+  reported, and the rest of the model comes across. The document also takes at most 80,000 distinct (R115; 10,000 before)
+  geometry records, 2,400,000 faces, vertices and wires and 7,200,000 edges of distinct geometry (a component
+  counts once), 4,800,000 faces after placement and 1,024 materials, and 4,096 component definitions besides
   its root (1,024 before R117). Definitions beyond the 4,096th are left out and counted in the notices
   ("definitionLimit"), and so are the placements of them.
-- Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
+- Textures: an image over 8,192 by 8,192 pixels is not imported, and the report says so (R115; 4,096 before).
 - Nesting: components nested more than 64 levels deep are left out and reported.
 
 **Fixes in this release (R102.f, PR #513).** A helper run with its output on `/dev/null` is no longer ended by its own sandbox. A large file is hashed in linear time, so it no longer risks the helper's 120 second deadline. The "newer than tested" label applies to files from SketchUp 2025 and later.
@@ -791,7 +793,7 @@ maximum edge length, flat-triangle flips and Steiner fill, shows the result of t
 you apply it, and applies it as one undoable edit. If a terrain's tiles no longer match the mesh
 generated from its sources, an amber **Changed since generated** chip offers **Regenerate**
 (one undoable edit; it asks first when paint on individual tiles would be lost). **Explode
-terrain…** shows what it does to the 300,000-face modelling budget and the 250,000-triangle
+terrain…** shows what it does to the 2,400,000-face modelling budget and the 250,000-triangle
 terrain budget; Cancel is the default, and Explode is unavailable when the faces would not fit.
 To make a terrain from drawn contours, select their edges or curves, right-click in the view (or
 press the Menu key or Shift+F10) and choose **Create terrain from selection**; edges inside
@@ -1208,11 +1210,11 @@ A refused image stops the command with status 1. Its error is JSON on standard e
 
 ### Size limits
 
-- At most 4096 × 4096 pixels.
-- At most 16 MiB as stored. A PNG or JPEG is stored as its own bytes, so the file must be 16 MiB or less. A
-  GeoTIFF is stored as a PNG of its pixels, and that PNG must be 16 MiB or less. A larger image is refused. It
-  is not resampled: crop or reduce it in an image editor, then import it again. A 4096 × 4096 photograph may
-  be larger than 16 MiB as a PNG.
+- At most 8192 × 8192 pixels (R115; 4096 × 4096 before). A georeferenced image is at most 4096 × 4096 pixels.
+- At most 64 MiB as stored (R115; 16 MiB before). A PNG or JPEG is stored as its own bytes, so the file must be 64 MiB or
+  less. A GeoTIFF is stored as a PNG of its pixels, and that PNG must be 64 MiB or less. A larger image is refused. It
+  is not resampled: crop or reduce it in an image editor, then import it again. A large photograph may be larger
+  than 64 MiB as a PNG.
 - A GeoTIFF file over 128 MiB is not read.
 - Each side of the placed image covers at most 1,000 km.
 - Only north-up images are read.
@@ -1302,7 +1304,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Older releases.** An edge stroke saves the file as format 31, and a sized material as format 33. SketchyUp 1.3.x and 1.2.x refuse both with "Unsupported container field". To save a file that those releases must open, turn off the edge stroke and clear the material sizes first; the file then saves in the lowest format its content needs.
 
-**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. A catalog insert shows a progress sheet after one second, and **Cancel** stops it before its edit is composed. Once the insert has been composed, Cancel comes too late and the insert is kept. The Styles dialog's gaps are fixed in 1.5.0 for the asset catalog and the Styles tab: **Save report…** writes the report as text, the usage bar is solid, hatched and cross-hatched with a legend, and a refusal opens with "Nothing was saved." or "Nothing was applied." The IFC import, IFC export and STEP export reports keep a colour-only bar. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A catalog file is at most 1,040 MiB, and a texture at most 64 MiB (R115). A catalog holds at most 128 entries and 256 assets. A catalog insert shows a progress sheet after one second, and **Cancel** stops it before its edit is composed. Once the insert has been composed, Cancel comes too late and the insert is kept. The Styles dialog's gaps are fixed in 1.5.0 for the asset catalog and the Styles tab: **Save report…** writes the report as text, the usage bar is solid, hatched and cross-hatched with a legend, and a refusal opens with "Nothing was saved." or "Nothing was applied." The IFC import, IFC export and STEP export reports keep a colour-only bar. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Troubleshooting
 

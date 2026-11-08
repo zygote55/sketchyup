@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
                   transactionCatalog().size() == 11,
               "Global discovery includes the transaction registry");
         check(transactionCapabilities()["limits"].toObject()["outcomeBytes"] ==
-                  int(OutcomeStore::Limits{}.bytes),
+                  qint64(OutcomeStore::Limits{}.bytes),
               "The published outcome budget must be the store's budget");
         QTemporaryDir files;
         check(files.isValid(), "Temporary transaction storage");

@@ -60,7 +60,11 @@ TextureImageStatus pngEnvelope(const QByteArray &bytes) {
 TextureImage::TextureImage(int width, int height, std::vector<std::uint8_t> rgba)
     : width_(width), height_(height), rgba_(std::move(rgba)) {
     if (!bounded(width, height) || rgba_.size() != size_t(width) * size_t(height) * 4)
-        throw std::runtime_error("Texture pixels must fit 4096 by 4096 and 64 MiB RGBA");
+        throw std::runtime_error("Texture pixels must fit " +
+                                 std::to_string(TextureImage::dimensionLimit) + " by " +
+                                 std::to_string(TextureImage::dimensionLimit) + " and " +
+                                 std::to_string(TextureImage::byteLimit / (1024 * 1024)) +
+                                 " MiB RGBA");
     for (size_t i = 3; i < rgba_.size(); i += 4)
         transparent_ |= rgba_[i] != 255;
 }

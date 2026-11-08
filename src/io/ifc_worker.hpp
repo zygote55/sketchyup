@@ -20,7 +20,7 @@ struct IfcWorkerOptions {
     qint64 addressSpaceBytes{qint64(4) << 30};
     int maxRestarts{3};
     int maxVoidsPerElement{100};
-    qint64 maxEntities{2000000};
+    qint64 maxEntities{16000000}; // eight times 2,000,000 (R115)
     // Tests only: "crash:N", "abort:N", "hang:N" or "alloc:N" makes the helper fail on product #N.
     QString testFault;
     // Where the private directory is made (empty: the system temporary directory).

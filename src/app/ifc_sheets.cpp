@@ -1,6 +1,7 @@
 #include "app/ifc_sheets.hpp"
 #include "app/step_export_dialog.hpp"
 #include "io/import_refusal.hpp"
+#include "io/skp_worker.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QFileInfo>
@@ -666,7 +667,7 @@ void showStepExportRefusal(QWidget *parent, const QString &path, const std::stri
     else if (codeText == "meshTooLarge")
         whatToDo = "1. Split the body that is too large into smaller bodies.\n2. Export again.";
     else if (codeText == "tooManyTriangles")
-        whatToDo = "1. Export a smaller part of the model; the export takes at most 1,000,000 triangles.\n2. Export again.";
+        whatToDo = "1. Export a smaller part of the model; the export takes at most 1,600,000 triangles in one body.\n2. Export again.";
     else if (codeText == "packageTooLarge")
         whatToDo = "1. The model is larger than the export takes; export a smaller part of it.\n2. Export again.";
     else if (codeText == "emptyModel")
@@ -1049,7 +1050,7 @@ void showSkpRefusal(QWidget *parent, const QString &fileName, const std::string 
         reason = QStringLiteral("The file does not start with a SketchUp header, so it is not a SketchUp (.skp) file.");
         whatToDo = QStringLiteral("1. Choose a SketchUp (.skp) file.\n2. Import it again.");
     } else if (codeText == "tooLarge") {
-        reason = QStringLiteral("The file is larger than the 256 MiB the import takes.");
+        reason = QStringLiteral("The file is larger than the %1 MiB the import takes.").arg(skpWorkerFileLimit / (1024 * 1024));
         whatToDo = QStringLiteral("1. Import a smaller file, or save the model in parts.\n2. Import it again.");
     } else if (codeText == "pre2013") {
         reason = QStringLiteral("This SketchUp file is from before 2013, which the import cannot read.");

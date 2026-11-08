@@ -99,7 +99,8 @@ int main() {
         const auto large =
             std::make_shared<AssetPayload>(std::vector<std::uint8_t>(AssetPayload::limit));
         Document bounded;
-        for (int i = 0; i < 4; ++i)
+        // Eight 64 MiB assets fill the 512 MiB total (R115); the shared payload costs one copy.
+        for (int i = 0; i < 8; ++i)
             createAsset(bounded, "Large", "application/octet-stream", large);
         const auto boundStamp = bounded.saveStamp();
         rejects([&] { createAsset(bounded, "Excess", "application/octet-stream", payload); },

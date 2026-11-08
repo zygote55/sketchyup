@@ -61,9 +61,12 @@ ShadingNormals::ShadingNormals(const Body &body) {
     size_t references = 0;
     for (const auto &[id, face] : surface.faces)
         for (const auto &loop : face.loops) {
-            // Two million face corners per body; scaled only in benchmark builds (R114).
-            if (loop.size() > 10000 || loop.size() > 2000000 * DocumentLimits::scale - references)
-                throw std::runtime_error("Shading exceeds two million face corners");
+            // Sixteen million face corners per body (R115, from two million); scaled only in
+            // benchmark builds (R114). The message prints the value.
+            constexpr size_t cornerLimit = 16000000 * DocumentLimits::scale;
+            if (loop.size() > 10000 || loop.size() > cornerLimit - references)
+                throw std::runtime_error("Shading exceeds " + groupedCount(cornerLimit) +
+                                         " face corners");
             references += loop.size();
         }
     const bool smoothing = std::any_of(body.edgeAppearances.begin(), body.edgeAppearances.end(),

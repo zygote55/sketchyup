@@ -26,7 +26,7 @@
 namespace sketchy {
 namespace {
 
-constexpr qint64 maxFileBytes = 256LL * 1024 * 1024; // ADR 0176 section 6: the input file
+constexpr qint64 maxFileBytes = qint64(skpWorkerFileLimit); // ADR 0176 section 6: the input file
 constexpr qint64 maxPackageBytes = 32 + qint64(SkpPackageLimits::manifestBytes) +
                                    qint64(SkpPackageLimits::geometryBytes) +
                                    qint64(SkpPackageLimits::textureChunkBytes);
@@ -76,7 +76,7 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
     if (options.addressSpaceBytes > 0)
         args << "--rlimit-as" << QString::number(options.addressSpaceBytes);
     args << "--rlimit-cpu" << QString::number(qint64(options.deadlineSeconds) * 4) << "--rlimit-fsize"
-         << QString::number(qint64(512) * 1024 * 1024) << "--deadline-seconds" << QString::number(options.deadlineSeconds);
+         << QString::number(qint64(8192) * 1024 * 1024) << "--deadline-seconds" << QString::number(options.deadlineSeconds);
     QProcess process;
     process.setProgram(worker);
     process.setArguments(args);
@@ -250,7 +250,7 @@ void copyBounded(const QString &source, const QString &destination) {
     ::close(in);
     ::close(out);
     if (tooLarge)
-        refuse("tooLarge", "The SketchUp file is larger than 256 MiB.");
+        refuse("tooLarge", "The SketchUp file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB.");
     if (failed)
         refuse("unreadable", "The SketchUp file could not be copied into the private working directory.");
 }
@@ -278,7 +278,7 @@ SkpImport importSkpFile(const QString &path, const SkpWorkerOptions &worker) {
         if (!info.isFile())
             refuse("notAFile", "The SketchUp source must be a regular file.");
         if (info.size() > maxFileBytes)
-            refuse("tooLarge", "The SketchUp file is larger than 256 MiB (" + std::to_string(info.size()) + " bytes).");
+            refuse("tooLarge", "The SketchUp file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB (" + std::to_string(info.size()) + " bytes).");
         QFile file(path);
         if (!file.open(QIODevice::ReadOnly))
             refuse("unreadable", "The SketchUp file cannot be read.");

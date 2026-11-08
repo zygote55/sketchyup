@@ -165,7 +165,7 @@ for mutation in mutations:
     elif mutation == 'dimension':
         binary = bytearray(binary)
         offset = value['bufferViews'][value['images'][0]['bufferView']]['byteOffset']
-        struct.pack_into('>I',binary,8+offset+16,4097)
+        struct.pack_into('>I',binary,8+offset+16,8193)  # one over TEXTURE_DIMENSION_LIMIT (8192, R115)
     else:
         attrs = value['meshes'][0]['primitives'][1]['attributes']
         accessor = value['accessors'][attrs['TEXCOORD_0']]

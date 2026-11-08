@@ -13,7 +13,7 @@ constexpr qsizetype responseLimit = 256 * 1024;
 StagingSession::StagingSession() : StagingSession(Limits{}) {}
 StagingSession::StagingSession(Limits limits, Now now) : limits_(limits), now_(std::move(now)) {
     if (!limits.proposals || limits.proposals > 4 || !limits.retainedBytes ||
-        limits.retainedBytes > 128 * 1024 * 1024 || limits.maximumTtlSeconds < 1 ||
+        limits.retainedBytes > 1024 * 1024 * 1024 || limits.maximumTtlSeconds < 1 ||
         limits.maximumTtlSeconds > maximumTrustedStagingTtlSeconds || !now_)
         throw std::runtime_error("Invalid staging limits");
 }

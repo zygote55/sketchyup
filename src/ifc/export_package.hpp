@@ -14,11 +14,11 @@
 namespace sketchyup::ifc {
 
 struct ExportLimits {
-  static constexpr std::size_t manifestBytes = 32u * 1024 * 1024;
-  static constexpr std::size_t meshBytes = 128u * 1024 * 1024;
+  static constexpr std::size_t manifestBytes = 256u * 1024 * 1024;
+  static constexpr std::size_t meshBytes = 1024u * 1024 * 1024;
   static constexpr std::size_t headerBytes = 24;
-  static constexpr std::size_t nodes = 400'000;
-  static constexpr std::size_t meshes = 400'000;
+  static constexpr std::size_t nodes = 800'000;
+  static constexpr std::size_t meshes = 800'000;
   static constexpr std::size_t styles = 65'536;
   static constexpr std::size_t properties = 4'000'000;
   static constexpr std::size_t nodeProperties = 20'000;

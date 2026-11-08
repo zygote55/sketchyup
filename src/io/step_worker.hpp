@@ -23,12 +23,13 @@ struct StepWorkerOptions {
     // mm, cm, m, in or ft: used only when the file declares no length unit (ADR 0172 section 2);
     // a file's declared unit is authoritative.
     QString lengthUnitOverride;
-    // The triangle caps of ADR 0172 section 6 (100,000 per element, 1,000,000 in total).
-    qint64 maxTrianglesPerElement{100000};
-    qint64 maxTotalTriangles{1000000};
+    // The triangle caps of ADR 0172 section 6, as IfcPackageLimits sets them (R115): 1,600,000 per
+    // element and 10,000,000 in total.
+    qint64 maxTrianglesPerElement{1600000};
+    qint64 maxTotalTriangles{10000000};
     // The entity cap of ADR 0172 section 6 (R098.k): a file whose reader holds more entities is refused by the helper
-    // before any transfer or tessellation. The IFC import's cap.
-    qint64 maxEntities{2000000};
+    // before any transfer or tessellation. The IFC import's cap. Eight times 2,000,000 in R115.
+    qint64 maxEntities{16000000};
     int deadlineSeconds{120};
     // RLIMIT_AS of the helper; 0 for none (sanitizer builds map huge shadow memory).
     qint64 addressSpaceBytes{qint64(4) << 30};

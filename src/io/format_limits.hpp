@@ -20,6 +20,11 @@ inline void checkFormatCount(std::string_view operation, std::string_view quanti
                              " would be " + groupedCount(attempted) + " of " +
                              groupedCount(maximum));
 }
+// A byte bound in MiB for a message. Messages print the constant they check, so a changed limit
+// cannot leave a stale number in a refusal (R114 items 9 and 10; R115).
+inline std::string mibBound(std::size_t bytes) {
+    return std::to_string(bytes / (1024 * 1024)) + " MiB";
+}
 // The most face corners a model's geometry can have (R113, D-102). A manifold model uses each edge
 // in at most two faces, so its corners are at most twice its edges, and the edge limit bounds
 // them. An exported model with non-manifold edges and more corners is refused by name. Triangles

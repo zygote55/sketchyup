@@ -465,27 +465,27 @@ void testLimits(const std::string &scratch) {
         return Stop{"imported", "", {}};
     };
 
-    // The input size: a sparse file one byte over the 256 MiB default. Its bytes are zeros, with no
+    // The input size: a sparse file one byte over the 2 GiB default (R115). Its bytes are zeros, with no
     // SketchUp header, so a size check that ran after the header check would say notSkp instead.
     {
         const std::string big = scratch + "/over-limit.skp";
         {
             std::ofstream out(big, std::ios::binary);
-            out.seekp(static_cast<std::streamoff>(256LL * 1024 * 1024));
+            out.seekp(static_cast<std::streamoff>(2048LL * 1024 * 1024));
             out.put('\0');
         }
-        check(std::filesystem::file_size(big) == 256ULL * 1024 * 1024 + 1,
-              "the sparse file is 256 MiB + 1 bytes");
+        check(std::filesystem::file_size(big) == 2048ULL * 1024 * 1024 + 1,
+              "the sparse file is 2 GiB + 1 bytes");
         sketchy::SkpWorkerOptions options;
         options.workerPath = QString::fromUtf8(SKP_WORKER_PATH);
         options.scratchRoot = QString::fromStdString(scratch);
         try {
             sketchy::importSkpFile(QString::fromStdString(big), options);
-            check(false, "a file of 256 MiB + 1 bytes is refused");
+            check(false, "a file of 2 GiB + 1 bytes is refused");
         } catch (const sketchy::IfcImportError &error) {
-            check(error.code() == "tooLarge", "256 MiB + 1 bytes is refused as tooLarge (" + error.code() + ")");
+            check(error.code() == "tooLarge", "2 GiB + 1 bytes is refused as tooLarge (" + error.code() + ")");
             const std::string words(error.what());
-            check(words.find("256 MiB") != std::string::npos && words.find("268435457") != std::string::npos,
+            check(words.find("2048 MiB") != std::string::npos && words.find("2147483649") != std::string::npos,
                   "the refusal names the limit and the size: " + words);
         }
     }

@@ -23,34 +23,39 @@ struct LimitCounts {
 // The materialized values bound the worst-case document's memory
 // (docs/verification/R082w-memory-budget-v2.md). The unique values were raised in 1.7.0
 // (R110, ADR 0005 "Raised unique geometry limits"); the memory evidence for them is
-// docs/verification/R082w-memory-budget-v3.md. The materialized values did not change.
+// docs/verification/R082w-memory-budget-v3.md. Both sets were raised again in R115 (2026-11-07,
+// ADR 0005 "Implementation notes (R115)") to the largest tiers measured on real hardware in R114
+// (docs/verification/R114-hardware-limits.md). The owner's decision of 2026-11-07 is that these are
+// product limits, not memory ceilings: the 3.75 GiB and 8 GiB ceilings of earlier records only
+// protected the development laptop and do not apply.
 struct DocumentLimits {
     static constexpr std::size_t scale = SKETCHYUP_BENCHMARK_LIMIT_SCALE;
     static constexpr LimitCounts unique{0,
-                                        10000 * scale,
-                                        300000 * scale,
-                                        300000 * scale,
-                                        300000 * scale,
-                                        900000 * scale,
-                                        10000 * scale,
-                                        10000 * scale};
-    static constexpr LimitCounts materialized{20000 * scale,  40000 * scale,
-                                              600000 * scale, 600000 * scale,
-                                              600000 * scale, 900000 * scale,
-                                              40000 * scale,  40000 * scale};
+                                        80000 * scale,
+                                        2400000 * scale,
+                                        2400000 * scale,
+                                        2400000 * scale,
+                                        7200000 * scale,
+                                        80000 * scale,
+                                        80000 * scale};
+    static constexpr LimitCounts materialized{80000 * scale,  320000 * scale,
+                                              4800000 * scale, 4800000 * scale,
+                                              4800000 * scale, 7200000 * scale,
+                                              320000 * scale,  320000 * scale};
     // One component definition's own members (R110, 1.7.0, owner decision 2026-11-01). Editing a
     // component replaces its whole record, so the undo charge of one edit is at least the
-    // definition's size, before and after. Vertices, faces, wires and edges are two thirds of the
-    // document's unique values (200,000 and 600,000). Bodies, curves and guides keep the unique
-    // values. The placement count is not checked here.
+    // definition's size (once, the new copy, since R117). Vertices, faces and wires are one third of the
+    // document's unique values (800,000), and edges are one third of theirs (2,400,000), as set in
+    // R115. Bodies, curves and guides keep the unique values. The placement count is not checked
+    // here. The component definition count is componentDefinitionCountLimit (4,096, from R117).
     static constexpr LimitCounts definition{0,
-                                            10000 * scale,
-                                            200000 * scale,
-                                            200000 * scale,
-                                            200000 * scale,
-                                            600000 * scale,
-                                            10000 * scale,
-                                            10000 * scale};
+                                            80000 * scale,
+                                            800000 * scale,
+                                            800000 * scale,
+                                            800000 * scale,
+                                            2400000 * scale,
+                                            80000 * scale,
+                                            80000 * scale};
 };
 static_assert(SKETCHYUP_BENCHMARK_LIMIT_SCALE >= 1);
 // A document's unique geometry never exceeds its materialized totals, so the unique limit can
@@ -87,6 +92,8 @@ inline constexpr std::size_t limitMessageBytes = 256;
 inline constexpr std::size_t limitNameBytes = 64;
 // The first exceeded quantity's name, or empty when every count is within limits.
 std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits);
+// The same check against a maximum the caller gives (a test lowers the product bound to reach a refusal).
+std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits, const LimitCounts &maximum);
 void checkLimits(const LimitCounts &attempted, LimitClass limits, std::string_view operation,
                  std::string_view context);
 // The terrain limit class (ADR 0168 decision 3): terrain triangles per document,

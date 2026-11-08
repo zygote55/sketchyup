@@ -42,7 +42,7 @@ QByteArray read(const QString &path, qsizetype limit) {
             "Expected a bounded regular worker artifact");
     QFile file(path);
     require(file.open(QIODevice::ReadOnly), "Cannot read worker artifact");
-    const auto bytes = file.read(limit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(limit)) + 1);
     require(bytes.size() <= limit && file.error() == QFileDevice::NoError,
             "Worker artifact read failed or exceeded bound");
     return bytes;
@@ -165,7 +165,7 @@ verifyScene(const PreparedRender &input, const QString &directory, const QJsonOb
     require(file.value("file") == "scene.blend" && file.value("assetsPacked") == true &&
                 file.value("oneWay") == true,
             "Worker scene transfer descriptor mismatch");
-    const auto bytes = read(directory + "/scene.blend", 512 * 1024 * 1024);
+    const auto bytes = read(directory + "/scene.blend", 2048LL * 1024 * 1024);
     require(bytes.size() > 17 && bytes.startsWith("BLENDER17-01v0502") &&
                 file.value("bytes").toInteger(-1) == bytes.size() &&
                 file.value("sha256") == hash(bytes),
@@ -239,7 +239,7 @@ std::shared_ptr<const PreparedRender> PreparedRender::prepare(const RenderSnapsh
 void PreparedRender::copyTo(const QString &directory) const {
     const auto bytes = read(sourceDirectory() + "/manifest.json", glbManifestByteLimit);
     require(hash(bytes) == manifestHash_, "Captured render manifest changed");
-    GlbExport package{read(sourceDirectory() + "/scene.glb", 256 * 1024 * 1024), object(bytes), {}};
+    GlbExport package{read(sourceDirectory() + "/scene.glb", 2048LL * 1024 * 1024), object(bytes), {}};
     if (package.manifest.contains("environment"))
         package.environment = read(sourceDirectory() + "/environment.hdr", 40 * 1024 * 1024);
     writeGlbExport(package, directory);
@@ -260,7 +260,7 @@ std::shared_ptr<const PreparedRender> PreparedRender::open(const QString &direct
     auto settings = result->manifest_.value("settings").toObject();
     settings["apiVersion"] = 1;
     parseRenderOptions(settings);
-    GlbExport package{read(directory + "/scene.glb", 256 * 1024 * 1024), result->manifest_, {}};
+    GlbExport package{read(directory + "/scene.glb", 2048LL * 1024 * 1024), result->manifest_, {}};
     if (package.manifest.contains("environment"))
         package.environment = read(directory + "/environment.hdr", 40 * 1024 * 1024);
     writeGlbExport(package, result->sourceDirectory());
@@ -886,7 +886,7 @@ void saveBlenderScene(const BlenderSceneResult &scene, const QString &path) {
                 !destination.isSymLink(),
             "Choose a regular .blend destination for the one-way scene");
     const auto file = scene.manifest.value("sceneFile").toObject();
-    require(scene.blend.size() > 17 && scene.blend.size() <= 512 * 1024 * 1024 &&
+    require(scene.blend.size() > 17 && scene.blend.size() <= 2048LL * 1024 * 1024 &&
                 scene.blend.startsWith("BLENDER17-01v0502") &&
                 file.value("sha256") == hash(scene.blend) &&
                 file.value("bytes").toInteger(-1) == scene.blend.size(),

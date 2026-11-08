@@ -373,8 +373,8 @@ void explode() {
           "Explode needs a terrain");
 
     // Explode joins the terrain's triangles to the modelling faces against the unique face limit
-    // (DocumentLimits::unique.faces: 300,000 since 1.7.0, R110). The boundary at that size, with a
-    // 249,218-triangle terrain, is checked in document_limits_tests, because building it is slow.
+    // (DocumentLimits::unique.faces: 2,400,000 since R115, from 300,000 in R110). The boundary at that size, with a
+    // 249,218-triangle terrain, is checked by counts here, because building it is slow.
     const auto start = std::chrono::steady_clock::now();
     Document large;
     const auto big = grid(224, 224); // 100,352 triangles
@@ -385,15 +385,15 @@ void explode() {
                   .faces == 1,
           "A 100,352-triangle terrain leaves the modelling budget free");
     const auto budget = terrainExplodeBudget(large, terrain.terrain);
-    check(budget.faceLimit == DocumentLimits::unique.faces && budget.faceLimit == 300000 &&
+    check(budget.faceLimit == DocumentLimits::unique.faces && budget.faceLimit == 2400000 &&
               budget.terrainFaces == 100352 && budget.fits(),
           "Explode checks the terrain's triangles against the unique face limit");
     TerrainExplodeBudget edge;
     edge.terrainFaces = 249218;
     edge.faceLimit = DocumentLimits::unique.faces;
-    edge.modelFaces = 50782;
-    check(edge.fits(), "Exactly 300,000 faces fit the explode budget");
-    edge.modelFaces = 50783;
+    edge.modelFaces = DocumentLimits::unique.faces - 249218;
+    check(edge.fits(), "Exactly the unique face limit fits the explode budget");
+    edge.modelFaces += 1;
     check(!edge.fits(), "One more modelling face does not fit the explode budget");
     std::cout << "large terrain build and refusal: "
               << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()

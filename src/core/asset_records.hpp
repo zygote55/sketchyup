@@ -7,8 +7,9 @@ namespace sketchy {
 // holding a mutable shared_ptr can change a published payload.
 class AssetPayload {
   public:
-    // Scales with the benchmark-only limit scale (R114); 16 MiB at every product build.
-    static constexpr size_t limit = 16 * 1024 * 1024 * DocumentLimits::scale;
+    // Scales with the benchmark-only limit scale (R114); 64 MiB at every product build (R115, from
+    // 16 MiB). A 64 MiB PNG can hold an 8192 by 8192 image (TextureImage), so the limit has to admit one.
+    static constexpr size_t limit = 64 * 1024 * 1024 * DocumentLimits::scale;
     explicit AssetPayload(const std::vector<std::uint8_t> &bytes);
     const std::vector<std::uint8_t> &bytes() const { return bytes_; }
 
@@ -25,7 +26,8 @@ struct AssetRecord {
 };
 using AssetPtr = std::shared_ptr<const AssetRecord>;
 using AssetRecords = std::map<Id, AssetPtr>;
-inline constexpr size_t assetTotalLimit = 64 * 1024 * 1024 * DocumentLimits::scale;
+// The stored total of all assets: 512 MiB at every product build (R115, from 64 MiB).
+inline constexpr size_t assetTotalLimit = 512 * 1024 * 1024 * DocumentLimits::scale;
 void validateAssetRecords(const AssetRecords &assets, Id next);
 void validateMaterialAssets(const MaterialRecords &materials, const AssetRecords &assets);
 // An edge texture (ADR 0174 §2) names an asset of the document, or none. A present but missing
