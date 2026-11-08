@@ -55,7 +55,7 @@ ShadingNormals::Key ShadingNormals::FaceNormals::key(Vec3 point) const {
 }
 ShadingNormals::ShadingNormals(const Body &body) {
     const auto &surface = body.surface;
-    if (surface.faces.size() > 100000 || body.topology.edges.size() > Topology::edgeLimit)
+    if (surface.faces.size() > Surface::bodyLimit || body.topology.edges.size() > Topology::edgeLimit)
         throw std::runtime_error("Shading geometry exceeds supported bounds");
     size_t references = 0;
     for (const auto &[id, face] : surface.faces)

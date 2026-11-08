@@ -1343,3 +1343,21 @@ with the numbers and the tests. The section 6 row is amended in place (R098.k).
   test files not verified (an unauthenticated code search was not available at
   design time). OCCT's own test resources: not in the GitHub repository
   (verified), distributed separately, not verified.
+
+## Implementation notes (R113)
+
+R113 measured the STEP and IFC exports at the published limits. Findings and numbers, 2026-11-07,
+in [R113](../verification/R113-format-limits.md).
+
+- **The 256 MiB output bound stays.** A closed-sphere model of 150,000 distinct triangles writes 167 MB, about 1.1 KB
+  a triangle, so the bound is reached near 240,000 distinct triangles, not the 110,000 faces of the earlier estimate
+  (2.4 KB a face for another model, line 922 above). A model of 300,000 distinct triangles is refused by name:
+  the helper did not finish, and its output had reached 256 MiB. A bound raised to 512 MiB did not let the helper
+  finish either: it stopped with a crash after 90 s at the container's 4 GiB cap. The helper's 4 GiB address-space
+  cap is unchanged. The cause of the crash was not confirmed.
+- **Placed instances are shared.** A model placed four times writes its geometry once with instances, so a
+  600,000-face placed model exports in 37 s at 167 MB. The per-element 100,000-triangle and 1,000,000-triangle caps
+  apply to distinct geometry.
+- **IFC, the same models.** The IFC export writes 300,000 distinct faces in 15 s (15 MB) and a 600,000-face placed
+  model in 30 s (30 MB), within 4 GiB.
+- **Contract:** the table's budgets are unchanged, apart from the measured size above.

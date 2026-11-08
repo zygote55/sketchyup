@@ -215,7 +215,7 @@ std::vector<Edge> Surface::edges() const {
     return out;
 }
 void Surface::validate() const {
-    if (vertices.size() > 100000 || faces.size() > 100000)
+    if (vertices.size() > bodyLimit || faces.size() > bodyLimit)
         throw std::runtime_error("Surface exceeds editing limits");
     for (auto [id, p] : vertices) {
         if (id == 0 || id >= nextId || faces.contains(id))

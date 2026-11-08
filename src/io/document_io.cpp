@@ -41,6 +41,23 @@ namespace {
 constexpr qint64 fileLimit = NativeLimits::fileBytes;
 constexpr qint64 modelLimit = NativeLimits::modelBytes;
 QString sid(Id id) { return QString::number(id); }
+// One JSON object keyed by a body's record ids. A QJsonObject keeps its keys sorted, and each insert
+// moves the entries after its place. Inserting in id order, which the body maps iterate, makes
+// that quadratic: 12 s to encode the 96,800 faces of one OBJ body (R113, D-102). The keys are
+// sorted first here, so each insert appends. The object is the same.
+template <class Records, class Encode>
+QJsonObject keyedObject(const Records &records, Encode encode) {
+    std::vector<std::pair<QString, QJsonValue>> entries;
+    entries.reserve(records.size());
+    for (const auto &[id, record] : records)
+        entries.emplace_back(sid(id), encode(record));
+    std::sort(entries.begin(), entries.end(),
+              [](const auto &a, const auto &b) { return a.first < b.first; });
+    QJsonObject object;
+    for (const auto &[key, value] : entries)
+        object.insert(key, value);
+    return object;
+}
 Id readId(const QJsonValue &v, bool allowZero = false) {
     bool ok = false;
     auto s = v.toString();
@@ -344,19 +361,18 @@ QJsonArray encodeBodies(const std::map<Id, BodyPtr> &records) {
                 value);
         QJsonObject edgeAppearances;
         if (!tile)
-            for (const auto &[edge, style] : b->edgeAppearances)
-                edgeAppearances[sid(edge)] = QJsonObject{
+            edgeAppearances = keyedObject(b->edgeAppearances, [](const auto &style) {
+                return QJsonObject{
                     {"hidden", style.hidden}, {"soft", style.soft}, {"smooth", style.smooth}};
-        QJsonObject faceColors;
-        for (const auto &[face, color] : b->faceColors)
-            faceColors[sid(face)] = QJsonArray{color[0], color[1], color[2]};
-        QJsonObject faceMaterials;
-        for (const auto &[face, sides] : b->faceMaterials)
-            faceMaterials[sid(face)] = QJsonArray{sid(sides.front), sid(sides.back)};
-        QJsonObject faceTextureMappings;
-        for (const auto &[face, sides] : b->faceTextureMappings)
-            faceTextureMappings[sid(face)] =
-                QJsonArray{encodeTextureMapping(sides.front), encodeTextureMapping(sides.back)};
+            });
+        const auto faceColors = keyedObject(
+            b->faceColors, [](const auto &color) { return QJsonArray{color[0], color[1], color[2]}; });
+        const auto faceMaterials = keyedObject(b->faceMaterials, [](const auto &sides) {
+            return QJsonArray{sid(sides.front), sid(sides.back)};
+        });
+        const auto faceTextureMappings = keyedObject(b->faceTextureMappings, [](const auto &sides) {
+            return QJsonArray{encodeTextureMapping(sides.front), encodeTextureMapping(sides.back)};
+        });
         bodies.append(
             QJsonObject{{"id", sid(id)},
                         {"materials", QJsonArray{sid(b->materials.front), sid(b->materials.back)}},
@@ -597,7 +613,7 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
         }
         if (version >= 16) {
             const auto mappings = object(o["faceTextureMappings"]);
-            if (mappings.size() > 100000)
+            if (mappings.size() > Surface::bodyLimit)
                 throw std::runtime_error("Too many face texture mappings");
             for (auto it = mappings.begin(); it != mappings.end(); ++it) {
                 const auto sides = array(it.value());
@@ -630,7 +646,7 @@ std::map<Id, BodyPtr> decodeBodies(const QJsonValue &value, int version,
             };
             b->materials = sides(o["materials"]);
             const auto assigned = object(o["faceMaterials"]);
-            if (assigned.size() > 100000)
+            if (assigned.size() > Surface::bodyLimit)
                 throw std::runtime_error("Too many face assignments");
             for (auto it = assigned.begin(); it != assigned.end(); ++it)
                 b->faceMaterials[readId(it.key())] = sides(it.value());

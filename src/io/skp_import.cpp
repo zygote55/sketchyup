@@ -8,6 +8,7 @@
 #include "core/texture_mapping.hpp"
 #include "geometry/surface.hpp"
 #include "geometry/topology.hpp"
+#include "io/body_budget.hpp"
 #include "io/texture_image.hpp"
 
 #include <QBuffer>
@@ -275,6 +276,10 @@ class Converter {
     Canonical buildDefinition(std::size_t d);
     bool faceIsValid(const SkpPackageDefinition &definition, const std::vector<std::vector<std::uint32_t>> &loops, std::string &problem) const;
     Id vertexOf(Bucket &bucket, const SkpPackageDefinition &definition, std::uint32_t index) const;
+    // The definitions the document takes, with the root (index 0), and the bodies a mesh was split
+    // into (R113, D-102), for the report.
+    std::size_t keptDefinitions{};
+    QJsonArray bodySplits;
     Cost costOf(std::size_t d, std::size_t depth, bool &tooDeep) const;
     void place(std::size_t d, Id rootId, std::size_t depth);
     void placeTopLevel(std::size_t k, Id parent);
@@ -736,7 +741,9 @@ Canonical Converter::buildDefinition(std::size_t d) {
         edgeOf.emplace(pairKey(edge.v1, edge.v2), &edge);
     }
 
-    std::map<std::pair<Id, bool>, Bucket> buckets;
+    // The bodies of each tag and visibility, in order: a body over the one-body limits continues
+    // in the next one (R113, D-102).
+    std::map<std::pair<Id, bool>, std::vector<Bucket>> buckets;
     std::set<PairKey> faceEdges;
     LimitCounts definitionCounts; // this definition's own members, as the faces are accepted
     std::size_t count = 0;
@@ -761,26 +768,44 @@ Canonical Converter::buildDefinition(std::size_t d) {
             continue;
         }
         const Id tag = tagOf(face.tag);
-        auto found = buckets.find({tag, face.hidden});
-        if (found == buckets.end()) {
+        auto &bodies = buckets[{tag, face.hidden}];
+        const auto openBody = [&]() -> Bucket & {
             Bucket fresh;
-            fresh.body.name = "Geometry";
+            fresh.body.name = continuedBodyName("Geometry", bodies.size() + 1);
             fresh.body.tag = tag;
             fresh.body.hidden = face.hidden;
-            found = buckets.emplace(std::make_pair(tag, face.hidden), std::move(fresh)).first;
-        }
-        Bucket &bucket = found->second;
-        // The new vertices and edges this face adds to its body, against the body and the document caps.
+            bodies.push_back(std::move(fresh));
+            return bodies.back();
+        };
+        if (bodies.empty())
+            openBody();
+        // The new vertices and edges this face adds to a body.
+        const auto newcomers = [&](const Bucket &candidate, std::set<std::uint32_t> &vertices,
+                                   std::set<PairKey> &edges) {
+            for (const auto &loop : loops)
+                for (std::size_t i = 0; i < loop.size(); ++i) {
+                    if (!candidate.vertexIds.contains(loop[i]))
+                        vertices.insert(loop[i]);
+                    const auto key = pairKey(loop[i], loop[(i + 1) % loop.size()]);
+                    if (!candidate.edgeKeys.contains(key))
+                        edges.insert(key);
+                }
+        };
         std::set<std::uint32_t> newVertices;
         std::set<PairKey> newEdges;
-        for (const auto &loop : loops)
-            for (std::size_t i = 0; i < loop.size(); ++i) {
-                if (!bucket.vertexIds.contains(loop[i]))
-                    newVertices.insert(loop[i]);
-                const auto key = pairKey(loop[i], loop[(i + 1) % loop.size()]);
-                if (!bucket.edgeKeys.contains(key))
-                    newEdges.insert(key);
-            }
+        newcomers(bodies.back(), newVertices, newEdges);
+        // A face that does not fit under the one-body limits starts the next body of its tag and
+        // visibility, so the geometry continues rather than drops (R113, D-102).
+        const BodyBudget full{bodies.back().body.surface.faces.size(),
+                              bodies.back().body.surface.vertices.size(),
+                              bodies.back().edgeKeys.size()};
+        if (!full.admits(1, newVertices.size(), newEdges.size())) {
+            openBody();
+            newVertices.clear();
+            newEdges.clear();
+            newcomers(bodies.back(), newVertices, newEdges);
+        }
+        Bucket &bucket = bodies.back();
         const std::size_t bodyFaces = bucket.body.surface.faces.size() + 1;
         const std::size_t bodyVertices = bucket.body.surface.vertices.size() + newVertices.size();
         const std::size_t bodyEdges = bucket.edgeKeys.size() + newEdges.size();
@@ -789,7 +814,8 @@ Canonical Converter::buildDefinition(std::size_t d) {
         trial.faces += 1;
         trial.vertices += newVertices.size();
         trial.edges += newEdges.size();
-        if (bodyFaces > 100000 || bodyVertices > 100000 || bodyEdges > Topology::edgeLimit) {
+        if (bodyFaces > Surface::bodyLimit || bodyVertices > Surface::bodyLimit ||
+            bodyEdges > Topology::edgeLimit) {
             note("bodyLimit");
             omit("face");
             continue;
@@ -880,18 +906,24 @@ Canonical Converter::buildDefinition(std::size_t d) {
                 bucket.body.edgeAppearances[id] = look;
         }
     };
-    for (auto &[key, bucket] : buckets) {
+    for (auto &[key, bodies] : buckets) {
         (void)key;
-        finish(bucket);
-        bucket.body.surface.validate();
-        auto body = std::make_shared<Body>(std::move(bucket.body));
-        body->id = canon.nextMember++;
-        body->parent = 1;
-        canon.own.bodies += 1;
-        canon.own.vertices += body->surface.vertices.size();
-        canon.own.faces += body->surface.faces.size();
-        canon.own.edges += body->topology.edges.size();
-        canon.members[body->id] = body;
+        if (bodies.size() > 1)
+            bodySplits.append(QJsonObject{{"definition", QString::fromStdString(definition.name)},
+                                          {"name", "Geometry"},
+                                          {"bodies", qint64(bodies.size())}});
+        for (auto &bucket : bodies) {
+            finish(bucket);
+            bucket.body.surface.validate();
+            auto body = std::make_shared<Body>(std::move(bucket.body));
+            body->id = canon.nextMember++;
+            body->parent = 1;
+            canon.own.bodies += 1;
+            canon.own.vertices += body->surface.vertices.size();
+            canon.own.faces += body->surface.faces.size();
+            canon.own.edges += body->topology.edges.size();
+            canon.members[body->id] = body;
+        }
     }
 
     // Loose edges (no kept face uses them) are wires, in one body of their own.
@@ -900,34 +932,60 @@ Canonical Converter::buildDefinition(std::size_t d) {
         if (!faceEdges.contains(key))
             wires.emplace_back(key, edge);
     if (!wires.empty()) {
-        Bucket wire;
-        wire.body.name = "Wires";
+        // The loose edges go in wire bodies, each under the one-body limits (R113, D-102).
+        std::vector<Bucket> chunks;
+        std::vector<long long> chunkWires;
+        const auto openChunk = [&]() -> Bucket & {
+            Bucket fresh;
+            fresh.body.name = continuedBodyName("Wires", chunks.size() + 1);
+            chunks.push_back(std::move(fresh));
+            chunkWires.push_back(0);
+            return chunks.back();
+        };
+        openChunk();
         for (const auto &[key, edge] : wires) {
             (void)edge;
-            const Id a = vertexOf(wire, definition, key.first);
-            const Id b = vertexOf(wire, definition, key.second);
-            wire.body.surface.wires.push_back({a, b});
+            Bucket *chunk = &chunks.back();
+            std::size_t fresh = 0;
+            if (!chunk->vertexIds.contains(key.first))
+                ++fresh;
+            if (key.second != key.first && !chunk->vertexIds.contains(key.second))
+                ++fresh;
+            if (!BodyBudget{0, chunk->body.surface.vertices.size(), chunk->body.surface.wires.size()}
+                     .admits(0, fresh, 1))
+                chunk = &openChunk();
+            const Id a = vertexOf(*chunk, definition, key.first);
+            const Id b = vertexOf(*chunk, definition, key.second);
+            chunk->body.surface.wires.push_back({a, b});
+            ++chunkWires.back();
         }
-        finish(wire);
-        wire.body.surface.validate();
-        auto body = std::make_shared<Body>(std::move(wire.body));
-        body->id = canon.nextMember++;
-        body->parent = 1;
-        // The wire body is part of the definition too (R110): refused as an oversize face is.
-        LimitCounts wireTrial = definitionCounts;
-        wireTrial.bodies += 1;
-        wireTrial.vertices += body->surface.vertices.size();
-        wireTrial.wires += body->surface.wires.size();
-        wireTrial.edges += body->topology.edges.size();
-        if (d != 0 && !exceededLimit(wireTrial, LimitClass::ComponentDefinition).empty()) {
-            note("documentLimit");
-            omit("wire", static_cast<long long>(wires.size()));
-        } else {
-            definitionCounts = wireTrial;
-            canon.own.bodies += 1;
-            canon.own.wires += body->topology.edges.size();
-            canon.members[body->id] = body;
-            importedWires += static_cast<long long>(wires.size());
+        if (chunks.size() > 1)
+            bodySplits.append(QJsonObject{{"definition", QString::fromStdString(definition.name)},
+                                          {"name", "Wires"},
+                                          {"bodies", qint64(chunks.size())}});
+        for (std::size_t i = 0; i < chunks.size(); ++i) {
+            auto &wire = chunks[i];
+            finish(wire);
+            wire.body.surface.validate();
+            auto body = std::make_shared<Body>(std::move(wire.body));
+            body->id = canon.nextMember++;
+            body->parent = 1;
+            // The wire body is part of the definition too (R110): refused as an oversize face is.
+            LimitCounts wireTrial = definitionCounts;
+            wireTrial.bodies += 1;
+            wireTrial.vertices += body->surface.vertices.size();
+            wireTrial.wires += body->surface.wires.size();
+            wireTrial.edges += body->topology.edges.size();
+            if (d != 0 && !exceededLimit(wireTrial, LimitClass::ComponentDefinition).empty()) {
+                note("documentLimit");
+                omit("wire", chunkWires[i]);
+            } else {
+                definitionCounts = wireTrial;
+                canon.own.bodies += 1;
+                canon.own.wires += body->topology.edges.size();
+                canon.members[body->id] = body;
+                importedWires += chunkWires[i];
+            }
         }
     }
     importedEdges += static_cast<long long>(edgeOf.size());
@@ -936,7 +994,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
     if (d != 0) {
         for (const auto &instance : definition.instances) {
             Transform placement;
-            if (instance.definition < 0 || std::size_t(instance.definition) >= pkg.definitions.size() ||
+            if (instance.definition < 0 || std::size_t(instance.definition) >= keptDefinitions ||
                 instance.definition == 0 || std::size_t(instance.definition) == d || !placementOf(instance, placement)) {
                 omit("instance");
                 continue;
@@ -994,7 +1052,7 @@ void Converter::place(std::size_t d, Id rootId, std::size_t depth) {
 void Converter::placeTopLevel(std::size_t k, Id parent) {
     const auto &instance = pkg.definitions[0].instances[k];
     Transform placement;
-    if (instance.definition < 0 || std::size_t(instance.definition) >= pkg.definitions.size() ||
+    if (instance.definition < 0 || std::size_t(instance.definition) >= keptDefinitions ||
         instance.definition == 0 || !placementOf(instance, placement)) {
         omit("instance");
         return;
@@ -1052,8 +1110,11 @@ SkpImport Converter::run() {
     countDynamicValues();
 
     // Every definition's canonical geometry: the root (0) first, then the file's definitions in order.
+    // A document takes componentDefinitionCountLimit definitions besides the root (R113, D-102). The
+    // file's definitions past that are omitted, and so are the placements of them.
+    keptDefinitions = std::min(pkg.definitions.size(), componentDefinitionCountLimit + 1);
     canonical.resize(pkg.definitions.size());
-    for (std::size_t d = 0; d < pkg.definitions.size(); ++d)
+    for (std::size_t d = 0; d < keptDefinitions; ++d)
         canonical[d] = buildDefinition(d);
 
     // The root: a top-level group named after the file, holding the root's geometry and its placements.
@@ -1090,7 +1151,12 @@ SkpImport Converter::run() {
     }
 
     // The definitions: every file definition, as a component definition with its canonical members.
-    for (std::size_t d = 1; d < pkg.definitions.size(); ++d) {
+    if (pkg.definitions.size() > keptDefinitions) {
+        const auto omittedDefinitions = static_cast<long long>(pkg.definitions.size() - keptDefinitions);
+        note("definitionLimit", omittedDefinitions);
+        omit("definition", omittedDefinitions);
+    }
+    for (std::size_t d = 1; d < keptDefinitions; ++d) {
         const auto &canon = canonical[d];
         auto definition = std::make_shared<ComponentDefinition>();
         definition->id = Id(d);
@@ -1250,6 +1316,7 @@ SkpImport Converter::run() {
                                {"tags", qint64(tagRecords.size())},
                                {"textures", qint64(assetRecords.size())}}},
         {"accounting", accounting},
+        {"bodySplits", bodySplits},
         {"sourceTotals", sourceTotals},
         {"omittedByWorker", omittedWorker},
         {"notices", notes},

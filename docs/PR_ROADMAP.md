@@ -1610,7 +1610,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R113 — Bring every file format up to the published model limits
 
-**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)).
+**Status:** In progress. Approved by the owner on 2026-11-07, after a comparison with SketchUp showed that formats refuse models within the published limits ([D-102](verification/R089a-defect-triage.md)). The branch `feat/r113-format-caps` implements it, and the measurements are in [R113](verification/R113-format-limits.md): exports take the materialized limits and imports the unique limits; a mesh over the one-body limit continues in another body; the `.skp` definition count is named and counted; the OBJ import's quadratic hot spot is fixed; the GLB triangle cap moves to 1,800,000, with the Blender worker's bound; the STEP output bound stays at 256 MiB, because a raised bound did not let the helper finish a model of 300,000 distinct faces. That and the undo budget's refusal of a large glTF import are [D-103](verification/R089a-defect-triage.md), still open. The status becomes Verified when the pull request is reviewed and merged.
 
 **Requires:** [R110](#r110), [R112](#r112).
 
@@ -1634,7 +1634,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R115 — Raise the placed-face and texture limits
 
-**Status:** Planned, waiting on [R114](#r114). The owner agreed to the raise on 2026-11-07; the numbers come from R114's measurements. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md) and [D-100](verification/R089a-defect-triage.md) if the new budget covers them.
+**Status:** Planned, waiting on [R114](#r114). The owner agreed to the raise on 2026-11-07; the numbers come from R114's measurements. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md), [D-100](verification/R089a-defect-triage.md) and the undo-budget part of [D-103](verification/R089a-defect-triage.md) if the new budgets cover them.
 
 **Requires:** [R113](#r113), [R114](#r114).
 

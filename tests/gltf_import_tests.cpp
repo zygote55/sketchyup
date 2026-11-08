@@ -9,6 +9,7 @@
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <bit>
+#include <cstring>
 #include <iostream>
 #include <numbers>
 using namespace sketchy;
@@ -344,20 +345,37 @@ int main(int argc, char **argv) {
                 }
             }
         }
+        // 300,001 vertices in a zigzag strip (R113, D-102): one vertex past the unique vertex limit,
+        // refused by name. The positions are not degenerate, so the limit is what refuses them.
         Fixture huge;
+        const int hugeCount = 300001;
         auto accessor = huge.accessors[0].toObject();
-        accessor["count"] = 100001;
+        accessor["count"] = hugeCount;
         huge.accessors[0] = accessor;
         auto view = huge.views[0].toObject();
-        view["byteLength"] = 100001 * 12;
+        view["byteLength"] = hugeCount * 12;
         huge.views[0] = view;
-        huge.buffer.resize(100001 * 12);
+        huge.buffer.resize(hugeCount * 12);
+        for (int i = 0; i < hugeCount; ++i) {
+            const float position[3] = {float(i) * .001f, float(i % 2) * .5f, 0};
+            const auto bits = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[0]));
+            std::memcpy(huge.buffer.data() + i * 12, &bits, 4);
+            const auto y = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[1]));
+            std::memcpy(huge.buffer.data() + i * 12 + 4, &y, 4);
+        }
         auto p = huge.primitive();
         p["attributes"] = QJsonObject{{"POSITION", 0}};
         p["mode"] = 5;
         huge.primitive(p);
         huge.save(path);
-        rejects([&] { loadGltf(path); });
+        std::string refusal;
+        try {
+            loadGltf(path);
+        } catch (const std::exception &error) {
+            refusal = error.what();
+        }
+        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos,
+              "A glTF over the unique vertex limit is refused by name");
         Fixture duplicates;
         auto duplicateMaterials = duplicates.tree["materials"].toArray();
         duplicateMaterials.append(duplicateMaterials[0]);
