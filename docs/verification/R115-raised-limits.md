@@ -137,7 +137,36 @@ more; the CI total rises by about one second.
 
 Results are in the section that follows the code. A case that did not run says why.
 
-RESULTS_PENDING
+Status at the end of this pull request: **no case has run on the GPU PC.** The owner's Blender job (`blender -b`
+on the owner's own project, PID 2605 on `sketchyup-gpu`) was running from 20:08 on 2026-11-07 and held the GPU at
+97 to 99% busy at each check through 02:19 on 2026-11-08. The brief says to pause while the owner uses the machine, and
+the owner's process was not stopped. The runner and the binary are in place, so the cases run with one command per case:
+
+    ssh sketchyup-gpu 'bash -lc "~/sketchyup-verification/r115-20261107/run-case.sh unique"'
+
+The laptop smoke run (`--smoke`, every case, small sizes) passed on the development laptop: twelve cases, every step
+ok. Smoke sizes prove the code paths, not the limits, and no at-limit size ran on the laptop.
+
+| Case (brief) | Program case | GPU PC result | Notes |
+| --- | --- | --- | --- |
+| 1. unique: 2,400,000 faces; save, close, open; move, undo, redo | `unique` | not run | 12,000 distinct 200-face bipyramids |
+| 2. materialized: 4,800,000 placed faces from an 800,000-face definition; move a placement; edit the definition (D-104); undo, redo; history charge and RSS growth | `materialized` | not run | six placements of one definition |
+| 3. one body of 800,000 faces: move, undo | `one-body` | not run | |
+| 4. model chunk near 768 MiB with imported UVs (D-099): save and open | `chunk` | not run | 595 bodies of 2,000 textured faces, full-precision UVs |
+| 5. 512 MiB of stored textures, one 64 MiB asset: save and open | `textures` | not run | 32 PNGs of 4096 by 4096 and one 64 MiB asset; the viewport count is not measured here |
+| 6. exports at the materialized limit: GLB (and Blender import), OBJ, binary STL, DXF | `export-glb`, `export-obj`, `export-stl`, `export-dxf` | not run | DXF uses six flat grids (planar) |
+| 7. imports at the unique limit: OBJ, STL, glTF (D-103) | `import-obj`, `import-stl`, `import-gltf` | not run | the OBJ import is checked against the 10-minute rule |
+| 8. STEP export at 512 MiB (D-103) | none | not run | the STEP helper (`sketchyup-ifc-worker`) is not built on the GPU PC; building it was not attempted |
+
+Expected results, stated so that they can be checked (not measured): the GLB binary at 4,800,000 faces is about 0.7 to
+1 GB and its manifest about 1.4 GB (about 306 bytes a face); the chunk case has about 670 bytes a face on the
+laptop smoke run, which gives a chunk near 760 MiB at 595 bodies.
+
+The owner's Blender job did not run into any of the laptop's checks; the GPU PC's Arch and sanitized CI jobs are separate.
+
+The Blender import of the GLB (case 6) also needs the worker on the GPU PC; `scripts/verify-blender-glb.py` expects fixture
+layouts, so a direct import of the exported `scene.glb` is the plan, not yet run.
+
 
 ## Records and checks
 
