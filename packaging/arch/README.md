@@ -18,8 +18,8 @@ them; for the IFC helper they are `boost`, `eigen`, `opencascade` and `patchelf`
 scripts/package-source.sh /absolute/path/to/package-output
 cd /absolute/path/to/package-output
 makepkg
-sudo pacman -U sketchyup-1.8.0-1-x86_64.pkg.tar.zst
-sudo pacman -U sketchyup-ifc-1.8.0-1-x86_64.pkg.tar.zst   # optional: IFC helper
+sudo pacman -U sketchyup-1.9.0-1-x86_64.pkg.tar.zst
+sudo pacman -U sketchyup-ifc-1.9.0-1-x86_64.pkg.tar.zst   # optional: IFC helper
 ```
 
 The version has one source: `project(SketchyUp VERSION ...)` in `CMakeLists.txt`
@@ -88,7 +88,7 @@ the same source to exercise clean install and upgrade hooks. The preceding packa
 the previous release in the series: `pkgrel - 1` of the same version; for the first
 `pkgrel` of a patch version, the previous patch at `pkgrel` 1 (`1.0.1-1` upgrades from
 `1.0.0-1`, and `1.6.1-1` from `1.6.0-1`); and for the first `pkgrel` of `x.y.0`, the newest earlier entry of the
-script's `released_packages` table (`1.8.0-1` upgrades from `1.7.0-1`, `1.7.0-1` from `1.6.1-1`, `1.6.0-1` from `1.5.0-1`, `1.5.0-1` from
+script's `released_packages` table (`1.9.0-1` upgrades from `1.8.0-1`, `1.8.0-1` from `1.7.0-1`, `1.7.0-1` from `1.6.1-1`, `1.6.0-1` from `1.5.0-1`, `1.5.0-1` from
 `1.4.0-1`, `1.4.0-1` from `1.3.0-1`, `1.3.0-1` from `1.2.0-1`, `1.2.0-1` from `1.1.1-1`, `1.1.0-1` from `1.0.1-1`,
 `1.0.0-1` from the development package `0.1.0-3`). `vercmp` must order the table and each pair. A new
 minor version whose previous series is missing from the table stops with an error, so
@@ -107,12 +107,12 @@ It verifies the package's SHA-256 (pinned in the script per file name, or
 passes its CLI to `check()` as `SKETCHYUP_PRIOR_CLI`. After installation, the released
 CLI must refuse every retained fixture newer than the schemas it reads and leave it
 unchanged, and must accept a sheet-free document saved by the new package. CI downloads
-the previous release, `sketchyup-1.7.0-1-x86_64.pkg.tar.zst` from the v1.7.0 release
-(SHA-256 `8b51842e…`, pinned in the script).
-The 1.7.0-1 CLI reads schemas 1 to 35, the newest schema this series writes, so no retained fixture is
+the previous release, `sketchyup-1.8.0-1-x86_64.pkg.tar.zst` from the v1.8.0 release
+(SHA-256 `d44e2f66…`, pinned in the script).
+The 1.8.0-1 CLI reads schemas 1 to 35, the newest schema this series writes, so no retained fixture is
 newer than it. The check therefore runs the other way: `verify-package.sh` saves a
 georeferenced reference image with the new package (schema 35) and requires the released CLI to open
-it unchanged, which is the downgrade window to 1.7.0-1. `native_format` requires the released CLI to
+it unchanged, which is the downgrade window to 1.8.0-1. `native_format` requires the released CLI to
 open the retained `reference-geo-v35.sketchyup` unchanged. The tests in `check()` also require the
 released CLI to open, unchanged, every retained fixture it reads: `presentation_io` (schema 30),
 `style_bundle` (schema 31), `geographic_site` (schema 32), `material_texture_size` (schema 33),
@@ -120,11 +120,15 @@ released CLI to open, unchanged, every retained fixture it reads: `presentation_
 `terrain_io` (schema 29), `component_parameter_io` (schema 28) and `drawing_sheet_io` (schema 27) do
 the same for their files.
 The limits of the series add windows that the schema does not show. `verify-package.sh` makes, at check time, a model
-of 153,000 unique vertices (one face of 9,000 points and a linear copy array of it: 17 bodies). The released 1.7.0 CLI,
-whose unique limit is 300,000, must open it and validate it unchanged (R110). The 1.8.0 raised GLB visible-face cap (R112)
-adds a second window: the same kind of model with 17 placements of a 9,000-sided prism, 153,000 visible faces, is exported by
-this package, and the released CLI must refuse the export with its own message ("GLB has too many visible faces"), create no
-directory, and leave the file unchanged. The files are made, not committed, so the repository carries no large fixture for them.
+of 153,000 unique vertices (one face of 9,000 points and a linear copy array of it: 17 bodies). The released 1.8.0 CLI,
+whose unique limit is 300,000, must open it and validate it unchanged (R110). A model of 17 placements of a 9,000-sided
+prism (153,034 visible faces) is opened unchanged by the released CLI and exported to GLB by it, inside its 600,000-face
+cap (R112). The 1.9.0 limits add the other window: the released 1.8.0 CLI must refuse, with its own message, exit status 1
+and no change to the file, a model of 1,025 component definitions (`Too many component records`), a model of 306,000
+unique vertices (34 bodies) and a model of 612,000 materialized vertices (34 placements of an 18,000-vertex prism). Their
+messages are checked with `jq`, so the script fails if the released CLI says anything else. The 1.8.0 CLI refuses a file
+over its limits at open, not at export, so a visible-face cap above 600,000 cannot be tested against it. The files are
+made, not committed, so the repository carries no large fixture for them.
 
 After upgrading, the installed CLI migrates the retained historical native fixtures
 to new files. `scripts/verify-installed-migrations.py` checks source hashes, identity,
