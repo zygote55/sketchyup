@@ -563,8 +563,8 @@ if m:
     expect(any(n["code"] == "parseWarnings" for n in m["report"]["notices"]), "D4: the dangling reference is noticed")
     expect(sum(1 for n in m["nodes"] if n["mesh"] >= 0) == 2, "D4: and the rest of the file is imported")
 
-# The package's own bounds: 100,000 triangles for an element and 1,000,000 in all (the pass-through kernel keeps
-# these large tessellated files quick).
+# The package's own bounds (R115): 1,600,000 triangles for an element and 10,000,000 in all. The fixtures keep their
+# R113 sizes, so CI builds the same geometry as before (the pass-through kernel keeps these files quick).
 def grid_fixture(path, grids):
     """IFC4, millimetres; each grid is (n, x): an n x n vertex grid at x as one IfcTriangulatedFaceSet."""
     lines = ["ISO-10303-21;", "HEADER;", "FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');",
@@ -596,17 +596,17 @@ def grid_fixture(path, grids):
 
 
 big = os.path.join(TMP, "big.ifc")
-grid_fixture(big, [(230, 0)])  # 2 x 229 x 229 = 104,882 triangles: over the 100,000 an element may have
+grid_fixture(big, [(230, 0)])  # 2 x 229 x 229 = 104,882 triangles: under the 1,600,000 an element may have
 m, _, _ = run(big, "--kernel", "passthrough", name="big-one")
 if m:
-    expect(not any(n["mesh"] >= 0 for n in m["nodes"]), "an element over 100,000 triangles is not imported")
-    expect(any(x["reason"] == "meshTriangleLimit" for x in m["report"]["elements"]["notImported"]), "and is reported with the limit")
-grid_fixture(big, [(223, 300 * k) for k in range(11)])  # 11 x 98,568 triangles: the eleventh passes 1,000,000
+    expect(any(n["mesh"] >= 0 for n in m["nodes"]), "an element of 104,882 triangles is imported (R115: 1,600,000 per element)")
+    expect(not any(x["reason"] == "meshTriangleLimit" for x in m["report"]["elements"]["notImported"]), "and is not reported with the limit")
+grid_fixture(big, [(223, 300 * k) for k in range(11)])  # 11 x 98,568 triangles: 1,084,248 in all, under the 10,000,000
 m, _, _ = run(big, "--kernel", "passthrough", name="big-many")
 if m:
-    expect(sum(1 for n in m["nodes"] if n["mesh"] >= 0) == 10, "ten elements fit the 1,000,000 triangles of the package: %d" % sum(1 for n in m["nodes"] if n["mesh"] >= 0))
-    expect(any(x["reason"] == "triangleBudget" for x in m["report"]["elements"]["notImported"]), "and the eleventh is reported with the budget")
-    expect(sum(len(mesh["triangles"]) for mesh in m["meshes"]) <= 1000000, "the package stays within its bound")
+    expect(sum(1 for n in m["nodes"] if n["mesh"] >= 0) == 11, "eleven elements fit the 10,000,000 triangles of the package: %d" % sum(1 for n in m["nodes"] if n["mesh"] >= 0))
+    expect(not any(x["reason"] == "triangleBudget" for x in m["report"]["elements"]["notImported"]), "and none is reported with the budget")
+    expect(sum(len(mesh["triangles"]) for mesh in m["meshes"]) <= 10000000, "the package stays within its bound")
 os.remove(big)
 
 # ---- H2: shuffled instances ------------------------------------------------------------------------------------------------------
