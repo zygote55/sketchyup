@@ -1,7 +1,14 @@
 #include "geometry/push_pull.hpp"
 #include <algorithm>
+#include <array>
 #include <clipper2/clipper.h>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <map>
 #include <set>
+#include <stdexcept>
+#include <vector>
 namespace sketchy {
 namespace {
 using namespace Clipper2Lib;
@@ -32,6 +39,25 @@ Paths64 paths(const Surface &s, Id face, const Plane &p) {
         result.push_back(std::move(outline));
     }
     return result;
+}
+// The area of the overlap of the two paths' bounding boxes, in units squared: an upper bound on
+// the area of their intersection (R117, D-106).
+double boundingOverlapArea(const Paths64 &a, const Paths64 &b) {
+    auto box = [](const Paths64 &paths) {
+        std::array<int64_t, 4> result{INT64_MAX, INT64_MAX, INT64_MIN, INT64_MIN};
+        for (const auto &path : paths)
+            for (const auto &point : path) {
+                result[0] = std::min(result[0], point.x);
+                result[1] = std::min(result[1], point.y);
+                result[2] = std::max(result[2], point.x);
+                result[3] = std::max(result[3], point.y);
+            }
+        return result;
+    };
+    const auto p = box(a), q = box(b);
+    const double width = double(std::min(p[2], q[2]) - std::max(p[0], q[0]));
+    const double height = double(std::min(p[3], q[3]) - std::max(p[1], q[1]));
+    return width > 0 && height > 0 ? width * height : 0;
 }
 bool inside(Point64 p, const Paths64 &profile) {
     if (PointInPolygon(p, profile[0]) != PointInPolygonResult::IsInside)
@@ -161,24 +187,113 @@ bool moveCap(const Surface &source, Id face, Vec3 delta, Surface &result) {
     result.validate();
     return true;
 }
+// The coplanar check (R117, D-106). It throws for a pair of faces, the first in ID order, when the
+// second lies within the tolerance of the first's plane and the two regions they project to overlap
+// in an area of at least one unit: the pairwise check it replaces, with the same predicates. Such a
+// pair has overlapping bounding boxes: the regions lie within their vertices' boxes, and each
+// second face lies within the tolerance of the first's plane, so both regions reach a common point
+// within a margin of both boxes. So faces are binned in a uniform grid of cells about the size of a
+// typical face, and each overlapping pair is tested once, in the cell that holds the lower corner
+// of its overlap. A face too large for the grid is tested against every face instead. A region lies
+// in the intersection of the two bounding boxes, so a pair whose boxes overlap in less than one
+// unit is not tested further. Candidate tests are bounded by a budget (fail-closed).
 void checkCoplanarOverlap(const Surface &s) {
-    size_t budget = 1000000;
-    for (auto a = s.faces.begin(); a != s.faces.end(); ++a) {
-        const auto p = plane(s, a->first);
-        for (auto b = std::next(a); b != s.faces.end(); ++b) {
-            if (!budget--)
-                throw std::runtime_error("Push/pull face-pair budget exceeded");
-            bool coplanar = true;
-            for (const auto &loop : b->second.loops)
-                for (auto id : loop)
-                    if (std::abs(dot(s.vertices.at(id) - p.origin, p.n)) > tolerance)
-                        coplanar = false;
-            if (coplanar && std::abs(Area(Intersect(paths(s, a->first, p), paths(s, b->first, p),
-                                                    FillRule::NonZero))) >= 1)
-                throw std::runtime_error("Push/pull would leave overlapping coplanar faces");
+    constexpr double margin = 4 * tolerance;
+    constexpr double infinity = std::numeric_limits<double>::infinity();
+    struct Entry {
+        Id id;
+        Plane plane;
+        Vec3 lo{infinity, infinity, infinity}, hi{-infinity, -infinity, -infinity};
+        bool large{};
+    };
+    std::vector<Entry> entries;
+    std::vector<double> extents;
+    for (const auto &[id, record] : s.faces) {
+        Entry entry{id, plane(s, id)};
+        for (const auto &loop : record.loops)
+            for (auto v : loop) {
+                const auto p = s.vertices.at(v);
+                entry.lo = {std::min(entry.lo.x, p.x), std::min(entry.lo.y, p.y),
+                            std::min(entry.lo.z, p.z)};
+                entry.hi = {std::max(entry.hi.x, p.x), std::max(entry.hi.y, p.y),
+                            std::max(entry.hi.z, p.z)};
+            }
+        const auto size = entry.hi - entry.lo;
+        extents.push_back(std::max({size.x, size.y, size.z}));
+        entries.push_back(std::move(entry));
+    }
+    if (entries.size() < 2)
+        return;
+    // The cell is the three-quarter extent of the faces: large faces are few, and each small face
+    // covers few cells.
+    const auto upper = extents.begin() + std::ptrdiff_t(extents.size() * 3 / 4);
+    std::nth_element(extents.begin(), upper, extents.end());
+    const double cell = std::max(*upper, 16 * tolerance);
+    auto index = [&](double value) { return static_cast<long long>(std::floor(value / cell)); };
+    using Cell = std::array<long long, 3>;
+    constexpr size_t cellsPerFace = 512;
+    std::map<Cell, std::vector<size_t>> grid;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        const auto &e = entries[i];
+        const Cell low{index(e.lo.x - margin), index(e.lo.y - margin), index(e.lo.z - margin)};
+        const Cell high{index(e.hi.x + margin), index(e.hi.y + margin), index(e.hi.z + margin)};
+        const auto count = size_t(high[0] - low[0] + 1) * size_t(high[1] - low[1] + 1) *
+                           size_t(high[2] - low[2] + 1);
+        if (count > cellsPerFace) {
+            entries[i].large = true;
+            continue;
+        }
+        for (auto x = low[0]; x <= high[0]; ++x)
+            for (auto y = low[1]; y <= high[1]; ++y)
+                for (auto z = low[2]; z <= high[2]; ++z)
+                    grid[{x, y, z}].push_back(i);
+    }
+    size_t budget = 64 * entries.size() + 1000000;
+    auto overlaps = [&](const Entry &a, const Entry &b) {
+        return a.lo.x - margin <= b.hi.x + margin && b.lo.x - margin <= a.hi.x + margin &&
+               a.lo.y - margin <= b.hi.y + margin && b.lo.y - margin <= a.hi.y + margin &&
+               a.lo.z - margin <= b.hi.z + margin && b.lo.z - margin <= a.hi.z + margin;
+    };
+    // i < j: the first face in ID order holds the plane, as the pairwise check did.
+    auto testPair = [&](size_t i, size_t j) {
+        if (!budget--)
+            throw std::runtime_error("Push/pull face-pair budget exceeded");
+        const auto &first = entries[i], &second = entries[j];
+        for (const auto &loop : s.faces.at(second.id).loops)
+            for (auto id : loop)
+                if (std::abs(dot(s.vertices.at(id) - first.plane.origin, first.plane.n)) >
+                    tolerance)
+                    return;
+        const auto a = paths(s, first.id, first.plane), b = paths(s, second.id, first.plane);
+        if (boundingOverlapArea(a, b) < 1)
+            return;
+        if (std::abs(Area(Intersect(a, b, FillRule::NonZero))) >= 1)
+            throw std::runtime_error("Push/pull would leave overlapping coplanar faces");
+    };
+    for (const auto &[cellKey, members] : grid)
+        for (size_t p = 0; p < members.size(); ++p)
+            for (size_t q = p + 1; q < members.size(); ++q) {
+                const auto i = members[p], j = members[q];
+                if (!overlaps(entries[i], entries[j]))
+                    continue;
+                // Test the pair only in the cell that holds the lower corner of its overlap.
+                const Cell anchor{index(std::max(entries[i].lo.x, entries[j].lo.x) - margin),
+                                  index(std::max(entries[i].lo.y, entries[j].lo.y) - margin),
+                                  index(std::max(entries[i].lo.z, entries[j].lo.z) - margin)};
+                if (anchor == cellKey)
+                    testPair(i, j);
+            }
+    for (size_t i = 0; i < entries.size(); ++i) {
+        if (!entries[i].large)
+            continue;
+        for (size_t j = 0; j < entries.size(); ++j) {
+            if (j == i || (entries[j].large && j < i) || !overlaps(entries[i], entries[j]))
+                continue;
+            testPair(std::min(i, j), std::max(i, j));
         }
     }
 }
+
 std::vector<Id> difference(Surface &s, Id old, const Plane &p, const Paths64 &cut) {
     Clipper64 engine;
     engine.AddSubject(paths(s, old, p));
@@ -190,6 +305,12 @@ std::vector<Id> difference(Surface &s, Id old, const Plane &p, const Paths64 &cu
     s.faces.erase(old);
     std::vector<Id> created;
     size_t budget = 1000000;
+    // A cut segment lies on the destination plane, so a vertex it can pass through lies within the
+    // tolerance of that plane. Only those vertices are tested (R117, D-106).
+    std::vector<std::pair<Id, Vec3>> onPlane;
+    for (const auto &[id, point] : s.vertices)
+        if (std::abs(dot(point - p.origin, p.n)) <= 2 * tolerance)
+            onPlane.emplace_back(id, point);
     auto collect = [&](auto &&self, const PolyPath64 &node) -> void {
         for (const auto &child : node) {
             if (!child->IsHole()) {
@@ -201,10 +322,10 @@ std::vector<Id> difference(Surface &s, Id old, const Plane &p, const Paths64 &cu
                              d = b - a;
                         const auto len = length(d);
                         std::vector<std::pair<double, Id>> points{{0, s.vertex(a)}};
-                        if (s.vertices.size() > budget)
+                        if (onPlane.size() > budget)
                             throw std::runtime_error("Opposite boundary match budget exceeded");
-                        budget -= s.vertices.size();
-                        for (auto [id, point] : s.vertices) {
+                        budget -= onPlane.size();
+                        for (const auto &[id, point] : onPlane) {
                             auto t = dot(point - a, d) / dot(d, d);
                             if (t > tolerance / len && t < 1 - tolerance / len &&
                                 length(cross(point - a, d)) / len <= tolerance)
@@ -237,8 +358,6 @@ TopologyEdit pushPull(const Surface &source, Id face, double distance, bool newF
             "Push/pull distance must be finite and exceed twice the modeling tolerance");
     if (!source.faces.contains(face))
         throw std::runtime_error("Selected face does not exist");
-    if (source.faces.size() > 1000 || source.vertices.size() > 10000)
-        throw std::runtime_error("Push/pull exceeds the 1000-face/10000-vertex context limit");
     TopologyEdit result{source, {}, {}, {}};
     if (source.faces.size() == 1 && source.wires.empty()) {
         auto top = result.surface.extrude(face, distance);

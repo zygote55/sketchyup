@@ -1,0 +1,296 @@
+{
+  "record": "R117",
+  "title": "Edit path, push/pull on large bodies, history charge and definition count",
+  "date": "2026-11-07",
+  "status": "Fixed for D-104 (charge), D-106 and the D-107 edit path. Creation is not near-linear; the count is raised to 2,048. GPU cases for the 176,000-face definition, 2,048 and 4,096 definitions are pending or not run (see not_run).",
+  "conditions": {
+    "laptop": {
+      "compiler": "GCC 16.2.1",
+      "cores": 22,
+      "ram_gib": 30,
+      "build_type": "RelWithDebInfo (profiles and timed driver), headless core",
+      "driver": "tests/edit_path_benchmark.cpp",
+      "samples_per_edit_kind": 20,
+      "profiler": "LD_PRELOAD SIGPROF sampler, outside the repository (perf not installed; gdb cannot attach with ptrace_scope 1)"
+    },
+    "gpu_pc": {
+      "machine": "CachyOS guest, RX 6800 XT, Mesa, Qt 6.12, X11",
+      "harness": "limits_hardware_benchmark (R114)",
+      "builds": {
+        "scale_8": "Release, SKETCHYUP_BENCHMARK_LIMIT_SCALE=8 (R114 conditions)",
+        "product": "Release, product limits"
+      },
+      "case_limits": {
+        "MemoryMax": "18G",
+        "MemorySwapMax": 0,
+        "RuntimeMaxSec": 1800,
+        "LimitCORE": 0,
+        "lock": "flock -w 3600 on the shared gpu.lock"
+      }
+    }
+  },
+  "profiles_before": {
+    "placement_move": "99% of samples inside validateComponentDefinitions (Document::restore of every definition, tessellation of every face); 16 ms CPU per move at 256 definitions",
+    "definition_edit": "92% inside the same validation, through the component draft's restore; about 120 ms CPU per edit at 256 definitions",
+    "creation": "95% inside the same validation, from placeComponent and publish; 1,024 definitions 159.7 s, each doubling 3.6 to 4.1 times the last",
+    "push_pull": "refused above 1,000 faces; coplanar check compares every face pair"
+  },
+  "laptop_results": {
+    "creation_seconds": {
+      "before": {
+        "128": 2.375,
+        "256": 9.332,
+        "512": 39.19,
+        "1024": 159.694
+      },
+      "after_product": {
+        "128": 0.313,
+        "256": 0.793,
+        "512": 2.181,
+        "1024": 7.957,
+        "2048": 37.763
+      },
+      "after_scale16_same_code": {
+        "128": 0.228,
+        "256": 0.584,
+        "512": 1.736,
+        "1024": 6.196,
+        "2048": 52.715,
+        "4096": 222.743
+      }
+    },
+    "placement_move_p95_ms": {
+      "before_1024": 82.25,
+      "after_1024_product": 2.16,
+      "after_1024_scale16": 0.76,
+      "after_2048_product": 4.77,
+      "after_2048_scale16": 3.37,
+      "after_4096_scale16": 12.91
+    },
+    "definition_edit_feedback_p95_ms": {
+      "before_1024": 353.47,
+      "after_1024_product": 16.81,
+      "after_1024_scale16": 11.23,
+      "after_2048_product": 38.45,
+      "after_2048_scale16": 52.64,
+      "after_4096_scale16": 148.29
+    },
+    "undo_p95_ms": {
+      "after_1024_product": 0.51,
+      "after_2048_product": 1.71,
+      "after_4096_scale16": 7.58
+    },
+    "native_product": {
+      "2048": {
+        "save_s": 1.684,
+        "open_s": 0.964,
+        "file_bytes": 15655322,
+        "reopened_definitions": 2048,
+        "reopened_history_empty": true
+      },
+      "1024": {
+        "save_s": 0.377,
+        "open_s": 0.575,
+        "file_bytes": 7819404,
+        "reopened_definitions": 1024,
+        "reopened_history_empty": true
+      }
+    },
+    "history_charge": {
+      "definition_edit_5000_placements": {
+        "charge_before_mb": 175.72,
+        "charge_after_mb": 88.34,
+        "heap_growth_mib": 80.8,
+        "heap_before_mib": 91.0,
+        "heap_after_edit_mib": 171.8,
+        "undo_heap_mib": 171.5
+      },
+      "body_move_99000_faces": {
+        "charge_before_mb": 63.37,
+        "charge_after_mb": 31.68,
+        "heap_growth_mib": 28.75,
+        "heap_before_mib": 28.78,
+        "heap_after_move_mib": 57.53
+      },
+      "definition_99000_faces_3_placements": {
+        "charge_after_mb": 126.7,
+        "heap_growth_mib": 114.8,
+        "heap_before_mib": 114.9,
+        "heap_after_edit_mib": 229.7,
+        "heap_after_undo_mib": 258.4,
+        "charge_before_mb_derived": 253.4
+      },
+      "definition_99000_faces_5_placements": {
+        "charge_after_mb": 190.1,
+        "admitted_under_mib": 192,
+        "heap_growth_mib": 172.3,
+        "heap_before_mib": 172.3,
+        "heap_after_edit_mib": 344.6,
+        "heap_after_undo_mib": 373.3,
+        "charge_before_mb_derived": 380.2
+      }
+    },
+    "push_pull_sphere_p95_ms": {
+      "1000_faces": {
+        "push_p50": 9.6,
+        "push_p95": 10.27,
+        "undo_p95": 0.07
+      },
+      "10000_faces": {
+        "push_p50": 109.5,
+        "push_p95": 110.93,
+        "undo_p95": 0.77
+      },
+      "99000_faces": {
+        "push_p50": 1320.2,
+        "push_p95": 1337.6,
+        "undo_p95": 6.52
+      },
+      "100000_faces": "refused by the one-body limit: the push adds faces and the result exceeds Surface::bodyLimit"
+    }
+  },
+  "gpu_results": {
+    "definitions_1024_scale8": {
+      "runs": 3,
+      "frame_p95_ms": [
+        3.11,
+        3.07,
+        3.31
+      ],
+      "move_feedback_p95_ms": [
+        5.07,
+        5.28,
+        6.38
+      ],
+      "definition_edit_feedback_p95_ms": [
+        14.59,
+        14.1,
+        13.83
+      ],
+      "undo_p95_ms": [
+        4.02,
+        4.48,
+        5.08
+      ],
+      "fixture_seconds": [
+        5.52,
+        5.39,
+        5.51
+      ],
+      "refusals": []
+    }
+  },
+  "targets": [
+    {
+      "case": "Move a placement, one 176,000-face definition",
+      "r114_pc_ms": 258,
+      "target": "under 100 ms p95",
+      "result": "pending (GPU queue)"
+    },
+    {
+      "case": "Move a placement, 1,024 definitions",
+      "r114_pc_ms": 268,
+      "target": "under 100 ms p95",
+      "result": "5.1 to 6.4 ms p95 (GPU PC, scale 8, feedback including frame)"
+    },
+    {
+      "case": "Definition edit, 1,024 definitions",
+      "r114_pc_ms": 1057,
+      "target": "report; under 100 ms if the profile allows",
+      "result": "13.8 to 14.6 ms p95 (GPU PC, scale 8); 11 to 17 ms on the laptop"
+    },
+    {
+      "case": "Create 1,024 definitions",
+      "r114_pc_ms": 533000,
+      "target": "near-linear; report 256, 1,024, 4,096",
+      "result": "not met: 0.6 to 0.8 s at 256, 6.2 to 8.0 s at 1,024, 223 s at 4,096 (laptop, creation grows 2.5 to 6 times per doubling)"
+    },
+    {
+      "case": "Push/pull on 1,000, 10,000 and 100,000 faces",
+      "r114_pc_ms": "refused above 1,000 faces",
+      "target": "works; near-linear; report p95",
+      "result": "1,000: 10.3 ms p95; 10,000: 110.9 ms p95; 99,000: 1,337.6 ms p95; 100,000: refused by the one-body limit when the push adds faces"
+    }
+  ],
+  "tiers": [
+    {
+      "definitions": 1024,
+      "creation_s": "6.2 to 8.0",
+      "move_p95_ms": "0.8 to 2.2",
+      "definition_edit_p95_ms": "11 to 17",
+      "verdict": "within budgets"
+    },
+    {
+      "definitions": 2048,
+      "creation_s": "38 to 53",
+      "move_p95_ms": "3.4 to 4.8",
+      "definition_edit_p95_ms": "38 to 53",
+      "verdict": "within budgets; chosen as the limit"
+    },
+    {
+      "definitions": 4096,
+      "creation_s": 223,
+      "move_p95_ms": 12.9,
+      "definition_edit_p95_ms": 148.3,
+      "verdict": "over the 100 ms definition-edit budget; stops the next tier"
+    },
+    {
+      "definitions": 16384,
+      "verdict": "not built: creation at the measured growth would take hours"
+    }
+  ],
+  "tests": {
+    "run_on_laptop_final_sources": [
+      "component_record_tests",
+      "component_tests",
+      "push_pull_tests",
+      "scene_tests",
+      "history_tests",
+      "core_tests",
+      "skp_mapping_tests",
+      "document_limits_tests",
+      "component_placement_tests",
+      "component_parameter_tests",
+      "incremental_validation_tests",
+      "amend_tests",
+      "component_glue_tests",
+      "component_scope_tests",
+      "consolidation_tests",
+      "document_limits_io_tests",
+      "document_snapshot_tests",
+      "document_units_io_tests",
+      "format_limits_acceptance_tests",
+      "hosted_components_tests",
+      "instanced_storage_tests",
+      "m4_persistence_tests",
+      "model_style_tests",
+      "native_format_tests",
+      "outcome_store_tests",
+      "persistence_tests",
+      "prepared_edit_tests",
+      "recovery_tests",
+      "snapshot_glb_limits_acceptance_tests",
+      "transaction_dispatch_tests",
+      "variant_edit_cost_tests",
+      "component_parameter_io_tests",
+      "unique_limits_acceptance_tests"
+    ],
+    "result": "all 33 test executables passed (exit 0)",
+    "not_run": [
+      "the other registered CTest tests (270 are registered in this configuration; these are the ones the change can affect)",
+      "desktop tests (not built)",
+      "CI fast tier (run by CI on the pull request)"
+    ]
+  },
+  "not_run": [
+    "16,384 definitions: not built (creation time)",
+    "save and open at 4,096 definitions: product limit refuses the count",
+    "GPU cases queued but not run when this record was written: dense-definition 3 and 27 placements (scale 8), definitions 4,096 (scale 8), definitions 2,048 and 1,024 (product)",
+    "push/pull at 100,000 faces: refused by the one-body limit",
+    "material limit (1,024): not raised, not measured"
+  ],
+  "contradictions": [
+    "ADR 0005 history budget (R110, R114 notes): the charge counted both copies of a changed record; superseded by R117 for bodies and component records",
+    "ADR 0005 R114 notes on push/pull: the context limit and the 1,000,000-pair budget are gone"
+  ]
+}

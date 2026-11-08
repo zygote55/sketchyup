@@ -34,7 +34,7 @@ namespace sketchy {
 // validation and publication stay inside Document::restoreRecords.
 struct DocumentDecodeAccess {
     template <class... Args> static void restore(Document &document, Args &&...args) {
-        document.restoreRecords(true, std::forward<Args>(args)...);
+        document.restoreRecords(true, false, std::forward<Args>(args)...);
     }
 };
 namespace {
@@ -1144,7 +1144,8 @@ Document document_io_detail::decodeParsedDocument(const QJsonObject &root, qsize
         nextDefinitionId = readId(root["nextDefinitionId"]);
         const auto definitionRecords = array(root["definitions"]);
         const auto instanceRecords = array(root["instances"]);
-        if (definitionRecords.size() > 1024)
+        // The most definitions a file holds: the document limit (R117 raised it from 1,024).
+        if (definitionRecords.size() > componentDefinitionCountLimit)
             throw std::runtime_error("Too many component records");
         checkLimits({size_t(instanceRecords.size())}, LimitClass::Placement, "Document load",
                     "stored component instances");

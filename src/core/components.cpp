@@ -265,9 +265,22 @@ ChangeReport publish(Document &doc, const ComponentDefinitions &definitions,
                      const ComponentPublishOptions &options = {}) {
     const auto editedDefinition = options.editedDefinition;
     const auto &lineage = options.lineage;
-    const auto sizes = validateComponentDefinitions(
-        definitions, nextDefinition, doc.tags(), doc.nextTagId(), doc.materials(),
-        doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+    // Only the definitions the candidate changes or erases are validated in full: every other
+    // definition is stored and was validated when it was stored (D-107, R117).
+    std::set<Id> changedDefinitions;
+    for (const auto &[id, definition] : definitions)
+        if (!doc.definitions().contains(id) || doc.definitions().at(id) != definition)
+            changedDefinitions.insert(id);
+    for (const auto &[id, definition] : doc.definitions())
+        if (!definitions.contains(id))
+            changedDefinitions.insert(id);
+    validateComponentDefinitionChanges(definitions, changedDefinitions, nextDefinition, doc.tags(),
+                                       doc.nextTagId(), doc.materials(), doc.nextMaterialId(),
+                                       doc.assets(), doc.nextAssetId());
+    std::set<Id> boundDefinitions;
+    for (const auto &[root, binding] : bindings)
+        boundDefinitions.insert(binding->definition);
+    const auto sizes = componentExpansionSizes(definitions, boundDefinitions);
     nextDriver = std::max(nextDriver, doc.nextComponentDriverId());
     validateComponentParameterRecords(definitions, &doc.definitions(), nextDriver);
     std::set<Id> owned, nestedRoots;
@@ -560,9 +573,9 @@ ComponentResult placeComponent(Document &doc, Id definition, Transform local, Id
     auto binding = std::make_shared<ComponentInstance>();
     binding->definition = definition;
     binding->members[prototype->root] = root;
-    const auto sizes = validateComponentDefinitions(
-        doc.definitions(), doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
-        doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+    // The prototype's expansion sizes. The stored definitions are validated already, so this
+    // does not validate their geometry again (D-107, R117).
+    const auto sizes = componentExpansionSizes(doc.definitions(), {definition});
     // A parametric definition places its variant at the defaults (the template plus
     // any repeat copies at the default counts).
     ComponentVariantEngine engine(doc.definitions(), &doc.componentVariants());
@@ -790,14 +803,19 @@ ComponentResult editComponentDefinition(Document &doc, Id id,
     placedRoot->transform = editingFrame;
     members[original->root] = placedRoot;
     // A component draft (D-075): the edited members count once, not with their stored record.
+    // The stored definitions of `doc` are validated and shared, not validated or copied again:
+    // the draft's cost is its own members, not the document's geometry (D-107, R117).
     Document draft;
-    draft.restore(draft.identity(), original->nextMemberId, members, 0, doc.definitions(), {},
-                  doc.nextDefinitionId(), doc.tags(), doc.nextTagId(), doc.materials(),
-                  doc.nextMaterialId(), doc.assets(), doc.nextAssetId(), doc.displayUnits(),
-                  std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
-                  doc.nextSceneId(), doc.sections(), doc.nextSectionId(), {}, {}, doc.nextAnnotationId(), doc.solar(),
-                  doc.displayPrecision(), {}, 1, {}, 1, {}, 1, doc.nextComponentDriverId(),
-                  std::nullopt, {}, 1, {}, 1, true);
+    DocumentDraftAccess::restore(
+        draft, draft.identity(), original->nextMemberId, members, std::uint64_t{0},
+        doc.definitions(), ComponentInstances{}, doc.nextDefinitionId(), doc.tags(),
+        doc.nextTagId(), doc.materials(), doc.nextMaterialId(), doc.assets(), doc.nextAssetId(),
+        doc.displayUnits(), std::make_shared<const HostedComponents>(), doc.style(), doc.scenes(),
+        doc.nextSceneId(), doc.sections(), doc.nextSectionId(), ActiveSections{},
+        AnnotationRecords{}, doc.nextAnnotationId(), doc.solar(), doc.displayPrecision(),
+        DrawingSheetRecords{}, Id{1}, DrawingViewRecords{}, Id{1}, DrawingItemRecords{}, Id{1},
+        doc.nextComponentDriverId(), std::nullopt, CameraPathRecords{}, Id{1},
+        RenderPresetRecords{}, Id{1}, true);
     ComponentInstances references;
     for (auto [member, definition] : original->references) {
         auto binding = std::make_shared<ComponentInstance>();

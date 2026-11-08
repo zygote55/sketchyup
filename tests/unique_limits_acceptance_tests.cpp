@@ -598,8 +598,12 @@ int main(int argc, char **argv) {
         const auto committed = api.execute(transactionRequest(
             doc, "commit",
             {{"requestId", sealed["requestId"]}, {"payloadHash", sealed["payloadHash"]}}));
+        // history() pages from the oldest entry, so the newest is read by its own offset (R117:
+        // the smaller charge keeps more entries than the default page of 200).
+        const auto newest = doc.history(doc.history().total - 1, 1);
         check(committed["status"] == "committed" && doc.revision() == revision + 1 &&
-                  doc.history().entries.back().metadata.taskId == "unique-limits-acceptance",
+                  newest.entries.size() == 1 &&
+                  newest.entries.back().metadata.taskId == "unique-limits-acceptance",
               "Commit creates one revision with its undo task");
         check(std::abs(doc.worldTransform(bodies[75]).point({0, 0, 0}).x - 2) < 1e-9,
               "The committed move places the body at x = 2");

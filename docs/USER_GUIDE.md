@@ -19,6 +19,10 @@ These are default shortcuts; saved custom bindings take precedence.
    and its volume is **24 m³**. **Ctrl+Z** undoes the extrusion;
    **Ctrl+Shift+Z** restores it. Save with **Ctrl+S**.
 
+Push/pull works on a body of up to 100,000 faces or vertices, the one-body limit, with no
+smaller context limit (R117). A push that would take a body over that limit, or that would leave
+two coplanar faces overlapping, is refused by name and changes nothing.
+
 Explicit suffixes override the model's display units. Comma-decimal locales use
 semicolons between coordinate/dimension values. The numeric keypad's decimal key
 always types your locale's decimal separator, whatever its keycap shows, in
@@ -674,9 +678,9 @@ does not change the size of the model.
   of up to 200,000 faces, vertices or wires and 600,000 edges. A component over those limits is left out and
   reported, and the rest of the model comes across. The document also takes at most 10,000 distinct
   geometry records, 300,000 faces, vertices and wires and 900,000 edges of distinct geometry (a component
-  counts once), 600,000 faces after placement and 1,024 materials, and 1,024 component definitions besides
-  its root. Definitions beyond the 1,024th are left out and counted in the notices ("definitionLimit"), and
-  so are the placements of them.
+  counts once), 600,000 faces after placement and 1,024 materials, and 2,048 component definitions besides
+  its root (1,024 before 1.9.0, R117). Definitions beyond the 2,048th are left out and counted in the notices
+  ("definitionLimit"), and so are the placements of them.
 - Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
 - Nesting: components nested more than 64 levels deep are left out and reported.
 

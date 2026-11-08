@@ -12,6 +12,7 @@
 // accounting adds up. With --real and SKETCHYUP_SKP_CORPUS, the owner's file is checked too (its
 // counts and its import time); it is never copied into the repository, and the test exits 77
 // (skipped) when the variable is unset or the file is absent.
+#include "core/component_records.hpp"
 #include "core/components.hpp"
 #include "core/model.hpp"
 #include "io/skp_package.hpp"
@@ -809,25 +810,29 @@ int main(int argc, char **argv) {
         checkUndo("BanyanHarbor.skp", imported);
     }
 
-    // R113 (D-102, ADR 0176): a file with more definitions than a document takes. The package allows
-    // 100,000 definitions; a document takes 1,024 besides its root. The import keeps the first 1,024,
-    // omits and counts the rest, and is not refused.
+    // R113 (D-102, ADR 0176): a file with more definitions than a document takes. The package
+    // allows 100,000 definitions; a document takes componentDefinitionCountLimit besides its root
+    // (1,024 in R113, 2,048 from R117). The import keeps the first ones, omits and counts the rest,
+    // and is not refused.
     {
         auto package = packageOf(fixture("component_instances.skp"), temp);
         check(package.definitions.size() >= 2, "definition limit: the fixture has a definition to copy");
         const auto source = package.definitions[1];
-        while (package.definitions.size() < 1100) {
+        const size_t kept = componentDefinitionCountLimit;
+        const size_t omittedWanted = 75;
+        while (package.definitions.size() < kept + 1 + omittedWanted) {
             auto copy = source;
             copy.name = "Copy " + std::to_string(package.definitions.size());
             package.definitions.push_back(copy);
         }
         const auto imported = importSkpPackage(package);
-        check(imported.document.definitions().size() == 1024,
-              "definition limit: 1,024 definitions are imported");
-        check(imported.report["notices"].toObject()["definitionLimit"].toInt() == 75,
+        check(imported.document.definitions().size() == kept,
+              "definition limit: componentDefinitionCountLimit definitions are imported");
+        check(imported.report["notices"].toObject()["definitionLimit"].toInt() ==
+                  int(omittedWanted),
               "definition limit: the 75 over the limit are counted in the notices");
-        check(imported.report["counts"].toObject()["definitions"].toInt() == 1024,
-              "definition limit: the report counts 1,024 imported definitions");
+        check(imported.report["counts"].toObject()["definitions"].toInt() == int(kept),
+              "definition limit: the report counts the imported definitions");
     }
 
     // R113 (D-102): a mesh over the one-body limit continues in another body. The root's own mesh

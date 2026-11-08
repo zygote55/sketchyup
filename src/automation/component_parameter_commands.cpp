@@ -908,9 +908,7 @@ QJsonObject componentParametersEvaluation(const Document &doc, Id id, const QJso
             // The regeneration size of a placement with these values, within the same
             // limits as an edit (distinct variants, evaluation budget).
             const auto variant = engine.variant(id, overrides);
-            const auto sizes = validateComponentDefinitions(
-                doc.definitions(), doc.nextDefinitionId(), doc.tags(), doc.nextTagId(),
-                doc.materials(), doc.nextMaterialId(), doc.assets(), doc.nextAssetId());
+            const auto sizes = componentExpansionSizes(doc.definitions(), {id});
             const auto size = componentVariantSize(*definition, variant, sizes);
             result["regeneration"] =
                 QJsonObject{{"template", !variant},
