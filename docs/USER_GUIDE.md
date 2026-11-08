@@ -463,7 +463,9 @@ included, in OBJ, STL (binary and ASCII), GLB and, for a planar model, DXF. An i
 limits for distinct geometry: up to 2,400,000 faces, vertices and wires and 7,200,000 edges. A file over a limit
 is refused by name, with the count and the limit, and nothing is created. A GLB export writes up to 14,400,000
 triangles, because a face with different front and back appearances writes its triangles twice. A glTF mesh is
-charged once as distinct geometry and again for each placement.
+charged once as distinct geometry and again for each placement. Each glTF mesh becomes a component
+definition, so a glTF file of more than 4,096 meshes is refused whole, including a GLB that SketchyUp exported from a
+model of more than 4,096 bodies (D-108).
 
 A mesh over 800,000 faces or vertices (one body) imports as several bodies, named "Name (2)", "Name (3)" and so on,
 rather than being refused. The import report lists the splits under `bodySplits`. Shading does not carry
