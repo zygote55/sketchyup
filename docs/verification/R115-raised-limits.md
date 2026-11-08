@@ -21,12 +21,12 @@ case 6 passed except the Blender import of the GLB, which did not run; case 7 pa
 | Materialized bodies, curves, guides | 40,000 | 320,000 | brief |
 | Materialized vertices, faces, wires | 600,000 | 4,800,000 | R114 dense family: 4.75 million placed faces |
 | Materialized edges | 900,000 | 7,200,000 | brief |
-| One definition: vertices, faces, wires | 200,000 | 800,000 | no larger definition measured; R117 may raise it |
+| One definition: vertices, faces, wires | 200,000 | 800,000 | no larger definition measured; R117 (merged) sets the definition count, not the size |
 | One definition: edges | 600,000 | 2,400,000 | brief |
 | One body: faces or vertices | 100,000 | 800,000 | R114 frame p95 2.5 ms; a move is slow |
 | One body: edges | 300,000 | 2,400,000 | brief |
 | Shading-normal corners per body (and diagnostics) | 2,000,000 | 16,000,000 | brief |
-| Component definitions | 1,024 | 1,024 (unchanged) | R117 owns it |
+| Component definitions | 1,024 | 4,096 (set by R117, merged on main at fa41f744) | the count is R117's; R115 does not change it |
 | Native file | 256 MiB | 2 GiB | brief |
 | Model chunk | 96 MiB | 768 MiB | R114 wrote and read 258 MB; 226 B per face (D-099) |
 | Raw JSON | 128 MiB | 1 GiB | brief (at least the model chunk) |
@@ -121,10 +121,10 @@ Not changed, with the reason:
 
 - `Terrain` triangle and terrain edit limits (250,000 triangles, 4,096 edits, 8 MiB edit data), and
   `terrainHistoryLimit` (512 MiB): a separate class the brief leaves unchanged, not measured.
-- `componentDefinitionCountLimit` (1,024): R117 owns it.
+- `componentDefinitionCountLimit`: 4,096 from R117 (merged). R115 does not change it.
 - The viewport's decoded texture budget (128 MiB) and its image count: R118. At the new texture size one 8192 image
   (256 MiB decoded) does not fit the budget, so such a texture shows its placeholder until R118.
-- Push/pull: the 1,000-face context limit and the 1,000,000-pair coplanar check (D-106): R117.
+- Push/pull: the 1,000-face context limit and the coplanar check (D-106) are R117's (merged).
 - The edit path's work budgets (`1000000` in `model.cpp`, `geometry/*.cpp`, `io/dxf_import.cpp`, and the
   intersection and solid budgets): these bound work per operation, not a model's size. They were not reached by
   the cases that ran (see the results); a refusal in an at-limit case would be recorded there.
@@ -301,45 +301,45 @@ more; the CI total rises by about one second.
 
 ## Acceptance on the GPU PC
 
-**The at-limit acceptance ran on the GPU PC on 2026-11-08, after the review's fixes, in three passes.** The GPU PC was
-idle at 04:03 (no Blender job; GPU 3 to 10% busy), so the acceptance ran (see "GPU PC state" below). Each case ran through
-`flock -w 3600 ~/sketchyup-verification/gpu.lock systemd-run --user --wait` with `MemoryMax=18G`, `MemorySwapMax=0`,
-`RuntimeMaxSec=1800` and no core dumps (`run-case.sh`). Results are in `~/sketchyup-verification/r115-20261107/runs-pass1`,
-`runs-pass2` and `runs` (the final pass) on the GPU PC.
+**The at-limit acceptance ran on the GPU PC on 2026-11-08, on the merged code (R115 with R117, `1f061e90`), with the
+final binary (`libsketchyup_io.so` `1da882a8…`, `libsketchyup_core.so` `a93d3ebd…`; the executable is `b20edf56…`).** The
+GPU PC was idle at 04:03 (no Blender job; GPU 3 to 10% busy), and the cases ran one after another through
+`run-case.sh`, which takes `flock -w 3600 ~/sketchyup-verification/gpu.lock` and then `systemd-run --user --wait` with
+`MemoryMax=18G`, `MemorySwapMax=0`, `RuntimeMaxSec=1800` and no core dumps. The results are in
+`~/sketchyup-verification/r115-20261107/runs` (the final pass) and, for the history of this record, `runs-pass1`,
+`runs-pass2` and `runs-pass3` on the GPU PC. Earlier passes ran before the fixes and the merge; their failures are listed
+under "Found by the at-limit run" above.
 
-- **Pass 1** (binary `c6fe485b…`, before the fixes below): eight cases passed; four did not (`export-dxf`, `import-obj`,
-  `import-stl`, `import-gltf`).
-- **Pass 2** (binary `b20edf…`, with the OBJ, glTF, scene and DXF-fixture fixes, not yet the exact exporters): the native
-  cases and `export-dxf` passed; `import-stl` and `import-gltf` failed as before.
-- **Pass 3** (the final binary; the same executable `b20edf…` with the final libraries, `libsketchyup_io.so` `f8be4868…`):
-  `export-glb`, `export-obj`, `export-stl`, `import-obj` and `import-stl` passed. `import-gltf` failed (below).
+Result: brief cases 1 to 6 passed, except the Blender import of the GLB, which did not run. Case 7 passed for OBJ and STL
+and failed for glTF. Case 8 (STEP) did not run.
 
-| Case (brief) | Program case | Result (final pass unless stated) | Measured | Notes |
+| Case (brief) | Program case | Result | Measured | Notes |
 | --- | --- | --- | --- | --- |
-| 1. unique: 2,400,000 faces; save, close, open; move, undo, redo | `unique` | passed (pass 2) | build 22 s; save 7.6 s, 238,803,918 bytes; open 20 s; peak RSS 4.5 GiB | 12,000 bodies of 200 faces; move 0.0 s, history 133,298 bytes |
-| 2. materialized: 4,800,000 placed faces from an 800,000-face definition; move a placement; edit the definition (D-104); undo, redo | `materialized` | passed (pass 2) | placed build 165 s; save 2.3 s, 98,203,894 bytes; open 42.5 s; definition edit 113 s | the history charge of the definition edit is **3,584,029,158 bytes (3.34 GiB)**, within the 4 GiB budget; RSS growth **2,668 MiB**; peak RSS 7.9 GiB; undo and redo 0.1 to 0.2 s |
-| 3. one body of 800,000 faces: move, undo | `one-body` | passed (pass 2) | move 10.8 s | history 512,005,298 bytes; undo and redo 0 s |
-| 4. model chunk near 768 MiB with imported UVs (D-099): save and open | `chunk` | passed (pass 2) | save 23.3 s; open 18.4 s | 595 bodies, 1,190,000 textured faces; model chunk 796,135,248 bytes (759 MiB); peak RSS 8.1 GiB |
-| 5. 512 MiB of stored textures, one 64 MiB asset: save and open | `textures` | passed (pass 2) | build 87 s; save 0.5 s, 527,246,051 bytes; open 0.5 s | 33 assets (32 PNGs of 4096 by 4096, one 64 MiB asset); the program says 31 of 33 would show a viewport placeholder (the viewport count was not measured) |
-| 6. exports at the materialized limit: GLB (and Blender import), OBJ, binary STL, DXF | `export-glb`, `export-obj`, `export-stl`, `export-dxf` | GLB, OBJ, STL and DXF passed (pass 3 for GLB, OBJ, STL; pass 2 for DXF) | GLB export 101 s, manifest 574,980,899 bytes (under 1.5 GiB), GLB 57,603,152 bytes (the six placements share one mesh); OBJ 76 s, 383,405,885 bytes; STL 39 s, 240,000,084 bytes; DXF 57 s, 914,788,283 bytes | **Not run: the Blender import of the GLB with the Blender worker** (the program's fixture layouts do not fit a direct import; the plan is recorded above). The DXF model is the planar family (one flat grid of 798,848 faces placed six times) |
-| 7. imports at the unique limit: OBJ, STL, glTF (D-103) | `import-obj`, `import-stl`, `import-gltf` | OBJ passed; STL passed; **glTF failed** | OBJ import 112 s, peak RSS 9.0 GiB, faces 2,400,000, 24,001 bodies; STL import 186 s, facets 2,400,000, 3 bodies | **glTF:** "Invalid component definition allocator or count" (after 54 s): the importer makes one component definition per glTF mesh, and the export writes one mesh per body, so 12,000 bodies are 12,000 definitions, over the 1,024 count (R117 owns the count: 4,096 in PR #584, still below 12,000). The earlier glTF failure at 2,400,001 vertices is fixed (the corners are welded by position). |
+| 1. unique: 2,400,000 faces; save, close, open; move, undo, redo | `unique` | passed | build 22 s; save 7.7 s, 238,803,918 bytes; open 20 s; peak RSS 4.4 GiB | 12,000 bodies of 200 faces; move one body 0.0 s, history 67,695 bytes |
+| 2. materialized: 4,800,000 placed faces from an 800,000-face definition; move a placement; edit the definition (D-104); undo, redo | `materialized` | passed | placed build 102 s; save 2.3 s, 98,203,894 bytes; open 42.5 s; definition edit 100 s | the history charge of the definition edit is **1,792,016,139 bytes (1.67 GiB)**, inside the 4 GiB budget (it was 3.34 GiB before R117's charge); RSS growth **2,326 MiB**; peak RSS 7.5 GiB; undo and redo 0.1 to 0.2 s |
+| 3. one body of 800,000 faces: move, undo | `one-body` | passed | move 10.9 s | history 256,003,695 bytes; undo and redo 0 s |
+| 4. model chunk near 768 MiB with imported UVs (D-099): save and open | `chunk` | passed | save 23.1 s; open 18.4 s | 595 bodies, 1,190,000 textured faces; model chunk 796,135,248 bytes (759 MiB); peak RSS 7.9 GiB |
+| 5. 512 MiB of stored textures, one 64 MiB asset: save and open | `textures` | passed | build 87 s; save 0.5 s, 527,246,051 bytes; open 0.5 s | 33 assets (32 PNGs of 4096 by 4096, one 64 MiB asset); the program states that 31 of 33 would show a viewport placeholder (the viewport count was not measured) |
+| 6. exports at the materialized limit: GLB (and Blender import), OBJ, binary STL, DXF | `export-glb`, `export-obj`, `export-stl`, `export-dxf` | GLB, OBJ, STL and DXF passed | GLB export 98 s, manifest 574,980,899 bytes (under 1.5 GiB), GLB 57,603,152 bytes (the six placements share one mesh); OBJ 77 s, 383,405,885 bytes; STL 39 s, 240,000,084 bytes; DXF 59 s, 914,788,283 bytes | **Not run: the Blender import of the GLB with the Blender worker.** The DXF model is the planar family (one flat grid of 798,848 faces placed six times) |
+| 7. imports at the unique limit: OBJ, STL, glTF (D-103) | `import-obj`, `import-stl`, `import-gltf` | OBJ passed; STL passed; **glTF failed** | OBJ import 112 s, peak RSS 8.8 GiB, faces 2,400,000, 24,001 bodies; STL import 189 s, facets 2,400,000, 3 bodies | **glTF:** "Invalid component definition allocator or count" (after 54 s). The importer makes one component definition per glTF mesh, and the export writes one mesh per body, so 12,000 bodies are 12,000 definitions, over the count of 4,096 (R117). The vertex refusal that came first is fixed (corners are welded by position). |
 | 8. STEP export at 512 MiB (D-103) | none | not run | none | The STEP helper (`sketchyup-ifc-worker`) is not built on the GPU PC, and building it was not attempted (the vendored IfcOpenShell fetch is a network step, and the brief forbids installs). D-103 stays open. |
 
-Notes on the OBJ import: it reports 24,001 bodies for 12,000 exported bipyramids. The OBJ writer and reader count groups
-and objects as bodies, so the count is two per body plus one. Not investigated here; the limit (80,000 bodies) holds.
+Notes: the OBJ import reports 24,001 bodies for 12,000 exported bipyramids (the writer and reader count objects and
+groups, two per body, plus one); the limit (80,000 bodies) holds. The GLB export's manifest is 575 MB because each of the
+4,800,000 visible faces has a manifest record; the GLB itself is small because the six placements share one mesh.
 
-Expected results, stated so that they can be checked (not measured): the GLB binary at 4,800,000 faces is about 0.7 to
-1 GB and its manifest about 1.4 GB (about 306 bytes a face); the measured GLB is 57.6 MB (the placements share one mesh)
-and its manifest 575 MB. The chunk case measured 759 MiB at 595 bodies.
+Expected results, stated so that they can be checked: the GLB binary at 4,800,000 faces is about 0.7 to 1 GB when no mesh is
+shared, and its manifest about 1.4 GB (about 306 bytes a face); the chunk case measured 759 MiB at 595 bodies.
 
-The laptop smoke run (`--smoke`, every case, small sizes) passed before the review and after it (the final binary,
-2026-11-08): twelve cases, every step ok. Smoke sizes prove the code paths, not the limits, and no at-limit size ran on the laptop.
+The laptop smoke run (`--smoke`, every case, small sizes) passed before the review, and again on the final binary (2026-11-08):
+twelve cases, every step ok. Smoke sizes prove the code paths, not the limits, and no at-limit size ran on the laptop.
 
 ### GPU PC state
 
 - 2026-11-08 02:53 (during review): a Blender job not started by this worker (PID 2605 on `sketchyup-gpu`) held the GPU at
   97 to 99% busy; the acceptance was not run and the job was not stopped.
-- 2026-11-08 04:03 (before the acceptance): no Blender process; GPU 3 to 10% busy; load 0.3. The acceptance ran.
+- 2026-11-08 04:03 (before the acceptance): no Blender process; GPU 3 to 10% busy; load 0.3. The acceptance ran in
+  passes (see above); the last pass is on the merged code, and it started at 07:04 (GPU time).
 - Each case's `runs/<case>/state.txt` records `uptime` and `gpu_busy_percent` before and after.
 
 ## Records and checks
@@ -348,6 +348,8 @@ The laptop smoke run (`--smoke`, every case, small sizes) passed before the revi
   changed `core/document_limits.hpp` (an overload), which rebuilt the whole project: the full build after the fixes was
   912 steps and exited 0, with incremental builds after it (0 errors). `limits_r115_acceptance` is built with
   `--target` (it is `EXCLUDE_FROM_ALL`), so `cmake --build` alone does not rebuild it.
+- After the merge with R117 (`1f061e90`), the full fast tier (283 registered tests, `ctest -j2`, under `ulimit -v 8000000`) passed
+  100%, in 445 s. The six `*_real` tests report skipped, as before.
 - Review check, local (final): the fast-tier tests that the review's changes can affect (58 registered tests: the limit,
   format, document, scene, persistence, texture, reference-image, recovery and SKP tests) under `ulimit -v 8000000`,
   `ctest -j2`: all 58 passed. Six of them are the `*_real` tests, which need Blender, pdftoppm or the CI environment
@@ -373,8 +375,8 @@ The laptop smoke run (`--smoke`, every case, small sizes) passed before the revi
 
 ## Binaries and machine
 
-- Laptop: `build/ci-fast/limits_r115_acceptance` (SHA-256 `b20edf56cde32d408645d65b629deea8e35318049c743bd0401cfd424d2e71f7`). It is dynamically linked, so the shared libraries carry the changes: `libsketchyup_io.so` SHA-256 `f8be48689ed2e12b48fe3d30e5b833763965ff54b452ea8e2ea7b9cefa10bfa7`. The pre-review executable was `33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8`, and the first review build `c6fe485b1694975941568c2aeebec5957252529723070baffeac9e3ec5437fc5`.
-- GPU PC: the final executable and libraries are in `~/sketchyup-verification/r115-20261107/bin` (copied 2026-11-08 05:17); the earlier ones are in `bin-pre-review`, and the first pass is in `runs-pass1`, the second in `runs-pass2`.
+- Laptop: `build/ci-fast/limits_r115_acceptance`, executable SHA-256 `b20edf56cde32d408645d65b629deea8e35318049c743bd0401cfd424d2e71f7`. It is dynamically linked, so the shared libraries carry the changes. The final libraries (merged code, `1f061e90`): `libsketchyup_io.so` `1da882a8c435577600f638abbdf4318af655acc6f1fe45dcde9954fce1941164`, `libsketchyup_core.so` `a93d3ebd05d0d6b4843917067ca5036c511abadacc53ec7a4bece2c0ee5cc2fa`. Earlier: `f8be4868…` (io, before the merge), the first review build `c6fe485b…`, and the pre-review `33194787…`.
+- GPU PC: the final executable and libraries are in `~/sketchyup-verification/r115-20261107/bin` (the merged binary copied 2026-11-08 07:00). The earlier passes are in `runs-pass1`, `runs-pass2` and `runs-pass3`; the final pass is in `runs`.
 - GPU PC: `sketchyup-gpu` (CachyOS QEMU guest, 12 vCPUs, 22 GiB RAM, RX 6800 XT, Qt 6.12, X11). Cases run one per
   `systemd-run --user` unit with `MemoryMax=18G`, `MemorySwapMax=0`, `RuntimeMaxSec=1800` and no core dumps, through
   `flock -w 3600 ~/sketchyup-verification/gpu.lock`. The runner is `~/sketchyup-verification/r115-20261107/run-case.sh`.
