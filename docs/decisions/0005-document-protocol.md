@@ -611,7 +611,10 @@ Measured on 2026-11-07 on the development laptop and on the GPU PC. The full rec
   the change creates (its after), or for an erasure the copy it removes (its before). Measured against the
   heap in use after one edit: a definition edit at 5,000 placements of a 28-face prism was charged 175.7 MB
   and now 88.3 MB, against 84.7 MB of heap growth; a move of one 99,000-face body was 63.4 MB and now 31.7 MB,
-  against 30.1 MB. The 192 MiB budget itself is unchanged.
+  against 30.1 MB. The 192 MiB budget itself is unchanged. The memory the charge leaves out is bounded: for
+  each record, only the oldest version the history keeps is uncharged (the version in the file, or the after
+  copy of an evicted entry). So the history holds at most the budget plus one copy of the records it has
+  touched, and that copy is bounded by the document limits.
 - **The R114 contradiction is resolved for bodies and component records, and it holds for the rest.** A
   definition edit at five placements of a 99,000-face definition (495,000 faces) is now admitted at 190.1 MB,
   where the old charge was about 380 MB. The "every definition's edit fits the budget" reasoning of R110
@@ -652,6 +655,7 @@ Measured at 1,024 definitions on the GPU PC: a placement move 5 to 6 ms p95 (was
 **Contradictions with the earlier notes.** The R114 note "Push-pull is also limited" and its budget of
 1,000,000 pairs are superseded. The R114 note on the charge is superseded for bodies and component records,
 as the first section above states. R114's refusal of a 176,000-face definition at three placements was
-measured at scale 8 with the old charge; at product limits such a definition cannot exist, because a body
-is capped at 100,000 faces. The record gives the scale-8 result under the new charge once the GPU cases
-have run.
+measured at scale 8 with the old charge, and it still holds under the new charge: the GPU PC run at scale 8
+refuses that definition's edit at 3 and at 27 placements. At product limits such a definition needs at least
+two bodies (a body is capped at 100,000 faces, a definition at 200,000), and its edit at three placements is
+estimated at about 225 MB, over the 192 MiB budget. That is the budget part of D-104, which R115 owns.

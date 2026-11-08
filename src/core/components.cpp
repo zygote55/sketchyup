@@ -5,7 +5,16 @@
 #include "core/document_limits.hpp"
 #include <algorithm>
 #include <set>
+#include <utility>
 namespace sketchy {
+// Restores a component draft (D-075) from the stored records of a validated document, which are
+// neither validated nor copied again (R117, D-107). Defined here only, as DocumentDecodeAccess is
+// in document_io.cpp, so no other caller can restore unvalidated definitions this way.
+struct DocumentDraftAccess {
+    template <class... Args> static void restore(Document &document, Args &&...args) {
+        document.restoreRecords(false, true, std::forward<Args>(args)...);
+    }
+};
 namespace {
 Id allocate(Id &next) {
     if (!next || next == UINT64_MAX)

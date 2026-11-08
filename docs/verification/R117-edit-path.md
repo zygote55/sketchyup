@@ -118,8 +118,9 @@ kept):
 
 The "before" cells for the two definitions are derived: the old charge was the sum of both copies, so twice the
 after figure. Both were over the 192 MiB budget (201 MB), so those edits were refused before the change. A
-definition of 176,000 faces (the R114 case) cannot exist at product limits, because a body is capped at 100,000
-faces; on the scale-8 harness it is still refused by the budget after this change (see the GPU table).
+definition of 176,000 faces (the R114 case) is one body only on the scale-8 harness; at product limits it needs at
+least two bodies, since a body is capped at 100,000 faces and a definition at 200,000. On the scale-8 harness it
+is still refused by the budget after this change (see the GPU table).
 
 Undo leaves the heap about 28.7 MiB higher in the two definition cases above, at both 3 and 5 placements. That
 amount does not grow with the placements. It is not charged to the history, and I did not profile it.

@@ -18,7 +18,6 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
-#include <utility>
 namespace sketchy {
 struct ComponentVariant;
 using ComponentVariantsPtr = std::shared_ptr<const ComponentVariantIndex>;
@@ -396,6 +395,8 @@ class Document {
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
     friend struct DocumentDecodeAccess;
+    // Defined only in components.cpp: the component draft restores the stored, validated
+    // definitions of its document without validating or copying them again (R117, D-107).
     friend struct DocumentDraftAccess;
     // storedDefinitions: the definitions are the stored records of a validated document (a
     // component draft), so they are neither validated nor copied again (R117, D-107).
@@ -496,11 +497,4 @@ class Document {
 // R112: whether the read-snapshot charge of `doc` is within `limit`. Every snapshot site passes
 // Document::readSnapshotByteLimit; a boundary test passes the charge itself, or one byte less.
 bool withinReadSnapshotBudget(const Document &doc, size_t limit);
-// Restores a component draft (D-075) from the stored records of a validated document. Confined to
-// the component draft, which restores the definitions it already holds (R117, D-107).
-struct DocumentDraftAccess {
-    template <class... Args> static void restore(Document &document, Args &&...args) {
-        document.restoreRecords(false, true, std::forward<Args>(args)...);
-    }
-};
 } // namespace sketchy
