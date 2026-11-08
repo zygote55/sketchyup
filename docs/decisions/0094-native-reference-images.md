@@ -37,3 +37,7 @@ newer work. Unchanged property dialogs do not publish edits.
 
 Raster export is a separate R068 layer. The viewport preview alone is not evidence
 of exact-resolution image export.
+
+## Implementation notes (R118)
+
+R118 (2026-11-08): a reference image shares the viewport's texture cache, so it follows the rule in [ADR 0065, Implementation notes (R118)](0065-viewport-textures.md#implementation-notes-r118). A budget-limited image is now shown at reduced resolution, not as a purple plane. The purple plane remains for an image that is missing, invalid, unsupported or too large, and for an image that does not fit the budget even at the floor of 256 pixels on the long side.

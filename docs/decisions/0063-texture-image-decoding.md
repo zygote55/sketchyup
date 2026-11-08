@@ -54,3 +54,7 @@ caches and aggregate export/GPU budgets belong to their integrations.
 This layer does not yet bind textures to viewport draws, author mappings through
 native controls, or export UV/image arrays. Those remain R061 work; M7 delivery
 also awaits the M6 gate.
+
+## Implementation notes (R118)
+
+R118 (2026-11-08) amends the chunk rule above. The envelope scan refuses more than `max(4,096, bytes / 1,024)` chunks: 4,096 for a file of up to 4 MiB, and one chunk per KiB of file for a larger one. The fixed count was set for 16 MiB assets. A 64 MiB asset can hold an 8192 by 8192 image, but encoders write data chunks of 8 KiB, so such a PNG has about 7,100 chunks (58.5 MB measured) and the fixed count refused it, which showed the viewport's placeholder. The other rules are unchanged: a complete envelope, no animation chunks, and no truncated or trailing data. The decoder also reads the stored bytes in place rather than copying them, and a header probe reports the stored size without decoding pixels ([ADR 0065](0065-viewport-textures.md#implementation-notes-r118)).

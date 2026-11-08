@@ -8,6 +8,7 @@
 //   27) unique F              closed spheres of 10,000 faces, each distinct, about F faces in all
 //   dense-body F          one closed sphere of F faces (F = 100,000 ... 800,000)
 //   textures MIB          prisms, each with its own 4096 x 4096 PNG, about MIB of stored bytes
+//   texture-large MIB     as textures, with 8192 x 8192 PNGs (R118: the largest a 64 MiB asset holds)
 //   definitions D         D prism definitions, one placement each (D = 1,024 ... 16,384)
 //
 // Arguments: FAMILY TIER [EDIT_SAMPLES]. Environment: LIMIT_WORK_DIR, a directory on disk for the
@@ -186,10 +187,11 @@ std::uint32_t pngCrc(const std::uint8_t *bytes, std::size_t count) {
     }
     return ~crc;
 }
-// A deterministic 4096 x 4096 RGB image whose channels carry 2 bits of noise each, so that it
-// encodes to roughly a quarter of its raw size. It is encoded once.
-std::vector<std::uint8_t> texturePngBase() {
-    QImage image(4096, 4096, QImage::Format_RGB888);
+// A deterministic side x side RGB image whose channels carry 2 bits of noise each, so that it
+// encodes to roughly a quarter of its raw size. It is encoded once. R118: 4096 for the textures
+// family, 8192 (the largest a 64 MiB asset holds) for texture-large.
+std::vector<std::uint8_t> texturePngBase(int side) {
+    QImage image(side, side, QImage::Format_RGB888);
     std::mt19937 generator(7);
     for (int y = 0; y < image.height(); ++y) {
         auto *row = image.scanLine(y);
@@ -199,7 +201,7 @@ std::vector<std::uint8_t> texturePngBase() {
     QByteArray bytes;
     QBuffer buffer(&bytes);
     buffer.open(QIODevice::WriteOnly);
-    check(image.save(&buffer, "PNG"), "Encode a 4096 x 4096 texture");
+    check(image.save(&buffer, "PNG"), "Encode a square texture");
     return {bytes.begin(), bytes.end()};
 }
 // Variant `seed`: the same pixels with a tEXt chunk before IEND that names the seed, so that every
@@ -299,10 +301,11 @@ void buildFamily(Fixture &f, const QString &family, long long tier) {
         restoreBodies(doc, "00000000000000000000000000000a04", std::move(bodies), 2);
         f.body = 1;
         f.description = "one closed sphere of " + std::to_string(tier) + " faces";
-    } else if (family == "textures") {
+    } else if (family == "textures" || family == "texture-large") {
         const long long targetBytes = tier * 1024 * 1024;
         // Generate the first texture to learn its stored size, then choose the count.
-        const auto base = texturePngBase();
+        const int side = family == "texture-large" ? 8192 : 4096;
+        const auto base = texturePngBase(side);
         auto first = texturePng(base, 0);
         const auto perTexture = first.size();
         const auto size = static_cast<long long>(perTexture);
@@ -324,8 +327,8 @@ void buildFamily(Fixture &f, const QString &family, long long tier) {
             ++f.textureAssets;
         }
         f.body = 1;
-        f.description = std::to_string(count) +
-                        " prisms, each with a distinct 4096 x 4096 PNG (about " +
+        f.description = std::to_string(count) + " prisms, each with a distinct " +
+                        std::to_string(side) + " x " + std::to_string(side) + " PNG (about " +
                         std::to_string(perTexture) + " bytes each)";
     } else if (family == "definitions") {
         check(tier >= 1, "Definition count is positive");
@@ -567,10 +570,30 @@ int main(int argc, char **argv) {
                 QTest::qWait(20);
             frame();
             report["texturesReadyAfterShowSeconds"] = textureReady.nsecsElapsed() / 1e9;
+            // R118: a reduced texture is shown and measured, with its sizes; a placeholder is not a
+            // textured measurement, so the case is refused instead of recorded.
+            QJsonArray sizes;
+            size_t placeholders{}, reduced{};
+            for (const auto &[shown, stored] : view.textureSizes()) {
+                placeholders += shown.isEmpty();
+                reduced += !shown.isEmpty() && shown != stored;
+                sizes.append(QJsonObject{
+                    {"stored", QString("%1 x %2").arg(stored.width()).arg(stored.height())},
+                    {"shown", QString("%1 x %2").arg(shown.width()).arg(shown.height())}});
+            }
             report["textureSummary"] = view.textureSummary();
-            // A placeholder is not a textured measurement: refuse the case instead of recording it.
-            check(view.textureSummary().isEmpty(),
-                  "Textures unavailable: " + view.textureSummary().toStdString());
+            report["textures"] = QJsonObject{{"requested", qint64(sizes.size())},
+                                             {"placeholders", qint64(placeholders)},
+                                             {"reduced", qint64(reduced)},
+                                             {"sizes", sizes}};
+            check(placeholders == 0, "Textures unavailable: " + view.textureSummary().toStdString());
+            // R118: an export shows the textures it draws, so a reduced set is refused rather than exported.
+            try {
+                const auto exported = view.renderRaster(QSize(64, 64));
+                report["rasterExport"] = QString("exported %1 x %2").arg(exported.width()).arg(exported.height());
+            } catch (const std::exception &error) {
+                report["rasterExport"] = QString("refused: %1").arg(QString::fromUtf8(error.what()));
+            }
         }
         for (int i = 0; i < 10; ++i)
             frame();
