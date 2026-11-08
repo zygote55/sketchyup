@@ -381,8 +381,9 @@ int main(int argc, char **argv) {
         } catch (const std::exception &error) {
             refusal = error.what();
         }
-        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos,
-              "A glTF of 300,001 vertices is refused by name at a unique vertex bound of 300,000");
+        const std::string vertexBoundMessage = std::string("A glTF of 300,001 vertices is refused by name at a unique vertex bound of 300,000 (got: '") +
+                              refusal + "')";
+        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos, vertexBoundMessage.c_str());
         Fixture duplicates;
         auto duplicateMaterials = duplicates.tree["materials"].toArray();
         duplicateMaterials.append(duplicateMaterials[0]);
