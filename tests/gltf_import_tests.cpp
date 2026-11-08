@@ -358,13 +358,15 @@ int main(int argc, char **argv) {
         auto view = huge.views[0].toObject();
         view["byteLength"] = hugeCount * 12;
         huge.views[0] = view;
-        huge.buffer.resize(hugeCount * 12);
+        // Every byte is written: QByteArray::resize leaves new bytes uninitialized, and an unwritten z
+        // read as garbage made the import refuse a coordinate first (seen in the Arch package job).
+        huge.buffer.fill('\0', hugeCount * 12);
         for (int i = 0; i < hugeCount; ++i) {
             const float position[3] = {float(i) * .001f, float(i % 2) * .5f, 0};
-            const auto bits = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[0]));
-            std::memcpy(huge.buffer.data() + i * 12, &bits, 4);
-            const auto y = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[1]));
-            std::memcpy(huge.buffer.data() + i * 12 + 4, &y, 4);
+            for (int k = 0; k < 3; ++k) {
+                const auto bits = qToLittleEndian<quint32>(std::bit_cast<quint32>(position[k]));
+                std::memcpy(huge.buffer.data() + i * 12 + k * 4, &bits, 4);
+            }
         }
         auto p = huge.primitive();
         p["attributes"] = QJsonObject{{"POSITION", 0}};
