@@ -2250,7 +2250,7 @@ jobs:
   verdict:
     name: CI verdict
     if: always()
-    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, ifc, package, qt68]
+    needs: [plan, compile, fast, fast-x11, build, x11-1x, x11-2x, wayland-1x, wayland-2x, audit, fractional, blender, sanitize, ifc, skp, package, qt68]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -2265,7 +2265,7 @@ jobs:
           out = plan.get("outputs", {})
           on = lambda name: out.get(name) == "true"
           full_jobs = ["build", "x11-1x", "x11-2x", "wayland-1x", "wayland-2x", "audit",
-                       "fractional", "blender", "sanitize", "ifc", "package", "qt68"]
+                       "fractional", "blender", "sanitize", "ifc", "skp", "package", "qt68"]
           required = {"plan"}
           if on("build"):
               required.add("fast")
