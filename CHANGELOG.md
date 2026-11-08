@@ -37,6 +37,8 @@ Format count limits (R113, D-102, [PR_ROADMAP R113](docs/PR_ROADMAP.md#r113)): t
 - Unchanged by R117 (R115 changed it, see above): the STEP export's output bound, now 512 MiB. The IFC export takes its own limits.
 - Unchanged by R117 (R115 raised it): the undo budget, now 4 GiB. The 192 MiB budget before it refused a glTF import whose one edit places 600,000 faces ([D-103](docs/verification/R089a-defect-triage.md)).
 
+- Fixed (R118, [D-105](docs/verification/R089a-defect-triage.md), [PR_ROADMAP R118](docs/PR_ROADMAP.md#r118)): every texture inside the stored limit is shown in the viewport. The viewport holds 1 GiB of decoded textures and 1,024 images (was 128 MiB and 128 images). When the textures at full size exceed that, the largest are shown at reduced resolution, down to 256 pixels on the long side, instead of as placeholders. The viewport's text notice names reduced textures. A view with reduced textures is refused as a PNG, drawing view, measured drawing or library thumbnail export, as an image with unavailable pixels is.
+- Fixed (R118): a large PNG is no longer refused for its chunk count. The count bound is at least 4,096 chunks, and one chunk per KiB of file for a larger file, so a 64 MiB asset can hold an 8192 by 8192 image ([ADR 0063](docs/decisions/0063-texture-image-decoding.md#implementation-notes-r118)).
 ## 1.8.0 — 2026-11-07
 
 Tag `v1.8.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.8.0).

@@ -191,6 +191,11 @@ int main(int argc, char **argv) {
         const auto text = chunk("tEXt", QByteArray("Key\0Value", 9));
         manyChunks.insert(33, text.repeated(4096));
         status(asset(manyChunks), TextureImageStatus::Invalid);
+        // R118: a file of 5 MB may hold one chunk per KiB, so 5,000 chunks of 1 KiB are admitted.
+        auto largeChunks = png;
+        const auto padded = chunk("tEXt", QByteArray("Key\0", 4) + QByteArray(1020, 'x'));
+        largeChunks.insert(33, padded.repeated(5000));
+        ready(asset(largeChunks));
         QImage sixteen(2, 2, QImage::Format_RGBA64);
         sixteen.fill(Qt::red);
         status(asset(encoded(sixteen)), TextureImageStatus::Unsupported);

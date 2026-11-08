@@ -59,7 +59,7 @@ void Viewport::syncTextures() {
         if (const auto *entry = TextureCache::find(*textureSnapshot_, asset); entry && entry->image)
             images.emplace(id, entry->image);
     // Release obsolete GPU storage before allocating replacements. Published CPU
-    // images already obey the same 128 MiB / 128 image budget.
+    // images already obey the cache's decoded budget and image count (R118).
     std::erase_if(textureGpu_, [&](const auto &item) {
         const auto [id, name] = item;
         if (images.contains(id) && textureImages_.contains(id) &&
@@ -95,6 +95,20 @@ void Viewport::syncTextures() {
     gl_->glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     textureAssets_ = std::move(assets);
     textureImages_ = std::move(images);
+    textureStored_.clear();
+    textureUnavailable_ = textureReduced_ = 0;
+    for (const auto &[id, asset] : textureAssets_) {
+        const auto *entry = TextureCache::find(*textureSnapshot_, asset);
+        if (!textureImages_.contains(id)) {
+            // A budget refusal has its own message. Any other image without pixels is unavailable.
+            if (!entry || entry->status != "budget")
+                ++textureUnavailable_;
+            continue;
+        }
+        textureStored_.emplace(id, std::pair{entry->storedWidth, entry->storedHeight});
+        if (entry->reduced)
+            ++textureReduced_;
+    }
     textureFallbacks_ = textureAssets_.size() - textureImages_.size();
 }
 Viewport::TextureProjection Viewport::textureProjection(const Body &body, const Triangle &local,
@@ -121,13 +135,14 @@ Viewport::TextureProjection Viewport::textureProjection(const Body &body, const 
     if (!asset || !textureImages_.contains(asset) || !textureAssets_.contains(asset) ||
         !TextureCache::sameImage(textureAssets_.at(asset), doc_.assets().at(asset)))
         return {};
-    const auto &image = *textureImages_.at(asset);
     try {
         const auto mapping = effectiveFaceTextureMapping(body, local.face, back, doc_.materials());
+        // The guard uses the stored size, so a reduced image draws the same projections as the full one.
+        const auto [storedWidth, storedHeight] = textureStored_.at(asset);
         const auto uv =
             floatTextureCoordinates({mapping.coordinates(local.a), mapping.coordinates(local.b),
                                      mapping.coordinates(local.c)},
-                                    {1. / (64 * image.width()), 1. / (64 * image.height())});
+                                    {1. / (64 * storedWidth), 1. / (64 * storedHeight)});
         return {asset, uv};
     } catch (const std::exception &) {
         // An extreme projection must not disable the viewport. Picking uses
@@ -152,10 +167,29 @@ void Viewport::textureVertices(const Body &body, const Triangle &local, bool ref
 QString Viewport::textureSummary() const {
     if (textureCache_.pending())
         return "Loading images…";
-    if (textureFallbacks_ || textureMappingFallbacks_)
-        return textureMappingFallbacks_
-                   ? "Some textures use a color preview: mapping too large"
-                   : "Some images are unavailable; reference planes show a purple placeholder";
+    if (textureMappingFallbacks_)
+        return "Some textures use a color preview: mapping too large";
+    if (textureUnavailable_)
+        return "Some images are unavailable; reference planes show a purple placeholder";
+    // Even the smallest sizes do not fit the budget (R118).
+    if (textureFallbacks_)
+        return "Some images do not fit the viewport's memory budget, even at reduced resolution; "
+               "reference planes show a purple placeholder";
+    if (textureReduced_)
+        return "Some textures are shown at reduced resolution to fit the viewport's memory budget";
     return {};
+}
+std::vector<std::pair<QSize, QSize>> Viewport::textureSizes() const {
+    std::vector<std::pair<QSize, QSize>> sizes;
+    for (const auto &requested : textureAssets_) {
+        const auto image = textureImages_.find(requested.first);
+        const auto stored = textureStored_.find(requested.first);
+        sizes.emplace_back(
+            image == textureImages_.end() ? QSize()
+                                          : QSize(image->second->width(), image->second->height()),
+            stored == textureStored_.end() ? QSize()
+                                           : QSize(stored->second.first, stored->second.second));
+    }
+    return sizes;
 }
 } // namespace sketchy

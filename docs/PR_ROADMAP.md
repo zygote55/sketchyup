@@ -1658,7 +1658,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R118 — Viewport textures past the decoded budget
 
-**Status:** Planned. The viewport holds at most 128 MiB of decoded textures and 128 images, so a model inside the stored-texture limit shows placeholders: eight 2048 × 2048 images or two 4096 × 4096 images fill it ([D-105](verification/R089a-defect-triage.md), [R114](verification/R114-hardware-limits.md) item 8). R118 raises the budget and, past it, shows textures at a lower resolution instead of placeholders, so every texture inside the stored limit displays. It is measured on the GPU PC at the stored-texture limit that [R115](#r115) sets.
+**Status:** Implemented in the R118 pull request, with laptop smoke runs only. The GPU PC measurement is not run: `sketchyup-gpu` was unreachable on 2026-11-08, so [D-105](verification/R089a-defect-triage.md) stays open until the 512 MiB case shows no placeholder on the GPU PC ([record](verification/R118-viewport-textures.md)). The viewport held at most 128 MiB of decoded textures and 128 images, so a model inside the stored-texture limit showed placeholders: eight 2048 × 2048 images or two 4096 × 4096 images fill it ([D-105](verification/R089a-defect-triage.md), [R114](verification/R114-hardware-limits.md) item 8). R118 raises the budget and, past it, shows textures at a lower resolution instead of placeholders, so every texture inside the stored limit displays. It is measured on the GPU PC at the stored-texture limit that [R115](#r115) sets.
 
 **Requires:** [R115](#r115).
 

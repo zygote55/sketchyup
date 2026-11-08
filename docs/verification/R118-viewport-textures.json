@@ -1,0 +1,106 @@
+{
+  "record": "R118",
+  "defect": "D-105",
+  "date": "2026-11-08",
+  "branch": "feat/r118-viewport-textures",
+  "base": "b3b888dd",
+  "status": "implemented; GPU PC measurement not run (sketchyup-gpu unreachable); D-105 open until the 512 MiB GPU case shows no placeholder",
+  "rule": {
+    "headers_first": true,
+    "admission_order": "ascending asset ID, up to 1,024 images",
+    "reduction": "halve width and height (a quarter of the bytes) of the largest reducible image; ties by lower asset ID; reducible while the halved long side is at least the floor",
+    "floor_long_side_px": 256,
+    "at_floor_total_still_over_budget": "remaining images admitted in asset-ID order while they fit; the others have no pixels and report status budget",
+    "decode": "only admitted images are decoded; each is reduced to its planned size as it is decoded",
+    "reduction_filter": "area average weighted by alpha, on sRGB values",
+    "placeholder_only_when": ["the file cannot be decoded", "every reducible image is at the floor and the total still does not fit"]
+  },
+  "budget": {
+    "decoded_bytes": 1073741824,
+    "decoded_text": "1 GiB",
+    "images": 1024,
+    "images_basis": "model asset count limit (validateAssetRecords)",
+    "gpu_storage": "same bytes; no mipmaps are uploaded (ADR 0065)",
+    "intel_shared_memory_note": "On Intel Arc (system0 DRM region), a full budget costs up to about 2 GiB of RAM: the decoded copies plus the GPU copies. Halving the budget is one constant (TextureCache::Limits::bytes); not measured.",
+    "benchmark_scaling": "unchanged: bytes and the image count scale with DocumentLimits::scale"
+  },
+  "status_text": {
+    "unavailable": "Some images are unavailable; reference planes show a purple placeholder",
+    "floor": "Some images do not fit the viewport's memory budget, even at reduced resolution; reference planes show a purple placeholder",
+    "reduced": "Some textures are shown at reduced resolution to fit the viewport's memory budget"
+  },
+  "exports": {
+    "refused_when_reduced": ["view export as PNG", "drawing views", "measured drawings", "library thumbnail"],
+    "not_refused": ["view.capture inspection (does not call renderRaster)", "native file, OBJ, STL, glTF and GLB exports (they decode the stored assets at full size)"]
+  },
+  "measurements": {
+    "machine": "Intel Arc graphics (Meteor Lake), Mesa 26.2.5, kernel 7.2.15, Qt 6.12.0, Wayland; laptop, not the GPU PC",
+    "build": "Release, product limits (limitScale 1)",
+    "viewport": "1920 x 1080, windowed",
+    "frames": "100 timed frames after warm-up",
+    "cases": [
+      {
+        "case": "one 8192 x 8192 PNG (58,537,262 bytes stored)",
+        "textures": 1,
+        "placeholders": 0,
+        "reduced": 0,
+        "shown_sizes": ["8192 x 8192"],
+        "ready_after_show_seconds": 1.39,
+        "frame_p50_ms": 11.82,
+        "frame_p95_ms": 26.31,
+        "peak_rss_mib": 804.3,
+        "drm_system0_mib": 351.6,
+        "vram_gtt": "not sampled (iGPU; system memory only)",
+        "raster_export": "exported 64 x 64"
+      },
+      {
+        "case": "19 x 4096 x 4096 PNG (about 14,635,792 bytes each, about 265 MiB stored)",
+        "textures": 19,
+        "placeholders": 0,
+        "reduced": 4,
+        "shown_sizes": ["2048 x 2048 (4)", "4096 x 4096 (15)"],
+        "ready_after_show_seconds": 18.47,
+        "ready_after_show_seconds_earlier_run": 7.25,
+        "readiness_note": "noisy: another build was running on this machine; load not measured",
+        "frame_p50_ms": 17.94,
+        "frame_p95_ms": 26.46,
+        "peak_rss_mib": 1549.0,
+        "drm_system0_mib": 1167.3,
+        "vram_gtt": "not sampled (iGPU; system memory only)",
+        "raster_export": "refused: Some textures are shown at reduced resolution to fit the viewport's memory budget, so this view cannot be exported at full resolution. Hide some textured faces, then export again"
+      }
+    ]
+  },
+  "not_run": [
+    "GPU PC cases (64, 128, 256 and 512 MiB; 8192 x 8192) and their VRAM and GTT sampling: sketchyup-gpu unreachable on 2026-11-08 (timed out, then refused; no control socket)",
+    "laptop cases at 64, 128, 256 and 512 MiB: worker rules limit laptop runs to small smoke runs",
+    "full CTest suite: blast radius only",
+    "obj_import_real and gltf_import_real: need Blender",
+    "refusals in drawing views, measured drawings and the library thumbnail: the same renderRaster check, not run directly"
+  ],
+  "tests": {
+    "texture_cache": "passed (new cases: no reduction within budget; largest first; ties by ID; floor reports budget; decode failure keeps its status; reuse of reduced images; header probe; reduction of transparent and uniform pixels)",
+    "texture_image": "passed (chunk bound: 5,000 chunks in a 5 MB file decode; existing refusals hold)",
+    "ctest": "texture_image, reference_image, reference_image_io, texture_export, glb_export, obj_import, gltf_import, texture_mapping, face_textures, texture_cache: 10 of 10 passed",
+    "native_display": ["texture_viewport_tests", "viewport_precision_tests", "edge_stroke_viewport_tests", "raster_export_input_tests", "texture_input_tests"],
+    "offscreen": ["library_bundle_tests", "style_bundle_tests", "obj_export_tests", "obj_material_tests", "gltf_package_tests", "material_texture_size_tests", "texture_command_tests", "texture_preset_tests", "reference_image_command_tests"]
+  },
+  "failures_found_and_fixed": [
+    "pngEnvelope refused an 8192 x 8192 PNG (58.5 MB, 7,139 chunks) under the fixed 4,096-chunk rule of ADR 0063; the bound is now max(4,096, bytes / 1,024)",
+    "texture_cache reuse test built new payloads, so nothing was reused; the test now holds the records",
+    "texture_image chunk test asserted refusal for a valid file; it now asserts a decode",
+    "texture_input_tests failed under the offscreen platform (no GL context); it passes on the desktop display"
+  ],
+  "process_notes": [
+    "A harness build was started while pgrep showed a running ninja/cmake that was not this worker's; nothing was stopped; the build finished with exit 0",
+    "A 272 MiB harness run passed the tool's time limit and finished in the background; its JSON was read only after it completed"
+  ],
+  "contradictions": [
+    {"record": "ADR 0063", "what": "the fixed 4,096-chunk rule", "resolution": "amended to max(4,096, bytes / 1,024); recorded in its implementation notes"},
+    {"record": "ADR 0065", "what": "budget-excess images get a color preview", "resolution": "reduced images are shown at reduced resolution; recorded in its implementation notes"},
+    {"record": "ADR 0094", "what": "budget-limited image pixels display a purple plane", "resolution": "budget-limited images are reduced; recorded in its implementation notes"},
+    {"record": "ADR 0095", "what": "export rejects unavailable image pixels", "resolution": "extended to reduced textures; recorded in ADR 0065's notes"},
+    {"record": "R115 record", "what": "a 64 MiB PNG can hold an 8192 x 8192 image", "resolution": "true of the file size only until the chunk rule was amended"}
+  ],
+  "ux_design": "no text on viewport texture status; no contradiction"
+}

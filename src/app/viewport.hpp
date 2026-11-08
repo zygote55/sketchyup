@@ -444,6 +444,9 @@ class Viewport : public QOpenGLWidget {
     void setSynchronousFrameTiming(bool enabled) { synchronousFrameTiming_ = enabled; }
     bool texturesPending() const { return textureCache_.pending(); }
     QString textureSummary() const;
+    // (shown, stored) size of each image the view requests, in asset-ID order (R118, for inspection and
+    // benchmarks). An empty shown size is a placeholder.
+    std::vector<std::pair<QSize, QSize>> textureSizes() const;
     // R100.f1 (UX_DESIGN §18.3): the model's edge stroke names a texture whose asset has no bytes.
     // The status chip shows while this holds, and the stroke draws hatched.
     bool edgeTextureMissing() const;
@@ -622,7 +625,12 @@ class Viewport : public QOpenGLWidget {
     AssetRecords textureAssets_;
     std::map<Id, std::shared_ptr<const TextureImage>> textureImages_;
     std::map<Id, GLuint> textureGpu_;
-    size_t textureFallbacks_{}, textureMappingFallbacks_{};
+    // Stored (full) size of each image drawn. The UV precision guard uses it, so that a reduced copy
+    // draws the same projections as the full image (R118).
+    std::map<Id, std::pair<int, int>> textureStored_;
+    // Requested images without pixels (textureFallbacks_), of which those the decoder did not refuse are
+    // the budget refusals; images shown at reduced resolution are counted apart (R118).
+    size_t textureFallbacks_{}, textureUnavailable_{}, textureReduced_{}, textureMappingFallbacks_{};
     static std::vector<Triangle> displayTriangles(const Body &body);
     void referenceVertices(const Body &body, const Triangle &local,
                            std::array<Vertex, 3> &vertices) const;

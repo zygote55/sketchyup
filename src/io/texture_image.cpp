@@ -6,7 +6,9 @@
 #include <QImageReader>
 #include <QtEndian>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
+#include <stdexcept>
 
 namespace sketchy {
 namespace {
@@ -23,9 +25,12 @@ TextureImageStatus pngEnvelope(const QByteArray &bytes) {
     if (!bytes.startsWith(QByteArray::fromHex("89504e470d0a1a0a")))
         return TextureImageStatus::Invalid;
     qsizetype offset = 8;
-    int chunks = 0;
+    // ADR 0063 bounds the scan at 4,096 chunks. R118: a large file may hold one chunk per KiB, so that
+    // an 8192 by 8192 image written with 8 KiB data chunks (about 7,100 chunks in 58 MB) is admitted.
+    const qsizetype chunkLimit = std::max<qsizetype>(4096, bytes.size() / 1024);
+    qsizetype chunks = 0;
     bool header = false, data = false;
-    while (offset + 12 <= bytes.size() && ++chunks <= 4096) {
+    while (offset + 12 <= bytes.size() && ++chunks <= chunkLimit) {
         const quint32 length = qFromBigEndian<quint32>(bytes.constData() + offset);
         if (length > quint32(bytes.size() - offset - 12))
             return TextureImageStatus::Invalid;
@@ -55,6 +60,39 @@ TextureImageStatus pngEnvelope(const QByteArray &bytes) {
                                                                  : TextureImageStatus::Invalid;
     }
     return TextureImageStatus::Invalid;
+}
+// The format a decodable media type is read as, or empty for any other type.
+QByteArray formatFor(const std::string &mediaType) {
+    if (mediaType == "image/png")
+        return "png";
+    if (mediaType == "image/jpeg")
+        return "jpeg";
+    return {};
+}
+// The checks decode makes before it reads pixels. Reads the header only (R118).
+TextureImageProbe probeEncoded(QByteArray &bytes, const QByteArray &format) {
+    if (format == "png") {
+        const auto status = pngEnvelope(bytes);
+        if (status != TextureImageStatus::Ready)
+            return {status, 0, 0};
+    } else if (!bytes.startsWith(QByteArray::fromHex("ffd8ff")) ||
+               !bytes.endsWith(QByteArray::fromHex("ffd9")))
+        return {TextureImageStatus::Invalid, 0, 0};
+    QBuffer source(&bytes);
+    if (!source.open(QIODevice::ReadOnly))
+        return {TextureImageStatus::Invalid, 0, 0};
+    QImageReader reader(&source, format);
+    reader.setAutoDetectImageFormat(false);
+    reader.setAutoTransform(false); // Stored pixel axes define UV; ignore EXIF orientation.
+    const auto size = reader.size();
+    if (!size.isValid() || size.isEmpty())
+        return {TextureImageStatus::Invalid, 0, 0};
+    if (!bounded(size.width(), size.height()))
+        return {TextureImageStatus::TooLarge, 0, 0};
+    return {TextureImageStatus::Ready, size.width(), size.height()};
+}
+std::uint8_t toByte(double unit) {
+    return std::uint8_t(std::clamp(std::lround(unit * 255.), 0L, 255L));
 }
 } // namespace
 TextureImage::TextureImage(int width, int height, std::vector<std::uint8_t> rgba)
@@ -103,36 +141,40 @@ std::string_view textureImageStatusName(TextureImageStatus status) {
     }
     throw std::runtime_error("Unknown texture image status");
 }
+TextureImageProbe probeTextureImage(const AssetRecord &asset) {
+    if (!asset.payload)
+        return {TextureImageStatus::Missing, 0, 0};
+    const auto format = formatFor(asset.mediaType);
+    if (format.isEmpty())
+        return {TextureImageStatus::Unsupported, 0, 0};
+    // A view of the stored bytes. Only the header is read, so the payload is not copied.
+    const auto &stored = asset.payload->bytes();
+    auto view = QByteArray::fromRawData(reinterpret_cast<const char *>(stored.data()),
+                                        qsizetype(stored.size()));
+    return probeEncoded(view, format);
+}
+
 TextureImageResult decodeTextureImage(const AssetRecord &asset) {
     auto failure = [](TextureImageStatus status) { return TextureImageResult{status, {}}; };
     if (!asset.payload)
         return failure(TextureImageStatus::Missing);
-    QByteArray format;
-    if (asset.mediaType == "image/png")
-        format = "png";
-    else if (asset.mediaType == "image/jpeg")
-        format = "jpeg";
-    else
+    const auto format = formatFor(asset.mediaType);
+    if (format.isEmpty())
         return failure(TextureImageStatus::Unsupported);
-    auto bytes = assetByteArray(asset.payload);
-    if (format == "png") {
-        const auto status = pngEnvelope(bytes);
-        if (status != TextureImageStatus::Ready)
-            return failure(status);
-    } else if (!bytes.startsWith(QByteArray::fromHex("ffd8ff")) ||
-               !bytes.endsWith(QByteArray::fromHex("ffd9")))
-        return failure(TextureImageStatus::Invalid);
+    // The stored bytes are read in place. The asset record keeps the payload alive for the decode.
+    const auto &stored = asset.payload->bytes();
+    auto bytes = QByteArray::fromRawData(reinterpret_cast<const char *>(stored.data()),
+                                         qsizetype(stored.size()));
+    const auto probe = probeEncoded(bytes, format);
+    if (probe.status != TextureImageStatus::Ready)
+        return failure(probe.status);
     QBuffer source(&bytes);
     if (!source.open(QIODevice::ReadOnly))
         return failure(TextureImageStatus::Invalid);
     QImageReader reader(&source, format);
     reader.setAutoDetectImageFormat(false);
     reader.setAutoTransform(false); // Stored pixel axes define UV; ignore EXIF orientation.
-    const auto size = reader.size();
-    if (!size.isValid() || size.isEmpty())
-        return failure(TextureImageStatus::Invalid);
-    if (!bounded(size.width(), size.height()))
-        return failure(TextureImageStatus::TooLarge);
+    const QSize size(probe.width, probe.height);
     auto image = reader.read();
     if (image.isNull() || image.size() != size)
         return failure(TextureImageStatus::Invalid);
@@ -149,6 +191,50 @@ TextureImageResult decodeTextureImage(const AssetRecord &asset) {
     return {TextureImageStatus::Ready,
             std::make_shared<const TextureImage>(size.width(), size.height(), std::move(pixels))};
 }
+
+std::shared_ptr<const TextureImage> reduceTextureImage(const TextureImage &image, int width,
+                                                       int height) {
+    if (width < 1 || height < 1 || width > image.width() || height > image.height())
+        throw std::runtime_error("A reduced texture must be at least one pixel and no larger "
+                                 "than its source");
+    // Output column x averages source columns [columns[x], columns[x + 1]), and rows likewise.
+    // Every range holds at least one source pixel, because the output is no larger than the source.
+    auto edges = [](int source, int target) {
+        std::vector<int> result(size_t(target) + 1);
+        for (int i = 0; i <= target; ++i)
+            result[size_t(i)] = int(std::int64_t(i) * source / target);
+        return result;
+    };
+    const auto columns = edges(image.width(), width), rows = edges(image.height(), height);
+    const auto &source = image.rgba();
+    const size_t sourceRow = size_t(image.width()) * 4;
+    std::vector<std::uint8_t> pixels(size_t(width) * size_t(height) * 4);
+    // Premultiplied colour and alpha sums for one output row: four values per output column.
+    std::vector<double> sums(size_t(width) * 4);
+    for (int y = 0; y < height; ++y) {
+        std::fill(sums.begin(), sums.end(), 0.);
+        for (int sy = rows[size_t(y)]; sy < rows[size_t(y) + 1]; ++sy)
+            for (int x = 0; x < width; ++x)
+                for (int sx = columns[size_t(x)]; sx < columns[size_t(x) + 1]; ++sx) {
+                    const auto *p = &source[size_t(sy) * sourceRow + size_t(sx) * 4];
+                    const double alpha = p[3] / 255.;
+                    for (size_t c = 0; c < 3; ++c)
+                        sums[size_t(x) * 4 + c] += p[c] / 255. * alpha;
+                    sums[size_t(x) * 4 + 3] += alpha;
+                }
+        const double rowCount = rows[size_t(y) + 1] - rows[size_t(y)];
+        for (int x = 0; x < width; ++x) {
+            const double count = rowCount * (columns[size_t(x) + 1] - columns[size_t(x)]);
+            const double alpha = sums[size_t(x) * 4 + 3];
+            auto *out = &pixels[(size_t(y) * size_t(width) + size_t(x)) * 4];
+            for (size_t c = 0; c < 3; ++c)
+                out[c] = alpha > 0 ? toByte(sums[size_t(x) * 4 + c] / alpha) : std::uint8_t{0};
+            out[3] = toByte(alpha / count);
+        }
+    }
+    return std::make_shared<const TextureImage>(width, height, std::move(pixels));
+}
+
 QByteArray encodeTexturePng(const TextureImage &image) {
     const QImage view(image.rgba().data(), image.width(), image.height(), image.width() * 4,
                       QImage::Format_RGBA8888);

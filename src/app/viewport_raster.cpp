@@ -52,9 +52,21 @@ QImage Viewport::renderRaster(QSize pixels, bool hiddenAllowed) {
         if (textureCache_.pending())
             throw std::runtime_error(
                 "Images are still loading. Wait for the preview and export again");
-        if (textureFallbacks_)
+        if (textureUnavailable_)
             throw std::runtime_error(
                 "Some image pixels are unavailable. Restore them before exporting");
+        // Images that do not fit even at the floor have no pixels either (R118).
+        if (textureFallbacks_)
+            throw std::runtime_error(
+                "Some images do not fit the viewport's memory budget, even at reduced resolution. "
+                "Hide some textured faces, then export again");
+        // An export shows what the view draws, so a reduced texture refuses it as an unavailable one
+        // does: a file must not carry lower-resolution textures without saying so (R118, ADR 0095).
+        if (textureReduced_)
+            throw std::runtime_error(
+                "Some textures are shown at reduced resolution to fit the viewport's memory budget, "
+                "so this view cannot be exported at full resolution. Hide some textured faces, then "
+                "export again");
         QImage result;
         {
             QOpenGLFramebufferObjectFormat format;
