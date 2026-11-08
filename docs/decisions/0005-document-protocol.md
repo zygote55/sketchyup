@@ -656,6 +656,11 @@ the new limits. The product values did not change; the fixes are:
   reserves its file's size, not its bound.
 - The SKP helper's address-space limit is 8 GiB (it was 4 GiB), and the package total (2 GiB) is checked before the
   package is assembled. The SKP texture limit is 8,192 pixels (it was 4,096).
+- The at-limit run on the GPU PC found four more: the OBJ importer's fixed cap of 10,000 object and material states (now
+  the unique faces); the glTF importer counted every triangle corner as a vertex, and the STL, GLB and OBJ exporters
+  took their corners from the grid triangulation, which is not the model's vertex positions (now
+  `Surface::triangulateExact`, and the glTF importer welds a body's corners by position); and the scene decoder's
+  body-flag bound of 10,000 (now the record's bound, the materialized bodies).
 
 **Contradiction with ADR 0176 section 9,** which says the SKP import takes no options. `SkpImportOptions`
 now has one field, `bodyLimit`, which the tests lower to reach the split of a body. The product does not set it.

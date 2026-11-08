@@ -1634,7 +1634,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R115 — Raise the placed-face and texture limits
 
-**Status:** Built on `feat/r115-raise-limits` (2026-11-07), with the review fixes of 2026-11-08 ([PR #585](https://github.com/zygote55/sketchyup/pull/585)). The raised values, the CI changes (the at-limit programs are manual, and CI checks the boundaries by counts or by a bound passed in), the sweep of every other literal, and the schema regeneration are in [R115](verification/R115-raised-limits.md). **The at-limit results on the GPU PC are pending**: a Blender job not started by the R115 worker (PID 2605 on `sketchyup-gpu`) held the GPU at 99% on 2026-11-08, so no case has run there. R115 is not Verified until they are in the record.
+**Status:** Built on `feat/r115-raise-limits` (2026-11-07), with the review fixes of 2026-11-08 ([PR #585](https://github.com/zygote55/sketchyup/pull/585)). The raised values, the CI changes (the at-limit programs are manual, and CI checks the boundaries by counts or by a bound passed in), the sweep of every other literal, and the schema regeneration are in [R115](verification/R115-raised-limits.md). **The at-limit acceptance ran on the GPU PC on 2026-11-08** (the machine was idle at 04:03): cases 1 to 5 and the export and OBJ and STL import cases passed; the glTF import failed, refused by the component definition count (one definition per glTF mesh, 12,000 here); the STEP case and the Blender import of the GLB did not run. R115 is not Verified until the glTF case passes or the owner accepts the limit.
 
 **Requires:** [R113](#r113), [R114](#r114).
 

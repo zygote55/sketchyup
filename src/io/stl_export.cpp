@@ -85,7 +85,9 @@ StlExport exportStl(const Document &doc, StlCoordinateOptions coordinates, StlEn
         const auto transform = doc.worldTransform(id);
         for (const auto &[faceId, face] : body->surface.faces) {
             (void)face;
-            for (const auto &t : body->surface.triangulate(faceId)) {
+            // The exact corners (triangulateExact): the grid triangulation returns corners that differ by up to
+            // 1.6e-8 m between faces, so a shared vertex was written as several points (R115 review, finding 5).
+            for (const auto &t : body->surface.triangulateExact(faceId)) {
                 checkFormatCount("STL export", "facets", ++count, materializedCornerLimit, "materialized");
                 std::array<Vec3, 3> points{axis(transform.point(t.a)), axis(transform.point(t.b)),
                                            axis(transform.point(t.c))};

@@ -163,8 +163,11 @@ int main(int argc, char **argv) {
                   imported.report["losses"].toObject()["customNormalsRecomputed"] == 1,
               "Per-feature normal loss explicit");
         const auto &canonical = *doc.definitions().begin()->second->members.at(2);
-        check(canonical.surface.vertices.at(3) == Vec3{0, 0, 3},
-              "Y-up metres become native Z-up metres");
+        // Vertices are welded by position (R115), so the vertex is found by its position, not by a glTF index.
+        bool zUpPoint = false;
+        for (const auto &[id, point] : canonical.surface.vertices)
+            zUpPoint = zUpPoint || point == Vec3{0, 0, 3};
+        check(zUpPoint, "Y-up metres become native Z-up metres");
         size_t positive = 0, negative = 0;
         for (const auto &[id, body] : doc.bodies())
             if (body->kind == BodyKind::Geometry) {

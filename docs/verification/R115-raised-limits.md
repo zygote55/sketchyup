@@ -6,8 +6,9 @@ Date: 2026-11-07. Branch `feat/r115-raise-limits`. The owner approved the raise 
 only protected the development laptop and do not apply (owner, 2026-11-07).
 
 Status of this record: **the code and the CI changes are complete, and the review fixes of 2026-11-08 are in (see
-"Review findings (2026-11-08)"). No at-limit case has run on the GPU PC: those results are pending.** A Blender job
-not started by this worker holds that machine (see "Acceptance on the GPU PC"). Models are synthetic.
+"Review findings (2026-11-08)"). The at-limit acceptance ran on the GPU PC on 2026-11-08. Brief cases 1 to 5 passed;
+case 6 passed except the Blender import of the GLB, which did not run; case 7 passed for OBJ and STL and failed for glTF
+(refused by the component definition count); case 8 (STEP) did not run (see "Acceptance on the GPU PC").** Models are synthetic.
 
 ## Values as built
 
@@ -222,8 +223,31 @@ Checked, not changed (bounds R115 did not change, or work budgets rather than mo
   binds before the catalog's 2 GiB payload bound (see the deferred list).
 - `io/ifc_import.cpp` (8 MiB of property text, 32 KiB a property) and `io/geotiff.cpp` (1,000,000 posts): unchanged.
 
-### Deferred (found in the review, not changed)
+### Found by the at-limit run on the GPU PC (2026-11-08)
 
+The first pass of the acceptance on the GPU PC (the binary built before the fixes below) ran the cases one after another.
+Eight passed: `unique`, `materialized`, `one-body`, `chunk`, `textures`, `export-glb`, `export-obj` and `export-stl` (the
+results are in the acceptance table). Four did not, and each was a real defect or a fixture error:
+
+| Case | First result | Cause | Fix |
+| --- | --- | --- | --- |
+| `import-obj` | refused: "too many object/group/material states" at line 3,274,721 | `obj_source.cpp` capped the states at a literal 10,000 (an R110-era cap that the sweep did not match). A unique-limit model has 12,000 bodies. | the cap is the unique face count, through `checkFormatCount` (the message names the quantity and the limit). |
+| `import-gltf` | refused: "vertices would be 2,400,001 of 2,400,000" (then, after the weld, "Invalid component definition allocator or count": one definition per mesh, see Deferred) | The export writes every triangle corner as its own accessor entry (no indices), and the importer counted each corner as a vertex (`definedGeometry(1, 0, 0)` per glTF index). A GLB the export writes for a unique-limit model could not import, which breaks finding 5's rule. | The importer welds a body's corners by position (`Piece::welded`). Covered by `gltf_import_tests` (the Y-up test now looks the vertex up by position, not by glTF index). |
+| `import-stl` | refused: "vertices would be 2,400,001 of 2,400,000" | The STL and GLB exporters took their triangles from `Surface::triangulate`, which returns grid corners that differ by up to 1.6e-8 m between faces (the smoke file has 48,240 distinct corner positions for 12,240 model vertices, and the ring vertices sit at z = -1.6e-8). The importer's weld could not join them. | The STL, GLB and OBJ exporters use `Surface::triangulateExact` (the model's own vertex positions). |
+| `export-dxf` | the document load refused "vertices would be 2,404,134 of 2,400,000" | The acceptance program built six separate flat grids: over the unique limit (vertices and faces), and only the materialized limit was in the comment. | One flat grid of 798,848 faces, placed six times (4,793,088 placed faces, the materialized family). |
+
+Also found by reading (the at-limit run did not reach it): `io/scenes_io.cpp` decoded a scene's body visibility flags with a
+bound of 10,000, while the record bounds them by the materialized bodies (320,000). A scene of more than 10,000 bodies
+could be saved and not opened. The decoder now uses the record's bound. No CI test covers it yet.
+
+### Deferred (found in the review and the at-limit run, not changed)
+
+- **glTF import, one definition per mesh (found by the at-limit run, 2026-11-08).** The importer makes a component
+  definition for every glTF mesh and an instance for every node, so a GLB of 12,000 meshes (a unique-limit model of 12,000
+  bodies, which the app's own export writes) is refused: "Invalid component definition allocator or count", the count
+  limit (1,024; R117 raises it to 4,096). The fix is for the importer to import a mesh that one node uses as plain
+  bodies, not definitions. That changes the imported structure, and the tests pin it (`Shared mesh instances retain
+  nested hierarchy`), so it is the owner's decision. Until then `import-gltf` does not pass.
 - A catalog file is bounded by the bundle limit (1,040 MiB), so its payload bound (`CatalogLimits::payloadBytes`, 2 GiB)
   is never reached. One largest native container is about 1.3 GiB (16 bytes + 32 MiB manifest + 768 MiB model + 512 MiB
   assets + the terrain mesh chunk), so one such container does not fit a catalog or a template library bundle. The R110
@@ -277,40 +301,46 @@ more; the CI total rises by about one second.
 
 ## Acceptance on the GPU PC
 
-**The at-limit results are pending.** The table below says what has run (nothing) and why each case has not.
+**The at-limit acceptance ran on the GPU PC on 2026-11-08, after the review's fixes, in three passes.** The GPU PC was
+idle at 04:03 (no Blender job; GPU 3 to 10% busy), so the acceptance ran (see "GPU PC state" below). Each case ran through
+`flock -w 3600 ~/sketchyup-verification/gpu.lock systemd-run --user --wait` with `MemoryMax=18G`, `MemorySwapMax=0`,
+`RuntimeMaxSec=1800` and no core dumps (`run-case.sh`). Results are in `~/sketchyup-verification/r115-20261107/runs-pass1`,
+`runs-pass2` and `runs` (the final pass) on the GPU PC.
 
-Status at the end of this pull request: **no case has run on the GPU PC.** A Blender job (`blender -b`, PID 2605 on
-`sketchyup-gpu`, not started by this worker and not under the GPU lock) was running from 20:08 on 2026-11-07 and held the GPU at
-97 to 99% busy at each check through 02:19 on 2026-11-08. At 02:53 on 2026-11-08 (review fixes) the same process was still
-running, the GPU was at 99% busy, and load average was 3.7 on 12 vCPUs. The brief says to pause while another user is on
-the machine, so the acceptance was not run, and the job was not stopped. The runner is in place. The binary on the GPU PC
-predates the review fixes and must be copied again first (see "Binaries and machine"). Then the cases run with one command
-per case, once the GPU PC is idle:
+- **Pass 1** (binary `c6fe485b…`, before the fixes below): eight cases passed; four did not (`export-dxf`, `import-obj`,
+  `import-stl`, `import-gltf`).
+- **Pass 2** (binary `b20edf…`, with the OBJ, glTF, scene and DXF-fixture fixes, not yet the exact exporters): the native
+  cases and `export-dxf` passed; `import-stl` and `import-gltf` failed as before.
+- **Pass 3** (the final binary; the same executable `b20edf…` with the final libraries, `libsketchyup_io.so` `f8be4868…`):
+  `export-glb`, `export-obj`, `export-stl`, `import-obj` and `import-stl` passed. `import-gltf` failed (below).
 
-    ssh sketchyup-gpu 'bash -lc "~/sketchyup-verification/r115-20261107/run-case.sh unique"'
+| Case (brief) | Program case | Result (final pass unless stated) | Measured | Notes |
+| --- | --- | --- | --- | --- |
+| 1. unique: 2,400,000 faces; save, close, open; move, undo, redo | `unique` | passed (pass 2) | build 22 s; save 7.6 s, 238,803,918 bytes; open 20 s; peak RSS 4.5 GiB | 12,000 bodies of 200 faces; move 0.0 s, history 133,298 bytes |
+| 2. materialized: 4,800,000 placed faces from an 800,000-face definition; move a placement; edit the definition (D-104); undo, redo | `materialized` | passed (pass 2) | placed build 165 s; save 2.3 s, 98,203,894 bytes; open 42.5 s; definition edit 113 s | the history charge of the definition edit is **3,584,029,158 bytes (3.34 GiB)**, within the 4 GiB budget; RSS growth **2,668 MiB**; peak RSS 7.9 GiB; undo and redo 0.1 to 0.2 s |
+| 3. one body of 800,000 faces: move, undo | `one-body` | passed (pass 2) | move 10.8 s | history 512,005,298 bytes; undo and redo 0 s |
+| 4. model chunk near 768 MiB with imported UVs (D-099): save and open | `chunk` | passed (pass 2) | save 23.3 s; open 18.4 s | 595 bodies, 1,190,000 textured faces; model chunk 796,135,248 bytes (759 MiB); peak RSS 8.1 GiB |
+| 5. 512 MiB of stored textures, one 64 MiB asset: save and open | `textures` | passed (pass 2) | build 87 s; save 0.5 s, 527,246,051 bytes; open 0.5 s | 33 assets (32 PNGs of 4096 by 4096, one 64 MiB asset); the program says 31 of 33 would show a viewport placeholder (the viewport count was not measured) |
+| 6. exports at the materialized limit: GLB (and Blender import), OBJ, binary STL, DXF | `export-glb`, `export-obj`, `export-stl`, `export-dxf` | GLB, OBJ, STL and DXF passed (pass 3 for GLB, OBJ, STL; pass 2 for DXF) | GLB export 101 s, manifest 574,980,899 bytes (under 1.5 GiB), GLB 57,603,152 bytes (the six placements share one mesh); OBJ 76 s, 383,405,885 bytes; STL 39 s, 240,000,084 bytes; DXF 57 s, 914,788,283 bytes | **Not run: the Blender import of the GLB with the Blender worker** (the program's fixture layouts do not fit a direct import; the plan is recorded above). The DXF model is the planar family (one flat grid of 798,848 faces placed six times) |
+| 7. imports at the unique limit: OBJ, STL, glTF (D-103) | `import-obj`, `import-stl`, `import-gltf` | OBJ passed; STL passed; **glTF failed** | OBJ import 112 s, peak RSS 9.0 GiB, faces 2,400,000, 24,001 bodies; STL import 186 s, facets 2,400,000, 3 bodies | **glTF:** "Invalid component definition allocator or count" (after 54 s): the importer makes one component definition per glTF mesh, and the export writes one mesh per body, so 12,000 bodies are 12,000 definitions, over the 1,024 count (R117 owns the count: 4,096 in PR #584, still below 12,000). The earlier glTF failure at 2,400,001 vertices is fixed (the corners are welded by position). |
+| 8. STEP export at 512 MiB (D-103) | none | not run | none | The STEP helper (`sketchyup-ifc-worker`) is not built on the GPU PC, and building it was not attempted (the vendored IfcOpenShell fetch is a network step, and the brief forbids installs). D-103 stays open. |
 
-The laptop smoke run (`--smoke`, every case, small sizes) passed on the development laptop before the review, and again
-after the review fixes (2026-11-08, the rebuilt binary): twelve cases, every step ok. Smoke sizes prove the code paths, not
-the limits, and no at-limit size ran on the laptop.
-
-| Case (brief) | Program case | GPU PC result | Notes |
-| --- | --- | --- | --- |
-| 1. unique: 2,400,000 faces; save, close, open; move, undo, redo | `unique` | not run | 12,000 distinct 200-face bipyramids |
-| 2. materialized: 4,800,000 placed faces from an 800,000-face definition; move a placement; edit the definition (D-104); undo, redo; history charge and RSS growth | `materialized` | not run | six placements of one definition |
-| 3. one body of 800,000 faces: move, undo | `one-body` | not run | |
-| 4. model chunk near 768 MiB with imported UVs (D-099): save and open | `chunk` | not run | 595 bodies of 2,000 textured faces, full-precision UVs |
-| 5. 512 MiB of stored textures, one 64 MiB asset: save and open | `textures` | not run | 32 PNGs of 4096 by 4096 and one 64 MiB asset; the viewport count is not measured here |
-| 6. exports at the materialized limit: GLB (and Blender import), OBJ, binary STL, DXF | `export-glb`, `export-obj`, `export-stl`, `export-dxf` | not run | DXF uses six flat grids (planar) |
-| 7. imports at the unique limit: OBJ, STL, glTF (D-103) | `import-obj`, `import-stl`, `import-gltf` | not run | the OBJ import is checked against the 10-minute rule |
-| 8. STEP export at 512 MiB (D-103) | none | not run | the STEP helper (`sketchyup-ifc-worker`) is not built on the GPU PC; building it was not attempted |
+Notes on the OBJ import: it reports 24,001 bodies for 12,000 exported bipyramids. The OBJ writer and reader count groups
+and objects as bodies, so the count is two per body plus one. Not investigated here; the limit (80,000 bodies) holds.
 
 Expected results, stated so that they can be checked (not measured): the GLB binary at 4,800,000 faces is about 0.7 to
-1 GB and its manifest about 1.4 GB (about 306 bytes a face); the chunk case has about 670 bytes a face on the
-laptop smoke run, which gives a chunk near 760 MiB at 595 bodies.
+1 GB and its manifest about 1.4 GB (about 306 bytes a face); the measured GLB is 57.6 MB (the placements share one mesh)
+and its manifest 575 MB. The chunk case measured 759 MiB at 595 bodies.
 
-The Blender import of the GLB (case 6) also needs the worker on the GPU PC; `scripts/verify-blender-glb.py` expects fixture
-layouts, so a direct import of the exported `scene.glb` is the plan, not yet run.
+The laptop smoke run (`--smoke`, every case, small sizes) passed before the review and after it (the final binary,
+2026-11-08): twelve cases, every step ok. Smoke sizes prove the code paths, not the limits, and no at-limit size ran on the laptop.
 
+### GPU PC state
+
+- 2026-11-08 02:53 (during review): a Blender job not started by this worker (PID 2605 on `sketchyup-gpu`) held the GPU at
+  97 to 99% busy; the acceptance was not run and the job was not stopped.
+- 2026-11-08 04:03 (before the acceptance): no Blender process; GPU 3 to 10% busy; load 0.3. The acceptance ran.
+- Each case's `runs/<case>/state.txt` records `uptime` and `gpu_busy_percent` before and after.
 
 ## Records and checks
 
@@ -318,10 +348,11 @@ layouts, so a direct import of the exported `scene.glb` is the plan, not yet run
   changed `core/document_limits.hpp` (an overload), which rebuilt the whole project: the full build after the fixes was
   912 steps and exited 0, with incremental builds after it (0 errors). `limits_r115_acceptance` is built with
   `--target` (it is `EXCLUDE_FROM_ALL`), so `cmake --build` alone does not rebuild it.
-- Review check, local: the fast-tier tests the review's changes can affect (91 registered tests: the limit, format,
-  document, persistence, texture, reference-image, recovery and SKP tests) under `ulimit -v 8000000`, `ctest -j2`: 85
-  passed, 6 skipped (the `*_real` tests that need Blender, pdftoppm or the CI environment variables), 0 failed. One test failed in that run: `skp_mapping`, because the SKP body split still used the product bound (`BodyBudget`
-  ignored the lowered one). It was fixed, and the test passes.
+- Review check, local (final): the fast-tier tests that the review's changes can affect (58 registered tests: the limit,
+  format, document, scene, persistence, texture, reference-image, recovery and SKP tests) under `ulimit -v 8000000`,
+  `ctest -j2`: all 58 passed. Six of them are the `*_real` tests, which need Blender, pdftoppm or the CI environment
+  variables, and they report skipped. Earlier runs found and fixed two failures: the SKP body split (the product
+  bound in `BodyBudget`) and the glTF vertex test (it looked up a glTF index).
 - Review check, local: `limits_r115_acceptance --smoke` (every case, small sizes) passes all twelve cases on the laptop.
   Smoke sizes prove the code paths, not the limits. No at-limit case ran here.
 - The IFC helper (`sketchyup-ifc-worker`, `SKETCHYUP_BUILD_IFC=ON`) and the Blender worker are not built or run on this
@@ -342,11 +373,8 @@ layouts, so a direct import of the exported `scene.glb` is the plan, not yet run
 
 ## Binaries and machine
 
-- Laptop: `build/ci-fast/limits_r115_acceptance`, rebuilt for the review (SHA-256
-  `c6fe485b1694975941568c2aeebec5957252529723070baffeac9e3ec5437fc5`; the pre-review binary was
-  `33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8`). Its shared libraries are the same build directory's.
-  **The binary on the GPU PC is the pre-review one.** It must be copied again, with its libraries, before any case runs
-  there; the pre-review binary does not contain the review's import and export changes.
+- Laptop: `build/ci-fast/limits_r115_acceptance` (SHA-256 `b20edf56cde32d408645d65b629deea8e35318049c743bd0401cfd424d2e71f7`). It is dynamically linked, so the shared libraries carry the changes: `libsketchyup_io.so` SHA-256 `f8be48689ed2e12b48fe3d30e5b833763965ff54b452ea8e2ea7b9cefa10bfa7`. The pre-review executable was `33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8`, and the first review build `c6fe485b1694975941568c2aeebec5957252529723070baffeac9e3ec5437fc5`.
+- GPU PC: the final executable and libraries are in `~/sketchyup-verification/r115-20261107/bin` (copied 2026-11-08 05:17); the earlier ones are in `bin-pre-review`, and the first pass is in `runs-pass1`, the second in `runs-pass2`.
 - GPU PC: `sketchyup-gpu` (CachyOS QEMU guest, 12 vCPUs, 22 GiB RAM, RX 6800 XT, Qt 6.12, X11). Cases run one per
   `systemd-run --user` unit with `MemoryMax=18G`, `MemorySwapMax=0`, `RuntimeMaxSec=1800` and no core dumps, through
   `flock -w 3600 ~/sketchyup-verification/gpu.lock`. The runner is `~/sketchyup-verification/r115-20261107/run-case.sh`.

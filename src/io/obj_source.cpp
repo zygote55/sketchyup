@@ -74,8 +74,10 @@ struct Parser {
     }
     size_t currentState() {
         if (stateDirty) {
-            if (result.states.size() == 10000)
-                fail("too many object/group/material states");
+            // A state is an object, group or material change. Bounded by the unique faces (R115: a fixed 10,000 refused
+            // a unique-limit model of 12,000 bodies).
+            checkFormatCount("OBJ import", "object, group and material states", result.states.size() + 1,
+                             DocumentLimits::unique.faces, "unique geometry");
             result.states.push_back(state);
             stateIndex = result.states.size() - 1;
             stateDirty = false;

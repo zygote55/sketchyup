@@ -327,7 +327,7 @@ struct Writer {
             if (paired)
                 ++backDifferences;
             const int appearance = material(front, back, paired);
-            const auto tessellated = cuts.empty() ? body.surface.triangulate(face)
+            const auto tessellated = cuts.empty() ? body.surface.triangulateExact(face)
                                                   : std::vector<Triangle>{};
             const auto count = cuts.empty() ? tessellated.size() : retained.at(face).size();
             triangles += count * (paired ? 2 : 1);

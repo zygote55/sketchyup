@@ -1,4 +1,5 @@
 #include "io/scenes_io.hpp"
+#include "core/document_limits.hpp"
 #include "io/model_style_io.hpp"
 #include "io/solar_io.hpp"
 #include "io/sections_io.hpp"
@@ -150,7 +151,9 @@ SceneSnapshot decodeSceneSnapshot(const QJsonValue &value, bool namedSections, b
     }
     if (fields.contains("visibility")) {
         const auto v = object(fields["visibility"], {"bodies", "tags", "hidden", "showHidden"});
-        SceneVisibility visibility{decodeFlags(v["bodies"], 10000),
+        // The record bounds the body flags by the materialized bodies (SceneVisibility::validate). R115: the decoder
+        // still stopped at 10,000, so a scene of more than 10,000 bodies could be saved and not opened.
+        SceneVisibility visibility{decodeFlags(v["bodies"], qsizetype(DocumentLimits::materialized.bodies)),
                                    decodeFlags(v["tags"], 1024),
                                    {},
                                    flag(v["showHidden"])};

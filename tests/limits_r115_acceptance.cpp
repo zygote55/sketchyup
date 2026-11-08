@@ -173,14 +173,6 @@ std::shared_ptr<Body> flatGrid(Id id, Vec3 origin, int n) {
     return body;
 }
 
-// Six flat grids of 798,848 faces: 4,793,088 faces and 7,197,216 edges, both within the materialized limits.
-std::map<Id, BodyPtr> flatGrids() {
-    const int n = smoke ? 20 : 632;
-    std::map<Id, BodyPtr> records;
-    for (int k = 0; k < 6; ++k)
-        records.emplace(Id(k + 1), flatGrid(Id(k + 1), {1.0 * k, 0, 0}, n));
-    return records;
-}
 
 // A document of the given bodies, restored as one file would be (no history).
 Document documentOf(const std::map<Id, BodyPtr> &bodies) {
@@ -220,6 +212,24 @@ Document materializedDocument(int &definitionOut, std::vector<Id> &placementRoot
     for (int i = 1; i < 6; ++i) {
         const auto placed = placeComponent(doc, component.definition,
                                            Transform::translation({2.5 * i, 0, 0}));
+        placementRoots.push_back(placed.instance);
+    }
+    return doc;
+}
+
+// Planar family for the DXF export: one flat grid of 798,848 faces (400,689 vertices) placed six times. The
+// unique geometry stays inside the unique limits (R115 review: six separate grids have 2,404,134 vertices, over
+// 2,400,000), and the placed model has 4,793,088 faces, within the materialized limits.
+Document flatGridDocument(int &definitionOut, std::vector<Id> &placementRoots) {
+    const int n = smoke ? 20 : 632;
+    Document doc = documentOf({{1, flatGrid(1, {0, 0, 0}, n)}});
+    const Id group = createGroup(doc, {1}, "Definition");
+    const auto component = createComponent(doc, group, "Grid");
+    definitionOut = int(component.definition);
+    placementRoots.push_back(component.instance);
+    for (int i = 1; i < 6; ++i) {
+        const auto placed = placeComponent(doc, component.definition,
+                                           Transform::translation({1.0 * i, 0, 0}));
         placementRoots.push_back(placed.instance);
     }
     return doc;
@@ -452,9 +462,9 @@ void exports(const std::string &format, const QString &dir) {
     std::vector<Id> placements;
     Document doc;
     if (format == "dxf") {
-        step("build six flat grids (planar, 4,793,088 faces)", [&] {
-            doc = documentOf(flatGrids());
-            return "faces " + number(qsizetype(facesOf(doc))) + ", edges " +
+        step("build one flat grid (798,848 faces) placed six times (4,793,088 placed faces)", [&] {
+            doc = flatGridDocument(definition, placements);
+            return "placed faces " + number(qsizetype(doc.materializedTotals().faces)) + ", placed edges " +
                    number(qsizetype(doc.materializedTotals().edges));
         });
     } else {

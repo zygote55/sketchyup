@@ -249,7 +249,7 @@ struct Writer {
                     require(identity != 0, "OBJ triangulation cannot resolve an original vertex");
                     return identity;
                 };
-                for (const auto &triangle : body.surface.triangulate(faceId)) {
+                for (const auto &triangle : body.surface.triangulateExact(faceId)) {  // exact corners, as the STL export (R115)
                     const auto smooth = shading.triangle(triangle);
                     const std::vector<Id> ids{original(triangle.a), original(triangle.b),
                                               original(triangle.c)};
