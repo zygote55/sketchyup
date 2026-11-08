@@ -137,8 +137,8 @@ more; the CI total rises by about one second.
 
 Results are in the section that follows the code. A case that did not run says why.
 
-Status at the end of this pull request: **no case has run on the GPU PC.** The owner's Blender job (`blender -b`
-on the owner's own project, PID 2605 on `sketchyup-gpu`) was running from 20:08 on 2026-11-07 and held the GPU at
+Status at the end of this pull request: **no case has run on the GPU PC.** A Blender job (`blender -b`, PID 2605 on
+`sketchyup-gpu`, not started by this worker and not under the GPU lock) was running from 20:08 on 2026-11-07 and held the GPU at
 97 to 99% busy at each check through 02:19 on 2026-11-08. The brief says to pause while the owner uses the machine, and
 the owner's process was not stopped. The runner and the binary are in place, so the cases run with one command per case:
 
@@ -161,8 +161,6 @@ ok. Smoke sizes prove the code paths, not the limits, and no at-limit size ran o
 Expected results, stated so that they can be checked (not measured): the GLB binary at 4,800,000 faces is about 0.7 to
 1 GB and its manifest about 1.4 GB (about 306 bytes a face); the chunk case has about 670 bytes a face on the
 laptop smoke run, which gives a chunk near 760 MiB at 595 bodies.
-
-The owner's Blender job did not run into any of the laptop's checks; the GPU PC's Arch and sanitized CI jobs are separate.
 
 The Blender import of the GLB (case 6) also needs the worker on the GPU PC; `scripts/verify-blender-glb.py` expects fixture
 layouts, so a direct import of the exported `scene.glb` is the plan, not yet run.
