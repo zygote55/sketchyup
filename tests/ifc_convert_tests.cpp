@@ -32,6 +32,13 @@ IfcImport import(const IfcPackage &package, IfcSpaces spaces = IfcSpaces::Hidden
     facts.bytes = 1;
     return importIfcPackage(package, options, facts);
 }
+// The same conversion with the bounds the caller gives (R115: a test lowers a product bound to reach a refusal).
+IfcImport importWith(const IfcPackage &package, const IfcImportOptions &options) {
+    IfcRunFacts facts;
+    facts.sha256 = "00";
+    facts.bytes = 1;
+    return importIfcPackage(package, options, facts);
+}
 template <class F> void refused(const char *code, F operation) {
     try {
         operation();
@@ -550,7 +557,8 @@ int main(int argc, char **argv) {
             check(noted, "the expansion is reported");
         }
         {
-            // The document limits: the 10,001st unique body is not imported, the rest are, and it is said.
+            // The document limits: with the unique body limit at 10,001 (the cube and 10,000 elements), the element
+            // after them is not imported and is reported with the limit named. The product limit is 80,000 (R115).
             IfcPackage p;
             p.meshes = {cubeMesh(1)};
             p.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
@@ -558,15 +566,18 @@ int main(int argc, char **argv) {
                 auto n = node(10 + i, "IfcBuildingElementProxy", "e", 0, IfcNodeRole::Element, i == 0 ? 0 : -1);
                 p.nodes.push_back(n);
             }
-            const auto result = import(p);
-            // 10,001 elements and the one cube mesh make 10,002 bodies; the R110 limit of 10,000 refused two (R115: 80,000).
-            check(result.document.bodies().size() == 10002, "10,002 bodies fit (R115: the unique body limit is 80,000)");
+            IfcImportOptions bounds;
+            bounds.unique.bodies = 10001;
+            const auto result = importWith(p, bounds);
+            check(result.document.bodies().size() == 10001, "10,001 bodies fit a unique body limit of 10,001");
             const auto elements = result.report["elements"].toObject()["notImported"].toArray();
-            check(elements.isEmpty(), "No element is refused at 10,001 bodies (R115: the unique body limit is 80,000)");
+            check(elements.size() == 1 && elements[0].toObject()["reason"].toString().startsWith("documentLimit:bodies") &&
+                      elements[0].toObject()["count"].toInt() == 1,
+                  "the 10,002nd body is refused by name at the unique body limit");
         }
         {
-            // A body of 100,001 faces is imported under the per-body limit of 800,000 (R115, from 100,000).
-            // Its triangles share no plane (each tilted differently), so they cannot merge.
+            // A body of 100,001 faces is over a per-body limit of 100,000 (the test lowers it; the product limit is
+            // 800,000, R115). Its triangles share no plane (each tilted differently), so they cannot merge.
             IfcPackageMesh big;
             for (std::uint32_t i = 0; i < 100001; ++i) {
                 const double x = double(i % 300) * 3, y = double(i / 300) * 3, tilt = 1e-3 + 1e-6 * i;
@@ -581,10 +592,12 @@ int main(int argc, char **argv) {
             p.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
             p.nodes.push_back(node(2, "IfcBuildingElementProxy", "big", 0, IfcNodeRole::Element, 0));
             p.nodes.push_back(node(3, "IfcBuildingElementProxy", "cube", 0, IfcNodeRole::Element, 1));
-            const auto result = import(p);
-            check(byStep(result.document, 2) != nullptr && byStep(result.document, 3) != nullptr, "the 100,001-face body and the cube are both imported");
+            IfcImportOptions bounds;
+            bounds.bodyLimit = 100000;
+            const auto result = importWith(p, bounds);
+            check(byStep(result.document, 2) == nullptr && byStep(result.document, 3) != nullptr, "the body over the per-body limit is left out, the cube stays");
             const auto elements = result.report["elements"].toObject()["notImported"].toArray();
-            check(elements.isEmpty(), "and nothing is reported");
+            check(elements.size() == 1 && elements[0].toObject()["reason"] == "bodyLimit", "and is reported with the limit");
         }
 
         {
@@ -603,7 +616,26 @@ int main(int argc, char **argv) {
                 accepted += byStep(roughResult.document, 2 + m) != nullptr;
             const auto refusals = roughResult.report["elements"].toObject()["notImported"].toArray();
             check(accepted == 31 && refusals.isEmpty(),
-                  "all 31 bodies (303,800 faces) fit the R115 unique face limit");
+                  "all 31 bodies (303,800 faces) fit the product unique face limit");
+            {
+                // Three bodies of 9,800 faces with the unique face limit at 19,600: two fit exactly, and the third is
+                // refused by name (the product limit is 2,400,000, R115).
+                IfcPackage three;
+                three.nodes.push_back(node(1, "IfcProject", "P", -1, IfcNodeRole::Project));
+                for (std::uint32_t m = 0; m < 3; ++m) {
+                    three.meshes.push_back(roughGrid(70, m));
+                    three.nodes.push_back(node(2 + m, "IfcBuildingElementProxy", "rough", 0, IfcNodeRole::Element, m));
+                }
+                IfcImportOptions bounds;
+                bounds.unique.faces = 19600;
+                const auto limited = importWith(three, bounds);
+                const auto cut = limited.report["elements"].toObject()["notImported"].toArray();
+                check(byStep(limited.document, 2) != nullptr && byStep(limited.document, 3) != nullptr && byStep(limited.document, 4) == nullptr,
+                      "two bodies of 9,800 faces fit a unique face limit of 19,600, and the third does not");
+                check(cut.size() == 1 && cut[0].toObject()["reason"].toString() == "documentLimit:faces" &&
+                          cut[0].toObject()["count"].toInteger() == 1,
+                      "the third body is refused with the face limit named");
+            }
             const std::string roughHash = encodingHash(roughResult.document);
             const std::string sampleHash = encodingHash(import(samplePackage()).document);
             const std::string pinnedRough = "12c7481acc142923da692b8fc3a838bcbc790e0c96df46402a6c770a8f827f52",

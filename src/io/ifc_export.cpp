@@ -48,6 +48,11 @@ constexpr std::size_t maxMeshVertices = 2400000, maxMeshTriangles = 1600000, max
 
 using Value = std::variant<bool, double, std::string>;
 
+// The byte bound as text, from its constant (R115: the message printed 256 MiB until the bound was raised).
+std::string ifcTooLargeMessage() {
+    return "The IFC file would be larger than " + std::to_string(maxIfcBytes / (1024 * 1024)) +
+           " MiB; nothing was written.";
+}
 [[noreturn]] void refuse(const std::string &code, const std::string &message, QJsonObject report = {}) {
     throw IfcExportError(code, message, std::move(report));
 }
@@ -1113,7 +1118,8 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
         closedMeshes += mesh.closed ? 1 : 0;
         colourMaps += mesh.colors.empty() ? 0 : 1;
         if (std::size_t(meshChunk.size()) > maxMeshBytes)
-            refuse("packageTooLarge", "The export's geometry is larger than the package bound (128 MiB).");
+            refuse("packageTooLarge", "The export's geometry is larger than the package bound (" +
+                                          std::to_string(maxMeshBytes / (1024 * 1024)) + " MiB).");
     }
     QJsonArray styles;
     qint64 materialStyles = 0;
@@ -1183,7 +1189,8 @@ IfcExportCapture captureChecked(const Document &document, const IfcExportOptions
                          {"nodes", nodes}};
     const auto manifestBytes = QJsonDocument(manifest).toJson(QJsonDocument::Compact);
     if (std::size_t(manifestBytes.size()) > maxManifestBytes)
-        refuse("packageTooLarge", "The export's description is larger than the package bound (32 MiB).");
+        refuse("packageTooLarge", "The export's description is larger than the package bound (" +
+                                          std::to_string(maxManifestBytes / (1024 * 1024)) + " MiB).");
     QByteArray package("SKIFCX01", 8);
     putU32(package, quint32(manifestBytes.size()));
     putU32(package, 0);
@@ -1502,7 +1509,7 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
                    "The IFC helper was stopped by its sandbox; nothing was written.", report);
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= qint64(maxIfcBytes))
-            refuse("outputTooLarge", "The IFC file would be larger than 256 MiB; nothing was written.", report);
+            refuse("outputTooLarge", ifcTooLargeMessage(), report);
         // (The report holds no host paths: the private directory is named for what it is.)
         report["logTail"] = scrubPaths(QString(run.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>"));
         refuse("workerFailed", "The IFC helper stopped (" + run.reason.toStdString() + "); nothing was written.", report);
@@ -1513,13 +1520,13 @@ IfcExportResult exportIfcFile(const Document &document, const QString &path, con
     if (!produced.isFile() || produced.isSymLink() || produced.size() <= 0)
         refuse("workerOutput", "The IFC helper produced no file.", report);
     if (produced.size() > qint64(maxIfcBytes))
-        refuse("outputTooLarge", "The IFC file would be larger than 256 MiB; nothing was written.", report);
+        refuse("outputTooLarge", ifcTooLargeMessage(), report);
     QByteArray bytes;
     {
         QFile file(outputPath);
         if (!file.open(QIODevice::ReadOnly))
             refuse("workerOutput", "The IFC helper's file cannot be read.", report);
-        bytes = file.read(qint64(maxIfcBytes) + 1);
+        bytes = file.read(qMin(file.size(), qint64(maxIfcBytes)) + 1);
     }
     if (bytes.size() != produced.size() || !bytes.startsWith("ISO-10303-21;") || !bytes.right(64).trimmed().endsWith("END-ISO-10303-21;"))
         refuse("workerOutput", "The IFC helper's file is not a complete STEP file.", report);

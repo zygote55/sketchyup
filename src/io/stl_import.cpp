@@ -26,7 +26,7 @@ void require(bool ok, const std::string &message) {
         throw std::runtime_error(message);
 }
 // The STL input bound (R113, D-102): eight times the R113 value of 128 MiB (R115).
-constexpr std::size_t stlInputLimit = 1024ull * 1024 * 1024;
+constexpr std::size_t stlInputLimit = stlInputByteLimit;
 struct Builder {
     const StlSource &source;
     StlRepairOptions repairs;

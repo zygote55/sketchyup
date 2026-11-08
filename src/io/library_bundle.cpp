@@ -57,7 +57,8 @@ QByteArray encodeBundle(const Document &source, const TemplateMetadata &metadata
     validateMetadata(metadata, source);
     const auto [width, height] = thumbnail(thumbnailPng);
     const auto model = encodeContainer(source);
-    require(model.size() <= modelLimit, "Template native payload exceeds 256 MiB");
+    require(model.size() <= modelLimit,
+            "Template native payload exceeds " + std::to_string(modelLimit / (1024 * 1024)) + " MiB");
     const auto verified = decodeContainer(model);
     validateMetadata(metadata, verified);
     QJsonArray labels;
@@ -152,7 +153,7 @@ QByteArray loadBundleBytes(const QString &path) {
     QFile file(path);
     require(file.open(QIODevice::ReadOnly) && file.size() <= libraryBundleLimit,
             "Cannot read bounded library bundle");
-    const auto bytes = file.read(libraryBundleLimit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(libraryBundleLimit)) + 1);
     require(file.error() == QFileDevice::NoError, "Library bundle read failed");
     return bytes;
 }

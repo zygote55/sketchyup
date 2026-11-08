@@ -406,7 +406,9 @@ private:
                                    {"nodes", nodes}};
         const QByteArray body = QJsonDocument(manifest).toJson(QJsonDocument::Compact);
         if (std::size_t(body.size()) > kMaxManifestBytes)
-            refuse("packageTooLarge", "The model's description is larger than the STEP export package takes; nothing was written.");
+            refuse("packageTooLarge",
+                    "The model's description is larger than the STEP export package takes (" +
+                        std::to_string(kMaxManifestBytes / (1024 * 1024)) + " MiB); nothing was written.");
 
         StepExportCapture capture;
         capture.package.reserve(24 + body.size() + chunk.size());
@@ -535,7 +537,10 @@ StepExportResult exportStepFile(const Document &document, const QString &path, c
                    "The IFC helper was stopped by its sandbox; nothing was written.", report);
         const QFileInfo produced(outputPath);
         if (produced.exists() && produced.size() >= kMaxStepBytes)
-            refuse("outputTooLarge", "The STEP file would be larger than 256 MiB; nothing was written.", report);
+            refuse("outputTooLarge",
+                "The STEP file would be larger than " + std::to_string(kMaxStepBytes / (1024 * 1024)) +
+                    " MiB; nothing was written.",
+                report);
         report["logTail"] = QString(run.logTail).replace(directory.path(), "<private directory>").replace(root, "<temporary directory>");
         refuse("workerFailed", "The STEP helper stopped (" + run.reason.toStdString() + "); nothing was written.", report);
     }
@@ -545,7 +550,10 @@ StepExportResult exportStepFile(const Document &document, const QString &path, c
     if (!produced.isFile() || produced.isSymLink() || produced.size() <= 0)
         refuse("workerOutput", "The STEP helper produced no file.", report);
     if (produced.size() > kMaxStepBytes)
-        refuse("outputTooLarge", "The STEP file would be larger than 256 MiB; nothing was written.", report);
+        refuse("outputTooLarge",
+                "The STEP file would be larger than " + std::to_string(kMaxStepBytes / (1024 * 1024)) +
+                    " MiB; nothing was written.",
+                report);
     QByteArray bytes;
     {
         QFile file(outputPath);

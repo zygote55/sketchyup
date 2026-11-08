@@ -9,7 +9,9 @@
 #include <algorithm>
 namespace sketchy {
 namespace {
-constexpr qsizetype scanByteLimit = 256 * 1024 * 1024, retainedThumbnailLimit = 16 * 1024 * 1024;
+// One scan may read one bundle at the bundle limit (R115 review, finding 3). The former 256 MiB budget refused a
+// 300 MiB template that the file bound admits.
+constexpr qsizetype scanByteLimit = libraryBundleLimit, retainedThumbnailLimit = 16 * 1024 * 1024;
 LibraryKind bundleKind(const QByteArray &bytes) {
     if (bytes.size() < 24 || !bytes.startsWith(QByteArray("SKYLIB\0\1", 8)))
         throw std::runtime_error("Invalid library bundle header");
@@ -58,13 +60,14 @@ LibraryCatalog scanLibraryDirectory(const QString &directory) {
             if (fileInfo.size() < 24 || fileInfo.size() > libraryBundleLimit)
                 throw std::runtime_error("Library file exceeds bundle size limits");
             if (fileInfo.size() > scanByteLimit - readBytes)
-                throw std::runtime_error(
-                    "Library scan reached its 256 MiB read budget. Use a smaller folder.");
+                throw std::runtime_error("Library scan reached its " +
+                                         std::to_string(scanByteLimit / (1024 * 1024)) +
+                                         " MiB read budget. Use a smaller folder.");
             QFile file(entry.path);
             if (!file.open(QIODevice::ReadOnly))
                 throw std::runtime_error("Cannot read library file");
             const auto budget = std::min(libraryBundleLimit, scanByteLimit - readBytes);
-            const auto bytes = file.read(budget + 1);
+            const auto bytes = file.read(qMin(file.size(), qint64(budget)) + 1);
             readBytes += bytes.size();
             if (file.error() != QFileDevice::NoError || bytes.size() > budget || !file.atEnd())
                 throw std::runtime_error("Library file changed or exceeded the read budget");
@@ -104,7 +107,7 @@ QByteArray readLibraryEntry(const LibraryEntry &entry) {
     QFile file(entry.path);
     if (!file.open(QIODevice::ReadOnly))
         throw std::runtime_error("Cannot read library entry");
-    const auto bytes = file.read(libraryBundleLimit + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(libraryBundleLimit)) + 1);
     if (file.error() != QFileDevice::NoError || bytes.size() > libraryBundleLimit ||
         QCryptographicHash::hash(bytes, QCryptographicHash::Sha256) != entry.contentSha256)
         throw std::runtime_error("Library entry changed. Refresh the library before selecting it.");

@@ -279,7 +279,7 @@ struct OutcomeStore::State {
         QFile file(path);
         require(file.open(QIODevice::ReadOnly) && file.size() <= qint64(limits.bytes), "IO_FAILURE",
                 "Cannot read bounded outcome checkpoint");
-        const auto bytes = file.read(qint64(limits.bytes) + 1);
+        const auto bytes = file.read(qMin(file.size(), qint64(limits.bytes)) + 1);
         require(file.error() == QFileDevice::NoError && size_t(bytes.size()) <= limits.bytes,
                 "IO_FAILURE", "Outcome checkpoint read failed");
         auto next = decode(bytes, doc, limits.bytes);

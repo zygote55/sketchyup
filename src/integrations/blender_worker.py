@@ -27,11 +27,15 @@ FRAME_IMAGE_LIMIT = 64 * 1024 * 1024
 # The GLB bounds (R115): the same numbers as src/integrations/glb_export.hpp, eight times the R113
 # values where those were bytes. The corner bound is three indices for each triangle of the
 # materialized corner limit (2 x 7,200,000 edges = 14,400,000 triangles).
-GLB_BINARY_LIMIT = 2048 * 1024 * 1024
+# 2 GiB less one byte: the C++ writer's bound (glb_export.hpp glbBinaryByteLimit, INT_MAX).
+GLB_BINARY_LIMIT = 2048 * 1024 * 1024 - 1
 GLB_JSON_LIMIT = 128 * 1024 * 1024
 GLB_MANIFEST_LIMIT = 1536 * 1024 * 1024
 GLB_CORNER_LIMIT = 3 * 2 * 7200000
 GLB_BLEND_LIMIT = 2048 * 1024 * 1024
+# The largest texture side (R115): src/io/texture_image.hpp TextureImage::dimensionLimit. A 64 MiB
+# asset can hold an 8192 by 8192 PNG, and the GLB export embeds textures at their full size.
+TEXTURE_DIMENSION_LIMIT = 8192
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 # The text chunks Blender writes into a PNG: the date, the times and the Cycles statistics.
 PNG_TEXT_CHUNKS = (b'tEXt', b'zTXt', b'iTXt')
@@ -220,7 +224,8 @@ def prepare_sided_glb(data):
             require(pixels[:8] == b'\x89PNG\r\n\x1a\n'
                     and pixels[8:16] == b'\x00\x00\x00\x0dIHDR', 'Invalid texture PNG header')
             width, height, depth = struct.unpack_from('>IIB', pixels, 16)
-            require(0 < width <= 4096 and 0 < height <= 4096 and depth == 8,
+            require(0 < width <= TEXTURE_DIMENSION_LIMIT and 0 < height <= TEXTURE_DIMENSION_LIMIT
+                    and depth == 8,
                     'Texture PNG exceeds supported dimensions or depth')
             image_pixels += width * height * 4
             require(image_pixels <= GLB_BINARY_LIMIT,

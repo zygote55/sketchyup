@@ -21,10 +21,13 @@
 namespace sketchy {
 namespace {
 // Scaled with the benchmark-only limit scale (R114); the published values at scale 1. R115 (from
-// 256 MiB and 16 MiB) multiplies each GLB bound by eight. The binary bound is 2 GiB, below the 4 GiB
-// that a 32-bit glTF chunk length can hold.
-constexpr qsizetype binaryLimit = 2048LL * 1024 * 1024 * DocumentLimits::scale,
-                    jsonLimit = 128LL * 1024 * 1024 * DocumentLimits::scale;
+// 256 MiB and 16 MiB) multiplies each GLB bound by eight. The writer keeps buffer offsets and lengths
+// in int and the glTF chunk lengths in 32 bits, so no GLB bound passes INT_MAX whatever the scale.
+// At scale 8 the binary bound was 16 GiB, and the casts wrapped past 2 GiB and 4 GiB (R115 review).
+constexpr qsizetype binaryLimit = glbBinaryByteLimit,
+                    glbCastLimit = std::numeric_limits<int>::max(),
+                    jsonLimit = std::min<qsizetype>(qsizetype(128) * 1024 * 1024 * qsizetype(DocumentLimits::scale),
+                                                    glbCastLimit);
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -34,12 +37,12 @@ void require(bool ok, const std::string &message) {
         throw std::runtime_error(message);
 }
 // A bound in MiB for a message, computed from the constant (the messages used to print 256 and 16).
-std::string mib(qsizetype bytes) { return std::to_string(bytes / (1024 * 1024)) + " MiB"; }
-// The bound is stated from its constant, so the message and the limit cannot disagree (R112).
-[[noreturn]] void manifestTooLarge() {
-    throw std::runtime_error("GLB manifest exceeds " +
-                             std::to_string(glbManifestByteLimit / (1024 * 1024)) + " MiB");
+// Rounded up, so a bound a few bytes under 2 GiB (INT_MAX, at a benchmark scale) prints as 2048 MiB.
+std::string mib(qsizetype bytes) {
+    return std::to_string((bytes + 1024 * 1024 - 1) / (1024 * 1024)) + " MiB";
 }
+// The bound is stated from its constant, so the message and the limit cannot disagree (R112).
+[[noreturn]] void manifestTooLarge(qsizetype bound) { throw std::runtime_error("GLB manifest exceeds " + mib(bound)); }
 QString id(Id value) { return QString::number(value); }
 QString digest(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
@@ -123,8 +126,10 @@ struct Writer {
     Bounds bounds;
     SourceCredits credits; // R107.c1: the DEM notices of the terrain written
     size_t visibleFaceBudget{};
-    Writer(const RenderSnapshot &snapshot, size_t visibleFaces)
-        : snapshot(snapshot), doc(snapshot.document()), visibleFaceBudget(visibleFaces) {}
+    size_t decodedTextureBudget{};
+    Writer(const RenderSnapshot &snapshot, size_t visibleFaces, size_t decodedTextures)
+        : snapshot(snapshot), doc(snapshot.document()), visibleFaceBudget(visibleFaces),
+          decodedTextureBudget(decodedTextures) {}
     int buffer(const QByteArray &data, bool attributes) {
         aligned(binary, 0);
         require(data.size() <= binaryLimit - binary.size(), "GLB binary exceeds " + mib(binaryLimit));
@@ -165,8 +170,8 @@ struct Writer {
                           {"status", QString::fromUtf8(textureImageStatusName(decoded.status))}};
         if (decoded.image) {
             const auto &image = *decoded.image;
-            require(image.rgba().size() <= size_t(binaryLimit) - decodedImageBytes,
-                    "GLB decoded texture images exceed " + mib(binaryLimit));
+            require(image.rgba().size() <= decodedTextureBudget - decodedImageBytes,
+                    "GLB decoded texture images exceed " + mib(decodedTextureBudget));
             decodedImageBytes += image.rgba().size();
             const auto png = encodeTexturePng(image);
             result.texture = textures.size();
@@ -668,20 +673,20 @@ struct Writer {
             environment = snapshot.environment()->image;
         }
         if (QJsonDocument(manifest).toJson(QJsonDocument::Compact).size() > glbManifestByteLimit)
-            manifestTooLarge();
+            manifestTooLarge(glbManifestByteLimit);
         return {std::move(glb), std::move(manifest), std::move(environment)};
     }
 };
 } // namespace
-GlbExport exportGlb(const RenderSnapshot &snapshot, size_t visibleFaceBudget) {
-    return Writer(snapshot, visibleFaceBudget).run();
+GlbExport exportGlb(const RenderSnapshot &snapshot, size_t visibleFaceBudget, size_t decodedTextureBudget) {
+    return Writer(snapshot, visibleFaceBudget, decodedTextureBudget).run();
 }
-void writeGlbExport(const GlbExport &scene, const QString &directory) {
+void writeGlbExport(const GlbExport &scene, const QString &directory, qsizetype manifestLimit) {
     require(!directory.isEmpty(), "Choose an export directory");
     const auto manifest = QJsonDocument(scene.manifest).toJson();
     require(scene.glb.size() <= binaryLimit, "Export artifacts exceed bounds");
-    if (manifest.size() > glbManifestByteLimit)
-        manifestTooLarge();
+    if (manifest.size() > manifestLimit)
+        manifestTooLarge(manifestLimit);
     const auto identity = scene.manifest.value("scene").toObject();
     require(identity.value("file") == "scene.glb" &&
                 identity.value("bytes").toInteger() == scene.glb.size() &&

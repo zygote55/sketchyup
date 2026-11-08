@@ -68,17 +68,17 @@ struct Importer {
     // Primitives over the one-body limit, as name and body count (R113, D-102).
     QJsonArray bodySplits;
     size_t assetSize{}, decodedBytes{};
+    size_t decodedImageLimit{gltfDecodedImageLimit};
+    LimitCounts uniqueBounds{DocumentLimits::unique};
     std::set<const cgltf_node *> visited;
-    explicit Importer(const GltfPackage &p) : package(p), data(p.data()) {}
+    Importer(const GltfPackage &p, size_t decodedBudget, const LimitCounts &unique)
+        : package(p), data(p.data()), decodedImageLimit(decodedBudget), uniqueBounds(unique) {}
     void loss(const char *key, int count = 1) { losses[key] = losses[key].toInt() + count; }
     void checkTotals() const {
         const auto operation = "glTF import";
-        checkFormatCount(operation, "vertices", unique.vertices, DocumentLimits::unique.vertices,
-                         "unique geometry");
-        checkFormatCount(operation, "faces", unique.faces, DocumentLimits::unique.faces,
-                         "unique geometry");
-        checkFormatCount(operation, "bodies", unique.bodies, DocumentLimits::unique.bodies,
-                         "unique geometry");
+        checkFormatCount(operation, "vertices", unique.vertices, uniqueBounds.vertices, "unique geometry");
+        checkFormatCount(operation, "faces", unique.faces, uniqueBounds.faces, "unique geometry");
+        checkFormatCount(operation, "bodies", unique.bodies, uniqueBounds.bodies, "unique geometry");
         checkFormatCount(operation, "vertices", materialized.vertices,
                          DocumentLimits::materialized.vertices, "materialized");
         checkFormatCount(operation, "faces", materialized.faces,
@@ -187,8 +187,6 @@ struct Importer {
         if (decoded.status != TextureImageStatus::Ready)
             throw std::runtime_error("glTF texture is not a supported bounded PNG/JPEG image");
         decodedBytes += decoded.image->rgba().size();
-        // Eight times the R113 value of 256 MiB (R115).
-        constexpr size_t decodedImageLimit = 2048ull * 1024 * 1024;
         if (decodedBytes > decodedImageLimit)
             throw std::runtime_error("glTF textures exceed the " +
                                      std::to_string(decodedImageLimit / (1024 * 1024)) +
@@ -562,6 +560,8 @@ struct Importer {
     }
 };
 } // namespace
-GltfImport importGltf(const GltfPackage &package) { return Importer(package).run(); }
+GltfImport importGltf(const GltfPackage &package, size_t decodedImageBudget, const LimitCounts &uniqueBounds) {
+    return Importer(package, decodedImageBudget, uniqueBounds).run();
+}
 GltfImport loadGltf(const QString &path) { return importGltf(GltfPackage::read(path)); }
 } // namespace sketchy

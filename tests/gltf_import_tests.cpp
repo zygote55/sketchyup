@@ -369,14 +369,17 @@ int main(int argc, char **argv) {
         huge.primitive(p);
         huge.save(path);
         std::string refusal;
+        // R115: the bound is a parameter of importGltf. At the R113 value of 300,000 this file, of 300,001 vertices,
+        // is refused by name (the product unique vertex limit is 2,400,000).
+        LimitCounts vertexBounds = DocumentLimits::unique;
+        vertexBounds.vertices = 300000;
         try {
-            loadGltf(path);
+            importGltf(GltfPackage::read(path), gltfDecodedImageLimit, vertexBounds);
         } catch (const std::exception &error) {
             refusal = error.what();
         }
-        // R115: the unique vertex limit is 2,400,000, so 300,001 vertices are not refused by that limit.
-        check(refusal.find("of 300,000") == std::string::npos,
-              "A glTF of 300,001 vertices is within the R115 unique vertex limit");
+        check(refusal.find("vertices would be 300,001 of 300,000") != std::string::npos,
+              "A glTF of 300,001 vertices is refused by name at a unique vertex bound of 300,000");
         Fixture duplicates;
         auto duplicateMaterials = duplicates.tree["materials"].toArray();
         duplicateMaterials.append(duplicateMaterials[0]);
@@ -419,8 +422,17 @@ int main(int argc, char **argv) {
         compressed.tree["nodes"] = roots;
         compressed.tree["scenes"] = QJsonArray{QJsonObject{{"nodes", QJsonArray{0, 1, 2, 3, 4}}}};
         compressed.save(path);
-        // R115: the aggregate decoded budget is 2 GiB. Five 4096-square images decode to 320 MiB and
-        // load; the refusal at 2 GiB is a constant of the importer, not built here.
+        // R115: the aggregate decoded budget is a parameter of importGltf (the product value is 2 GiB). One byte
+        // under the first image's decode (4096 by 4096 RGBA, 64 MiB) is refused on that image. The five images
+        // decode to 320 MiB and load under the product budget.
+        std::string decodedRefusal;
+        try {
+            importGltf(GltfPackage::read(path), std::size_t(4096) * 4096 * 4 - 1);
+        } catch (const std::exception &error) {
+            decodedRefusal = error.what();
+        }
+        check(decodedRefusal.find("aggregate decoded-image budget") != std::string::npos,
+              "Small compressed images cannot bypass the aggregate decode budget");
         (void)loadGltf(path);
         // Native exporter is another producer; a GLB must return the same metre dimensions.
         Document native;

@@ -157,7 +157,8 @@ EdgeUses edgeUses(const DirectedEdges &edges, Id from, Id to) {
 
 // The planar-patch merge (ADR 0171 section 3.3): coplanar triangles that share an edge and a look become
 // one polygon face, with holes where the outline requires; everything else stays triangles.
-MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<Id(std::uint32_t)> &nativeMaterial) {
+MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<Id(std::uint32_t)> &nativeMaterial,
+                               std::size_t bodyLimit = Surface::bodyLimit) {
     MeshGeometry result;
     result.body = std::make_shared<Body>();
     Body &body = *result.body;
@@ -349,7 +350,7 @@ MeshGeometry buildMeshGeometry(const IfcPackageMesh &mesh, const std::function<I
     }
     result.stats.faces = surface.faces.size();
     result.stats.vertices = surface.vertices.size();
-    if (surface.faces.size() > Surface::bodyLimit || surface.vertices.size() > Surface::bodyLimit) {
+    if (surface.faces.size() > bodyLimit || surface.vertices.size() > bodyLimit) {
         result.stats.tooLarge = true;
         return result;
     }
@@ -798,7 +799,8 @@ MeshGeometry &Converter::geometryFor(std::size_t mesh) {
     const auto found = geometry.find(mesh);
     if (found != geometry.end())
         return found->second;
-    auto built = buildMeshGeometry(pkg.meshes[mesh], [&](std::uint32_t index) { return materialFor(index); });
+    auto built = buildMeshGeometry(pkg.meshes[mesh], [&](std::uint32_t index) { return materialFor(index); },
+                                   options.bodyLimit);
     return geometry.emplace(mesh, std::move(built)).first->second;
 }
 
@@ -1067,7 +1069,7 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
     // (R110): the component definition limits bound it as the unique limits bound the model.
     const auto tryAdd = [&](const LimitCounts &addUnique, const LimitCounts &addMaterialized,
                             const LimitCounts &addDefinition, std::string &exceeded) {
-        if (const auto bad = exceededLimit(addDefinition, LimitClass::ComponentDefinition);
+        if (const auto bad = exceededLimit(addDefinition, LimitClass::ComponentDefinition, options.definition);
             !bad.empty()) {
             exceeded = std::string(bad);
             return false;
@@ -1083,9 +1085,9 @@ Converter::Attempt Converter::build(std::size_t aggregateBudget) {
         };
         plus(u, addUnique);
         plus(m, addMaterialized);
-        auto bad = exceededLimit(u, LimitClass::UniqueGeometry);
+        auto bad = exceededLimit(u, LimitClass::UniqueGeometry, options.unique);
         if (bad.empty())
-            bad = exceededLimit(m, LimitClass::Placement);
+            bad = exceededLimit(m, LimitClass::Placement, options.materialized);
         if (!bad.empty()) {
             exceeded = std::string(bad);
             return false;

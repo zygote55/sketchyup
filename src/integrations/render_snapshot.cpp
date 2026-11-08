@@ -339,13 +339,16 @@ SourceCredits viewDemCredits(const Document &document, const RenderSnapshot &sna
     }
     return credits;
 }
+void requireSnapshotBodies(std::size_t bodies, std::size_t limit) {
+    require(bodies <= limit, "Render snapshot contains too many records");
+}
 RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions options,
                                        SelectionSet hidden) {
     validateRenderSettings(options.settings);
     require(withinReadSnapshotBudget(document, Document::readSnapshotByteLimit),
             "Render snapshot exceeds the read-snapshot budget");
-    require(document.bodies().size() <= renderSnapshotBodyLimit && hidden.size() <= 10000,
-            "Render snapshot contains too many records");
+    requireSnapshotBodies(document.bodies().size());
+    require(hidden.size() <= 10000, "Render snapshot contains too many records");
     for (auto entity : hidden) {
         require(document.bodies().contains(entity.body), "Hidden render entity no longer exists");
         if (entity.kind == SelectionKind::Face)

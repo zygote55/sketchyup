@@ -667,7 +667,7 @@ void showStepExportRefusal(QWidget *parent, const QString &path, const std::stri
     else if (codeText == "meshTooLarge")
         whatToDo = "1. Split the body that is too large into smaller bodies.\n2. Export again.";
     else if (codeText == "tooManyTriangles")
-        whatToDo = "1. Export a smaller part of the model; the export takes at most 1,000,000 triangles.\n2. Export again.";
+        whatToDo = "1. Export a smaller part of the model; the export takes at most 1,600,000 triangles in one body.\n2. Export again.";
     else if (codeText == "packageTooLarge")
         whatToDo = "1. The model is larger than the export takes; export a smaller part of it.\n2. Export again.";
     else if (codeText == "emptyModel")

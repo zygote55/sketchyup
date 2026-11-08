@@ -14,6 +14,10 @@ void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
 }
+void require(bool ok, const std::string &message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
 } // namespace
 DxfImport importDxf(const DxfSource &source, unsigned segmentsPerCircle) {
     require(segmentsPerCircle >= 12 && segmentsPerCircle <= 256,
@@ -199,7 +203,7 @@ DxfImport loadDxf(const QString &path, DxfOptions options, unsigned segmentsPerC
     QFile file(path);
     const QFileInfo info(path);
     require(info.isFile() && info.size() <= dxfByteLimit && file.open(QIODevice::ReadOnly),
-            "DXF requires a regular file of at most 256 MiB");
+            "DXF requires a regular file of at most " + std::to_string(dxfByteLimit / (1024 * 1024)) + " MiB");
     const auto bytes = file.read(qMin(file.size(), qint64(dxfByteLimit)) + 1);
     require(file.error() == QFileDevice::NoError, "Cannot capture DXF source");
     return importDxf(parseDxf(bytes, options), segmentsPerCircle);

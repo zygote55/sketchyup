@@ -60,7 +60,7 @@ std::string serializePackage(const PackageData& data, std::string& problem) {
   }
   meshes.endArray();
   if (mesh.size() > 1024u * 1024 * 1024) {
-    problem = "The meshes exceed the 128 MiB package bound.";
+    problem = "The meshes exceed the 1024 MiB package bound.";
     return {};
   }
   JsonOut materials;
@@ -125,7 +125,7 @@ std::string serializePackage(const PackageData& data, std::string& problem) {
   member("nodes", nodes.str());
   manifest += '}';
   if (manifest.size() > 256u * 1024 * 1024) {
-    problem = "The manifest exceeds the 32 MiB package bound.";
+    problem = "The manifest exceeds the 256 MiB package bound.";
     return {};
   }
   std::string out("SKIFCP01", 8);

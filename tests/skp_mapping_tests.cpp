@@ -851,11 +851,14 @@ int main(int argc, char **argv) {
                 package.definitions[0].faces.push_back(first);
                 package.definitions[0].faces.push_back(second);
             }
-        const auto imported = importSkpPackage(package);
+        // The per-body bound is lowered to 100,000 faces here (R115: the product bound is 800,000), so that
+        // 150,152 faces in one bucket become two bodies, as they did before R115.
+        SkpImportOptions bounds;
+        bounds.bodyLimit = 100000;
+        const auto imported = importSkpPackage(package, bounds);
         const auto splits = imported.report["bodySplits"].toArray();
-        // R115: the per-body limit is 800,000 faces, so 150,152 faces stay one body.
-        check(splits.isEmpty(),
-              "body split: 150,152 faces in one bucket stay one body (R115: the per-body limit is 800,000)");
+        check(splits.size() == 1 && splits[0].toObject()["bodies"].toInt() == 2,
+              "body split: 150,152 faces in one bucket become two bodies");
         check(imported.report["counts"].toObject()["faces"].toInt() == 2 * side * side,
               "body split: every face is imported");
         std::size_t faces = 0;

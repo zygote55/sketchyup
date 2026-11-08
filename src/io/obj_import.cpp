@@ -89,7 +89,7 @@ struct Importer {
             const auto bytes = read(path, AssetPayload::limit);
             assetSize += size_t(bytes.size());
             if (assetSize > assetTotalLimit)
-                throw std::runtime_error("OBJ images exceed 64 MiB");
+                throw std::runtime_error("OBJ images exceed " + std::to_string(assetTotalLimit / (1024 * 1024)) + " MiB");
             if (bytes.startsWith(QByteArray::fromHex("89504e470d0a1a0a")))
                 asset->mediaType = "image/png";
             else if (bytes.startsWith(QByteArray::fromHex("ffd8")))

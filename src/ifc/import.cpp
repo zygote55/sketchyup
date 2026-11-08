@@ -38,8 +38,8 @@ namespace sketchyup::ifc {
 namespace {
 
 constexpr double nativeCoordinateLimit = 1e6;
-// The node bound is ImportOptions::maxNodes (40,000, the application's materialized limit): more nodes are reported as
-// not imported here instead of making a manifest the decoder would refuse.
+// The node bound is ImportOptions::maxNodes (800,000, the package's node bound, IfcPackageLimits::nodes, R115): more
+// nodes are reported as not imported here instead of making a manifest the decoder would refuse.
 constexpr std::size_t maxNodeProperties = 4096;
 constexpr std::size_t maxPropertyBytes = 8u << 20;  // text of all properties together
 constexpr std::size_t maxPackageMaterials = 1024;  // the application keeps 1,024 (DocumentLimits)
@@ -588,8 +588,8 @@ int runImport(const ImportOptions& options) {
       } else if (e.meshOfGeometry >= 0) {
         const long long triangles = static_cast<long long>(ctx.geometry.meshes[static_cast<std::size_t>(e.meshOfGeometry)].triangles.size() / 3);
         const bool seen = counted.contains(e.meshOfGeometry);
-        if (triangles > 1600000) why = "meshTriangleLimit";
-        else if (!seen && total + triangles > 10000000) why = "triangleBudget";
+        if (triangles > static_cast<long long>(options.maxMeshTriangles)) why = "meshTriangleLimit";
+        else if (!seen && total + triangles > static_cast<long long>(options.maxTotalTriangles)) why = "triangleBudget";
         else if (!seen) {
           counted.insert(e.meshOfGeometry);
           total += triangles;

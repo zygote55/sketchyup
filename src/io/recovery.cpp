@@ -77,7 +77,8 @@ QByteArray read(const QString &path, qsizetype limit) {
     QFile file(path);
     require(file.open(QIODevice::ReadOnly) && file.size() <= limit,
             "Cannot read bounded recovery file");
-    const auto bytes = file.read(limit + 1);
+    // Sized to the file: QIODevice::read(n) reserves n bytes at once, so the bound is not reserved (R115).
+    const auto bytes = file.read(qMin(file.size(), qint64(limit)) + 1);
     require(file.error() == QFileDevice::NoError && bytes.size() <= limit, "Recovery read failed");
     return bytes;
 }

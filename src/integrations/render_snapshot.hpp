@@ -22,6 +22,9 @@ struct RenderOptions {
 // was not measured for its preparation time, so that budget is a known contradiction (recorded in
 // ADR 0005 "Implementation notes (R115)").
 inline constexpr std::size_t renderSnapshotBodyLimit = 160000 * DocumentLimits::scale;
+// The body bound of a capture, with its limit as a parameter so that a test reaches the refusal boundary
+// with a small count (R115). RenderSnapshot::capture passes the product constant.
+void requireSnapshotBodies(std::size_t bodies, std::size_t limit = renderSnapshotBodyLimit);
 RenderCamera renderSceneCamera(const SceneCamera &camera);
 Transform renderCameraTransform(const RenderCamera &camera);
 QJsonObject describeRenderSettings(const RenderSettings &settings);

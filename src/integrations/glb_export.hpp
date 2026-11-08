@@ -3,7 +3,9 @@
 #include "integrations/render_snapshot.hpp"
 #include <QByteArray>
 #include <QString>
+#include <algorithm>
 #include <cstddef>
+#include <limits>
 namespace sketchy {
 struct GlbExport {
     QByteArray glb;
@@ -17,8 +19,11 @@ struct GlbExport {
 // an export of 600,000 visible modelling faces writes a 175.2 MiB manifest (measured, R112).
 // R115 multiplies every GLB bound by eight, so this one is 1.5 GiB: 4,800,000 visible faces at about
 // 306 bytes each is about 1.4 GiB. src/integrations/blender_worker.py states the same number and
-// must change with it.
-inline constexpr qsizetype glbManifestByteLimit = 1536LL * 1024 * 1024 * DocumentLimits::scale;
+// must change with it. At a benchmark scale above 1 the bound stops at INT_MAX, the largest size the
+// JSON writer's 32-bit offsets hold (R115 review; the product value at scale 1 is 1.5 GiB).
+inline constexpr qsizetype glbManifestByteLimit =
+    std::min<qsizetype>(qsizetype(1536) * 1024 * 1024 * qsizetype(DocumentLimits::scale),
+                        std::numeric_limits<int>::max());
 // R112 (1.8.0, owner approval 2026-11-06): the visible faces of modelling bodies one GLB export
 // writes, counted across placements (ADR 0032, R112). A terrain tile's faces are counted against
 // terrainTriangleLimit instead (ADR 0168 decision 3), so a terrain does not use this budget. The
@@ -27,9 +32,19 @@ inline constexpr qsizetype glbManifestByteLimit = 1536LL * 1024 * 1024 * Documen
 inline constexpr std::size_t glbVisibleFaceLimit = 4800000 * DocumentLimits::scale;
 // `visibleFaceBudget` is the cap the export enforces; callers use the default. A test passes a
 // smaller one to reach the refusal boundary without a 600,000-face document.
+// The GLB's binary bound (R115): eight times R112's 256 MiB, which is 2 GiB, less one byte. The writer keeps buffer
+// offsets and lengths in int, so the bound is INT_MAX (the largest value an int holds), whatever the benchmark scale;
+// the glTF chunk lengths are 32-bit too. The decoded texture budget (the RGBA pixels the export embeds) is this bound.
+inline constexpr qsizetype glbBinaryByteLimit =
+    std::min<qsizetype>(qsizetype(2048) * 1024 * 1024 * qsizetype(DocumentLimits::scale),
+                        std::numeric_limits<int>::max());
+// `decodedTextureBudget` is the same kind of cap for the decoded texture pixels; a test passes a smaller one.
 GlbExport exportGlb(const RenderSnapshot &snapshot,
-                    std::size_t visibleFaceBudget = glbVisibleFaceLimit);
+                    std::size_t visibleFaceBudget = glbVisibleFaceLimit,
+                    std::size_t decodedTextureBudget = glbBinaryByteLimit);
 // Publishes only into a new explicit directory. The hash-bearing manifest is
 // written last; consumers verify it before accepting the scene as complete.
-void writeGlbExport(const GlbExport &scene, const QString &directory);
+// `manifestLimit` is the manifest bound; a test passes a smaller one to reach the refusal boundary.
+void writeGlbExport(const GlbExport &scene, const QString &directory,
+                    qsizetype manifestLimit = glbManifestByteLimit);
 } // namespace sketchy

@@ -5,8 +5,9 @@ Date: 2026-11-07. Branch `feat/r115-raise-limits`. The owner approved the raise 
 [R114](R114-hardware-limits.md), not a memory ceiling. The 3.75 GiB and 8 GiB ceilings of earlier records
 only protected the development laptop and do not apply (owner, 2026-11-07).
 
-Status of this record: **the code and the CI changes are complete and tested locally. The at-limit acceptance
-on the GPU PC is in the results section below; any case not run there says why.** Models are synthetic.
+Status of this record: **the code and the CI changes are complete, and the review fixes of 2026-11-08 are in (see
+"Review findings (2026-11-08)"). No at-limit case has run on the GPU PC: those results are pending.** A Blender job
+not started by this worker holds that machine (see "Acceptance on the GPU PC"). Models are synthetic.
 
 ## Values as built
 
@@ -45,6 +46,29 @@ on the GPU PC is in the results section below; any case not run there says why.*
 | STEP triangles per element, in total, vertices per element | 100,000; 1,000,000; 300,000 | 1,600,000; 10,000,000; 2,400,000 | matches the IFC package bounds |
 | Library bundle (catalog, template) | 130 MiB | 1040 MiB | a definition of 800,000 faces is about 180 MB |
 | Terrain triangles | 250,000 | 250,000 (unchanged) | not measured |
+
+Values changed by the review (2026-11-08; see its section):
+
+| Limit | Before | As built | Why |
+| --- | ---: | ---: | --- |
+| glTF import parse budgets: file | 1 GiB | 2 GiB | the export's binary bound |
+| glTF import: JSON | 16 MiB | 128 MiB | the export's JSON bound |
+| glTF import: JSON values | 1,000,000 | the JSON bound in bytes (134,217,728) | each value takes at least a byte |
+| glTF import: accessor count, primitive elements | 8,000,000 | 43,200,000 | 3 × 14,400,000 corners (both sides) |
+| glTF import: accessor elements | 16,000,000 | 129,600,000 | three accessors per corner |
+| glTF import: nodes, meshes | 10,000 | 400,000 | materialized bodies plus placements |
+| glTF import: primitives | 10,000 | 14,400,000 | one triangle at least per primitive |
+| glTF import: materials, images, accessors, views | 1,024; 1,024; 65,536; 65,536 | 14,400,000; 14,400,000; 43,200,000; 43,200,000 | the export's own bounds (Budget bounds the memory) |
+| IFC import: node bound | 40,000 | 800,000 | the package's bound (`IfcPackageLimits::nodes`) |
+| IFC helper: triangles per element, in all | 1,600,000; 10,000,000 | the same, passed as flags | the package's bounds (were literals) |
+| Library and catalog scan read budget | 256 MiB | 1,040 MiB (one bundle) | a 300 MiB template was refused by the budget |
+| GLB binary bound (and the whole file) | 2 GiB | 2 GiB less one byte (INT_MAX) | the writer's int offsets must stay positive; it is the same bound at scale 1 apart from that byte |
+| GLB binary, JSON and manifest bounds at a benchmark scale | 2 GiB × scale, … | capped at INT_MAX | the writer's int offsets and 32-bit chunk lengths |
+| SKP helper address space | 4 GiB | 8 GiB | a 2 GiB input and 2 GiB package at once |
+| SKP package total | 2 GiB (message: 512 MiB) | 2 GiB, checked before assembly | the message was wrong, and the copy was built first |
+| SKP texture dimension | 4,096 | 8,192 | the product texture limit |
+| Blender worker texture dimension | 4,096 | 8,192 | the GLB export embeds textures at full size |
+| OBJ export manifest | 16 MiB | 128 MiB | a format byte bound, eight times R113 |
 
 The format count limits (OBJ, STL, glTF, DXF) take the document limits through `checkFormatCount`,
 `materializedCornerLimit` and `uniqueCornerLimit`, so they follow the table without a separate value.
@@ -110,6 +134,107 @@ Not changed, with the reason:
 - Presentation, animation, video and render outputs (512 MiB video, 64 MiB frames, 2 GiB output): not model data.
 - The automation and transaction budgets for requests, responses and recipes (1 MiB to 256 MiB): not model data.
 
+## Review findings (2026-11-08)
+
+A review of this pull request found nine items. Each was checked against the code, and each is confirmed. Finding 6
+named a set of files; the sweep below covers more messages in the same files and in others that print a bound R115
+changed.
+
+| # | Finding | Outcome | What was done |
+| --- | --- | --- | --- |
+| 1 | The Blender worker refuses textures above 4096 | fixed | `src/integrations/blender_worker.py`: `TEXTURE_DIMENSION_LIMIT = 8192` (the product texture limit, `TextureImage::dimensionLimit`). The render-setting size check (4096) is a render output, not a texture, and is unchanged. Not run here: the laptop has no Blender. |
+| 2 | IFC import stops at 40,000 elements | fixed | `ImportOptions::maxNodes` is 800,000, the package's `IfcPackageLimits::nodes`. The app passes `--max-nodes`, `--max-mesh-triangles` and `--max-total-triangles` from `IfcPackageLimits` (it passed none before). The helper is not built on this laptop (`SKETCHYUP_BUILD_IFC` is off; it needs IfcOpenShell), so its compile is for CI. |
+| 3 | Library bundles above 256 MiB are saved but not listed | fixed | The library scan (`io/library_catalog.cpp`) and the catalog scan (`io/catalog_io.cpp`) read at most one bundle at the bundle limit, 1,040 MiB. A folder of two bundles of 600 MiB lists one, and says so. The owner can raise the budget. |
+| 4 | Reads that reserve the whole bound up front | fixed | `io/recovery.cpp`, `io/ifc_export.cpp`, `io/library_bundle.cpp`, `io/library_catalog.cpp` (two reads), `io/assets.cpp`, `app/reference_images_panel.cpp`. The sweep found two more with R115 bounds: `automation/session.cpp` (a model file, 2 GiB) and `io/outcome_store.cpp` (a checkpoint, about 2.7 GiB). Each read is now `min(file size, bound) + 1`. Other bounded reads keep their R113 bounds (see the sweep list). |
+| 5 | glTF round trip at the unique limit | fixed | The import's parse budgets follow the export's own bounds (the table above): a GLB the export writes for a model inside the unique limit imports, double-sided faces included. Checked by counts in `tests/gltf_package_tests.cpp` (`gltfParseBudgets`). A file of that size is not built in CI. The unique vertex bound is a parameter of `importGltf`, and the 300,001-vertex file is refused at 300,000 in CI. |
+| 6 | Messages that print old numbers | fixed | Each named file now prints its constant (`mibOf`, `std::to_string(... / (1024 * 1024))`, `groupedCount`). The sweep list has every message changed. |
+| 7 | Refusal tests turned into "accepted" checks | restored | Each refusal has a CI test at its boundary by a route that builds no large model: see "Tests restored" below. |
+| 8 | The benchmark build's GLB overflows | fixed | `glbBinaryByteLimit`, the JSON bound and the manifest bound stop at `INT_MAX` at any benchmark scale. At scale 1 the binary bound is 2 GiB less one byte, the JSON and manifest bounds are unchanged. The writer's int offsets and 32-bit chunk lengths cannot wrap now. No CI test builds at scale 8; the cap is a `min` in the code, and the messages round up to MiB. |
+| 9 | The SKP helper may not reach its 2 GiB input or package under 4 GiB | fixed (with a reason) | The helper's address space is 8 GiB (the app's `kSkpAddressSpaceBytes` too), and the package total (2 GiB) is checked before the package is assembled, not after the copy reached 4 GiB. The copy is still made, so the peak is input + chunks + package + string, about 6 GiB before the parser's own memory: 8 GiB leaves room for it. Not measured: a 2 GiB `.skp` cannot be made here, and the caps forbid a test that size. A model inside the R115 limits is estimated to be far below 2 GiB; that estimate is not measured. |
+
+Also fixed while checking finding 9: `src/skp/package.cpp` passed two `json.str()` temporaries to one `insert` (iterators
+from different objects, which is undefined behaviour). It now uses one string.
+
+### Tests restored
+
+Each test below checks a refusal at its boundary, by the route named. Product values are the default; a test passes a
+bound.
+
+| Refusal | Test | Route |
+| --- | --- | --- |
+| IFC helper: element triangles (1,600,000) and total (10,000,000) | `tests/ifc_import_worker_tests.py` | `--max-mesh-triangles` and `--max-total-triangles` on 162- and 324-triangle grids: at the bound imports, one under it refuses |
+| IFC conversion: unique bodies | `tests/ifc_convert_tests.cpp` | `IfcImportOptions::unique`: 10,002 bodies with the bound at 10,001 refuse the last by name |
+| IFC conversion: a body's faces (`bodyLimit`) | `tests/ifc_convert_tests.cpp` | `IfcImportOptions::bodyLimit` = 100,000 refuses a 100,001-face body |
+| IFC conversion: unique faces (`documentLimit:faces`) | `tests/ifc_convert_tests.cpp` | `IfcImportOptions::unique.faces` = 19,600 with three bodies of 9,800 faces |
+| Render snapshot body bound (160,000) | `tests/glb_export_tests.cpp` | `requireSnapshotBodies(count, limit)`: one over and exact |
+| GLB manifest bound (1.5 GiB) | `tests/glb_export_tests.cpp` | `writeGlbExport(..., manifestLimit)`: one byte over refused by name, exact written |
+| GLB decoded texture budget | `tests/glb_export_tests.cpp` | `exportGlb(..., decodedTextureBudget)`: a 256-byte decode, budget 255 refused, 256 exact |
+| glTF decoded-image budget (2 GiB) | `tests/gltf_import_tests.cpp` | `importGltf(package, budget)`: one byte under the first 4096-square image refused |
+| glTF unique vertices | `tests/gltf_import_tests.cpp` | `importGltf(package, budget, uniqueBounds)`: 300,001 vertices refused at 300,000 |
+| STL input bound (1 GiB) | `tests/stl_source_tests.cpp` | `parseStl(bytes, options, inputLimit)`: one byte under the file refused, its size accepted |
+| SKP body split (800,000 faces) | `tests/skp_mapping_tests.cpp` | `SkpImportOptions::bodyLimit` = 100,000, passed to `BodyBudget::limit`: the 150,152-face bucket splits into two bodies, as before R115 |
+| glTF parse budgets (finding 5) | `tests/gltf_package_tests.cpp` | `gltfParseBudgets()`: counts, not a file |
+
+No refusal case was added to `tests/limits_r115_acceptance.cpp`: each one above has a cheap route.
+
+### Tests changed for cost
+
+- `glb_export_tests`: the 20,001-body capture is no longer built (`requireSnapshotBodies` checks the bound); the
+  19,998-body capture still is. The decoded-texture test builds one 8 by 8 image.
+- `gltf_import_tests`: the vertex refusal imports the same 300,001-vertex file once (the old test did too), and the
+  decoded-image refusal decodes one 4096-square image before it refuses (the five-image load is unchanged).
+- `stl_source_tests`: the over-count fixture is unchanged from R115 (2,400,001 facets, 120 MB of zeros, rejected before
+  any facet is read). The byte-bound test adds two parse calls on the existing ASCII fixture.
+- `skp_mapping_tests`: the body split runs as before (150,152 faces, two bodies), with the bound lowered.
+
+### Sweep additions (2026-11-08)
+
+- Messages printing a bound, now computed from its constant: `io/native_format.cpp`, `io/container.cpp` (manifest and
+  raw JSON), `io/document_io.cpp` (file and model bounds), `io/library_bundle.cpp`, `io/dxf_import.cpp`,
+  `io/obj_export.cpp` (text and manifest), `io/obj_import.cpp` (images), `io/obj_source.cpp` (text, 1 GiB, printed 64),
+  `io/step_export.cpp` (output 512 MiB, printed 256; manifest 256 MiB), `io/ifc_worker.cpp` (file 1 GiB, printed 128),
+  `io/ifc_export.cpp` (package bounds 1 GiB and 256 MiB, printed 128 and 32; output), `ifc/export.cpp` (output),
+  `ifc/package.cpp` (mesh and manifest bounds, printed 128 and 32), `ifc/step_import.cpp` (input 1 GiB, printed 128),
+  `io/ifc_package.cpp` (manifest, mesh and triangles), `io/skp_package.cpp` (manifest), `io/assets.cpp` (asset bytes,
+  printed 16), `io/image_refusal.cpp` (stored size 64 MiB, printed 16; image side 8,192, printed 4,096),
+  `app/reference_images_panel.cpp` (16 and 4,096), `app/ifc_sheets.cpp` (1,600,000 triangles in one body, printed
+  1,000,000), `automation/style_commands.cpp` (style file bound, printed 16), and `io/catalog_io.cpp`: the asset size message
+  printed 16 MiB (the bound is 64 MiB), the asset total printed 64 MiB (512 MiB), and the payload messages printed 256 MiB
+  (2 GiB). The asset count (256) is unchanged and is now computed too.
+- `src/skp/worker_main.cpp`: the help text (8 GiB address space, 8 GiB output) and the header comment.
+- `src/skp/package.cpp`: "512 MiB total limit" now prints 2,048 MiB, the bound the code checks.
+
+Checked, not changed (bounds R115 did not change, or work budgets rather than model size):
+
+- Bounds stated in messages that match their constants: `io/obj_import.cpp` (MTL libraries 16 MiB, MTL file 4 MiB),
+  `io/obj_material.cpp` (4 MiB, 64 KiB lines), `io/geotiff.cpp` (8 MiB values), `io/orthophoto_import.cpp` (128 MiB
+  GeoTIFF, 4,096-pixel georeferenced image), `core/reference_image.hpp` (`imageGeoPixelLimit` 4,096, a georeferenced image),
+  `app/window_terrain.cpp` and `automation/main.cpp` (64 MiB terrain source), `io/terrain_source.cpp` (64 MiB point file),
+  `core/terrain*` (8 MiB edit list, 250,000 vertices), `integrations/render_environment.cpp` (40 MiB HDR), the automation
+  request and response bounds (16 KiB to 256 MiB), `io/formline.cpp` (32 MiB), `io/library_catalog.cpp` (16 MiB thumbnail
+  cache), `io/style_bundle.cpp` (style scan 256 MiB; one style file fits it), `integrations/animation_export.cpp`
+  (2 GiB output), `integrations/presentation_batch.cpp` and the report bounds (256 MiB).
+- Work budgets, not model size: `core/intersection_edit.cpp` (100,000 candidates), `geometry/measured_view.cpp` and
+  `io/measured_drawing.cpp` (20,000 edges, 10,000 body records in a measured drawing), `io/drawing_view.cpp`
+  (200,000 fingerprint items), `core/component_parameters.cpp` (evaluation budget), the boolean and intersection
+  budgets (4,000,000), `io/hosted_components_io.cpp` (10,000 vertices of a hosted component).
+- `io/library_catalog.cpp`, `io/catalog_io.cpp` (the thumbnail and bundle bounds): the bundle bound is 1,040 MiB and
+  binds before the catalog's 2 GiB payload bound (see the deferred list).
+- `io/ifc_import.cpp` (8 MiB of property text, 32 KiB a property) and `io/geotiff.cpp` (1,000,000 posts): unchanged.
+
+### Deferred (found in the review, not changed)
+
+- A catalog file is bounded by the bundle limit (1,040 MiB), so its payload bound (`CatalogLimits::payloadBytes`, 2 GiB)
+  is never reached. One largest native container is about 1.3 GiB (16 bytes + 32 MiB manifest + 768 MiB model + 512 MiB
+  assets + the terrain mesh chunk), so one such container does not fit a catalog or a template library bundle. The R110
+  rule that "a catalog holds one largest container" no longer holds at R115 values. This is a decision for the owner: raise
+  the bundle bound, or keep it and say so.
+- A template or component library bundle with imported UVs at the unique limit can exceed 1,040 MiB (about 528 bytes a
+  textured face, 2,400,000 faces: about 1.2 GB), and is refused by name at save (`Template bundle exceeds 1,040 MiB`).
+  Models without UVs (about 226 bytes a face) fit.
+- The IFC helper and the SKP helper's 2 GiB input were not measured at their bounds on this laptop.
+- The measured-drawing and hosted-component budgets above are not raised (not model size).
+
 ## CI test times
 
 Local, serial (`ctest -j1`), the `build/ci-fast` configuration (Debug, `-g0`, shared libraries, default linker),
@@ -127,6 +252,23 @@ Local, serial (`ctest -j1`), the `build/ci-fast` configuration (Debug, `-g0`, sh
 | snapshot_glb_limits_acceptance | 289.18 | not in CI | manual at-limit acceptance (GPU PC) |
 | format_limits_acceptance | 255.50 | not in CI | manual at-limit acceptance (GPU PC) |
 
+Review (2026-11-08), serial (`ctest -j1`), after the review fixes, on the same laptop. The "R115" column is the table
+above for the same test (a different load, so compare with care):
+
+| Test | R115 (s) | After the review (s) | What changed in the review |
+| --- | ---: | ---: | --- |
+| document_limits | 46.01 | 29.96 | no change in the test |
+| incremental_validation | 54.05 | 44.25 | no change in the test |
+| ifc_convert | (not timed) | 27.33 | restored refusals at lowered bounds (three small conversions added) |
+| glb_export | (not timed) | 10.62 | the 20,001-body capture is no longer built; the manifest, body and decoded-texture bounds are checked by passing them in |
+| skp_mapping | (not timed) | 7.00 | body split at a lowered bound, as before R115 |
+| gltf_import | (not timed) | 2.65 | the decoded refusal decodes one 4096-square image more; the vertex refusal is one import |
+| asset_io | 1.37 | 1.06 | no change in the test |
+| document_limits_io | 0.21 | 0.16 | no change in the test |
+| history | 0.87 | 0.58 | no change in the test |
+| stl_source | (not timed) | 0.06 | the input bound is a parameter (two parse calls added) |
+| gltf_package | (not timed) | 0.02 | the parse budgets are checked by counts |
+
 The three acceptance binaries are built with `EXCLUDE_FROM_ALL` and have no CTest entry. The path map
 (`.github/ci-path-map.json`) drops them from `slow-core` and the test seconds, and re-times the three tests that
 stay. The nine tests together took about 20 minutes before and take about 1.7 minutes after. No CI test builds more
@@ -135,17 +277,21 @@ more; the CI total rises by about one second.
 
 ## Acceptance on the GPU PC
 
-Results are in the section that follows the code. A case that did not run says why.
+**The at-limit results are pending.** The table below says what has run (nothing) and why each case has not.
 
 Status at the end of this pull request: **no case has run on the GPU PC.** A Blender job (`blender -b`, PID 2605 on
 `sketchyup-gpu`, not started by this worker and not under the GPU lock) was running from 20:08 on 2026-11-07 and held the GPU at
-97 to 99% busy at each check through 02:19 on 2026-11-08. The brief says to pause while the owner uses the machine, and
-the owner's process was not stopped. The runner and the binary are in place, so the cases run with one command per case:
+97 to 99% busy at each check through 02:19 on 2026-11-08. At 02:53 on 2026-11-08 (review fixes) the same process was still
+running, the GPU was at 99% busy, and load average was 3.7 on 12 vCPUs. The brief says to pause while another user is on
+the machine, so the acceptance was not run, and the job was not stopped. The runner is in place. The binary on the GPU PC
+predates the review fixes and must be copied again first (see "Binaries and machine"). Then the cases run with one command
+per case, once the GPU PC is idle:
 
     ssh sketchyup-gpu 'bash -lc "~/sketchyup-verification/r115-20261107/run-case.sh unique"'
 
-The laptop smoke run (`--smoke`, every case, small sizes) passed on the development laptop: twelve cases, every step
-ok. Smoke sizes prove the code paths, not the limits, and no at-limit size ran on the laptop.
+The laptop smoke run (`--smoke`, every case, small sizes) passed on the development laptop before the review, and again
+after the review fixes (2026-11-08, the rebuilt binary): twelve cases, every step ok. Smoke sizes prove the code paths, not
+the limits, and no at-limit size ran on the laptop.
 
 | Case (brief) | Program case | GPU PC result | Notes |
 | --- | --- | --- | --- |
@@ -168,7 +314,19 @@ layouts, so a direct import of the exported `scene.glb` is the plan, not yet run
 
 ## Records and checks
 
-- Local build: `build/ci-fast` (all default targets, 314 steps, and the harness target), exit 0.
+- Local build: `build/ci-fast` (all default targets, 314 steps, and the harness target), exit 0. The review fixes
+  changed `core/document_limits.hpp` (an overload), which rebuilt the whole project: the full build after the fixes was
+  912 steps and exited 0, with incremental builds after it (0 errors). `limits_r115_acceptance` is built with
+  `--target` (it is `EXCLUDE_FROM_ALL`), so `cmake --build` alone does not rebuild it.
+- Review check, local: the fast-tier tests the review's changes can affect (91 registered tests: the limit, format,
+  document, persistence, texture, reference-image, recovery and SKP tests) under `ulimit -v 8000000`, `ctest -j2`: 85
+  passed, 6 skipped (the `*_real` tests that need Blender, pdftoppm or the CI environment variables), 0 failed. One test failed in that run: `skp_mapping`, because the SKP body split still used the product bound (`BodyBudget`
+  ignored the lowered one). It was fixed, and the test passes.
+- Review check, local: `limits_r115_acceptance --smoke` (every case, small sizes) passes all twelve cases on the laptop.
+  Smoke sizes prove the code paths, not the limits. No at-limit case ran here.
+- The IFC helper (`sketchyup-ifc-worker`, `SKETCHYUP_BUILD_IFC=ON`) and the Blender worker are not built or run on this
+  laptop. The `src/ifc/` changes and the Python changes were checked by reading and by type (the CI image builds the
+  helper). `tests/ifc_import_worker_tests.py` (the IFC helper's triangle bounds) therefore did not run here.
 - Fast-tier CTest: every registered test was run after the last source edit that affects it; the skipped tests
   are the real-tool tests that need Blender, pdftoppm and similar, which CI supplies (`SKETCHYUP_*_TEST`).
 - `sketchyup-cli --capabilities`: the `limits` block reports the new values. The byte fields are 64-bit.
@@ -178,12 +336,17 @@ layouts, so a direct import of the exported `scene.glb` is the plan, not yet run
   `tool-reference-v1.json`); the diffs change only limit values.
 - `tests/assistant-tool-surface-baseline.json`: the tool surface grows by two bytes (the transaction retained
   bytes), so the byte counts and one SHA-256 change.
+- `docs/verification/R115-raised-limits.json`: the machine, the binary hashes, the acceptance status and the local test
+  times in machine-readable form. It parses.
 - `git diff --check`, JSON parsing and the relative links are checked before the pull request.
 
 ## Binaries and machine
 
-- Laptop: `build/ci-fast/limits_r115_acceptance` (SHA-256 `33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8`)
-  and its shared libraries, copied to `~/sketchyup-verification/r115-20261107/bin` on the GPU PC.
+- Laptop: `build/ci-fast/limits_r115_acceptance`, rebuilt for the review (SHA-256
+  `c6fe485b1694975941568c2aeebec5957252529723070baffeac9e3ec5437fc5`; the pre-review binary was
+  `33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8`). Its shared libraries are the same build directory's.
+  **The binary on the GPU PC is the pre-review one.** It must be copied again, with its libraries, before any case runs
+  there; the pre-review binary does not contain the review's import and export changes.
 - GPU PC: `sketchyup-gpu` (CachyOS QEMU guest, 12 vCPUs, 22 GiB RAM, RX 6800 XT, Qt 6.12, X11). Cases run one per
   `systemd-run --user` unit with `MemoryMax=18G`, `MemorySwapMax=0`, `RuntimeMaxSec=1800` and no core dumps, through
   `flock -w 3600 ~/sketchyup-verification/gpu.lock`. The runner is `~/sketchyup-verification/r115-20261107/run-case.sh`.

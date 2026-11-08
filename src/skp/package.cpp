@@ -402,6 +402,16 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
                         " (names and GUIDs are clipped, so this should not happen)."),
            std::string();
 
+  // The total cap, checked before the package is assembled (R115). A package past it is refused by name,
+  // and no copy of it is built: the worker's address space holds the input, both chunks and the package.
+  const std::string manifestText = json.str();
+  if (SkpPackageLimits::headerBytes + manifestText.size() + geometry.size() + textureChunk.size() >
+      SkpPackageLimits::packageBytes) {
+    problem = "The package exceeds its " + std::to_string(SkpPackageLimits::packageBytes / (1024 * 1024)) +
+              " MiB total limit.";
+    return std::string();
+  }
+
   // The manifest.
   Bytes file;
   file.insert(file.end(), 'S');
@@ -412,17 +422,14 @@ std::string serializeSkpPackage(const SkpPackage& package, std::string& problem)
   file.insert(file.end(), 'P');
   file.insert(file.end(), '0');
   file.insert(file.end(), '1');
-  putU32(file, static_cast<std::uint32_t>(json.str().size()));
+  putU32(file, static_cast<std::uint32_t>(manifestText.size()));
   putU32(file, 0);
   putU64(file, geometry.size());
   putU64(file, textureChunk.size());
-  file.insert(file.end(), json.str().begin(), json.str().end());
+  // One string for the manifest: two calls to json.str() would give iterators to two different temporaries.
+  file.insert(file.end(), manifestText.begin(), manifestText.end());
   file.insert(file.end(), geometry.begin(), geometry.end());
   file.insert(file.end(), textureChunk.begin(), textureChunk.end());
-  // The total cap: the worker runs with a 512 MiB RLIMIT_FSIZE, and a write past it would
-  // kill the process instead of refusing. 512 MiB keeps every package the FSIZE allows.
-  if (file.size() > 2048LL * 1024 * 1024)
-    return (problem = "The package exceeds its 512 MiB total limit."), std::string();
   return std::string(file.begin(), file.end());
 }
 

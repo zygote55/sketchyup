@@ -4,6 +4,7 @@
 // package is data: nothing in it is trusted beyond the checked decoder's guarantees, and every
 // element the native model cannot take is refused with a notice and counted in the report.
 #include "core/model.hpp"
+#include "geometry/surface.hpp"
 #include "io/ifc_import.hpp"
 #include "io/skp_package.hpp"
 
@@ -13,7 +14,11 @@
 namespace sketchy {
 
 // The import has no options (ADR 0176 section 9): the dialog and the CLI add none.
-struct SkpImportOptions {};
+// The product takes no options. The one field is a test bound: a body over it is split (R115 keeps the product
+// value, Surface::bodyLimit, so the split is reached in a test with a lowered value).
+struct SkpImportOptions {
+  std::size_t bodyLimit{Surface::bodyLimit};
+};
 
 struct SkpImport {
     Document document;

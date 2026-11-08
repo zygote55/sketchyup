@@ -92,6 +92,8 @@ inline constexpr std::size_t limitMessageBytes = 256;
 inline constexpr std::size_t limitNameBytes = 64;
 // The first exceeded quantity's name, or empty when every count is within limits.
 std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits);
+// The same check against a maximum the caller gives (a test lowers the product bound to reach a refusal).
+std::string_view exceededLimit(const LimitCounts &attempted, LimitClass limits, const LimitCounts &maximum);
 void checkLimits(const LimitCounts &attempted, LimitClass limits, std::string_view operation,
                  std::string_view context);
 // The terrain limit class (ADR 0168 decision 3): terrain triangles per document,

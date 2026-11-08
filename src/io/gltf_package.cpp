@@ -18,13 +18,23 @@
 #include <vector>
 namespace sketchy {
 namespace {
-// R115: the file, URI and element bounds are eight times their R113 values, so an import at the
-// unique limit (2,400,000 faces, 7,200,000 indices) is admitted. The JSON bound is a parse bound and
-// is unchanged. The image bounds are the asset bounds, so every imported image can be stored.
-constexpr size_t fileLimit = 1024ull * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
+// R115 (review finding 5): every GLB the app's export writes for a model inside the unique limit must
+// import. The export writes unshared vertices: three accessors (POSITION, NORMAL and TEXCOORD_0) with
+// one vertex per triangle corner, and at most materializedCornerLimit triangles in all (a double-sided
+// face writes both sides and counts twice). The bounds below follow those figures, so a model at the
+// unique limit (2,400,000 textured faces: 7,200,000 vertices per accessor) is admitted with room to
+// spare, and a double-sided one too. The file bound is the export's binary bound (2 GiB), and the JSON
+// bound is the export's (128 MiB). Each JSON value takes at least one byte, so the value budget is the
+// JSON bound in bytes. The record counts follow the document's materialized bodies and placements, and
+// each primitive holds at least one triangle. Parser memory is still capped by Budget (fileLimit).
+constexpr size_t triangleLimit = materializedCornerLimit;
+constexpr size_t vertexLimit = 3 * triangleLimit;
+constexpr size_t fileLimit = 2048ull * 1024 * 1024, jsonLimit = 128ull * 1024 * 1024;
+constexpr size_t valueLimit = jsonLimit;
+constexpr size_t recordLimit = DocumentLimits::materialized.bodies + DocumentLimits::materialized.placements;
 constexpr size_t imageLimit = AssetPayload::limit, imagesLimit = assetTotalLimit;
-constexpr size_t accessorCountLimit = 8000000, accessorElementsLimit = 16000000,
-                 primitiveElementsLimit = 8000000, uriLimit = 192ull * 1024 * 1024;
+constexpr size_t accessorCountLimit = vertexLimit, accessorElementsLimit = 3 * vertexLimit,
+                 primitiveElementsLimit = vertexLimit, uriLimit = 192ull * 1024 * 1024;
 void require(bool condition, const std::string &message) {
     if (!condition)
         throw std::runtime_error(message);
@@ -161,7 +171,7 @@ struct GltfPackage::Impl {
                             size_t(source.size() - end - 8) == word(source, end),
                         "Unsupported GLB chunks or trailing data");
         }
-        require(size_t(json.size()) <= jsonLimit, "glTF JSON exceeds 16 MiB");
+        require(size_t(json.size()) <= jsonLimit, "glTF JSON exceeds " + mibBound(jsonLimit));
         QJsonParseError error;
         const auto tree = QJsonDocument::fromJson(json, &error);
         require(error.error == QJsonParseError::NoError && tree.isObject() &&
@@ -174,7 +184,7 @@ struct GltfPackage::Impl {
         std::vector<QJsonValue> pending{tree.object()};
         size_t visited{};
         while (!pending.empty()) {
-            require(++visited <= 1000000, "glTF JSON exceeds its value budget");
+            require(++visited <= valueLimit, "glTF JSON exceeds its value budget");
             const auto value = pending.back();
             pending.pop_back();
             if (value.isString())
@@ -182,13 +192,13 @@ struct GltfPackage::Impl {
                         "glTF strings require valid Unicode without NUL");
             else if (value.isArray()) {
                 const auto array = value.toArray();
-                require(size_t(array.size()) <= 1000000 - visited - pending.size(),
+                require(size_t(array.size()) <= valueLimit - visited - pending.size(),
                         "glTF JSON exceeds its value budget");
                 for (const auto &item : array)
                     pending.push_back(item);
             } else if (value.isObject()) {
                 const auto object = value.toObject();
-                require(size_t(object.size()) <= 1000000 - visited - pending.size(),
+                require(size_t(object.size()) <= valueLimit - visited - pending.size(),
                         "glTF JSON exceeds its value budget");
                 for (auto it = object.begin(); it != object.end(); ++it) {
                     require(!it.key().contains(QChar(0)), "glTF object keys cannot contain NUL");
@@ -201,10 +211,12 @@ struct GltfPackage::Impl {
         require(cgltf_parse(&options, source.constData(), size_t(source.size()), &parsed) ==
                     cgltf_result_success,
                 "Cannot parse glTF within its resource bounds");
-        require(parsed->nodes_count <= 10000 && parsed->meshes_count <= 10000 &&
-                    parsed->materials_count <= 1024 && parsed->images_count <= 1024 &&
-                    parsed->buffers_count <= 64 && parsed->buffer_views_count <= 65536 &&
-                    parsed->accessors_count <= 65536 && parsed->scenes_count <= 256,
+        // One record of each kind per body or placement, one accessor and view per attribute of each
+        // primitive, and one material or image per triangle at most (Budget bounds the memory).
+        require(parsed->nodes_count <= recordLimit && parsed->meshes_count <= recordLimit &&
+                    parsed->materials_count <= triangleLimit && parsed->images_count <= triangleLimit &&
+                    parsed->buffers_count <= 64 && parsed->buffer_views_count <= 3 * triangleLimit &&
+                    parsed->accessors_count <= 3 * triangleLimit && parsed->scenes_count <= 256,
                 "glTF record counts exceed limits");
         for (size_t i = 0; i < parsed->extensions_required_count; ++i)
             require(std::strcmp(parsed->extensions_required[i], "KHR_texture_transform") == 0,
@@ -294,7 +306,7 @@ struct GltfPackage::Impl {
         size_t primitiveElements{}, primitives{};
         for (size_t i = 0; i < parsed->meshes_count; ++i) {
             const auto &mesh = parsed->meshes[i];
-            require(mesh.primitives_count <= 10000 - primitives,
+            require(mesh.primitives_count <= triangleLimit - primitives,
                     "glTF primitive count exceeds limits");
             primitives += mesh.primitives_count;
             for (size_t j = 0; j < mesh.primitives_count; ++j) {
@@ -347,6 +359,10 @@ GltfPackage::GltfPackage(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 GltfPackage::~GltfPackage() = default;
 GltfPackage::GltfPackage(GltfPackage &&) noexcept = default;
 GltfPackage &GltfPackage::operator=(GltfPackage &&) noexcept = default;
+GltfParseBudgets gltfParseBudgets() {
+    return {fileLimit, jsonLimit, valueLimit, accessorCountLimit, accessorElementsLimit,
+            primitiveElementsLimit, triangleLimit, recordLimit};
+}
 GltfPackage GltfPackage::read(const QString &path) {
     auto impl = std::make_unique<Impl>();
     impl->open(path);

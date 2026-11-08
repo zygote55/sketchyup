@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 #include <stdexcept>
+#include <string>
 // The 24-byte `.sketchylib` envelope shared by template, component and catalog bundles (ADR 0129,
 // ADR 0130 and ADR 0174 section 4): the header layout, the manifest and thumbnail limits, and the
 // hash, field-set and metadata checks. Each kind keeps its own manifest and payload rules.
@@ -13,6 +14,11 @@ namespace sketchy::library_envelope {
 inline const QByteArray magic("SKYLIB\0\1", 8);
 inline constexpr qsizetype headerSize = 24, manifestLimit = 32768, thumbnailLimit = 4 * 1024 * 1024;
 inline void require(bool ok, const char *message) {
+    if (!ok)
+        throw std::runtime_error(message);
+}
+// For a message that prints a bound (R115), built from its constant.
+inline void require(bool ok, const std::string &message) {
     if (!ok)
         throw std::runtime_error(message);
 }

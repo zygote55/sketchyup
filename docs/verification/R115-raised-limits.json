@@ -1,0 +1,80 @@
+{
+  "record": "R115-raised-limits",
+  "date": "2026-11-08",
+  "branch": "feat/r115-raise-limits",
+  "pull_request": 585,
+  "base": "origin/main 0038456f",
+  "revisions": {
+    "pre_review_head": "cf16b05c7a4da994d26fe42e1f2a2ee7d40f1f37",
+    "review_fixes": "the commit that adds this file (see git log of the branch)"
+  },
+  "machine": {
+    "laptop": {
+      "cpu": "Intel Core Ultra 7 155H, 22 threads",
+      "memory_gib": 30,
+      "kernel": "7.2.15-1-omarchy",
+      "build": "build/ci-fast (Debug, -g0, shared libraries, Ninja), ulimit -v 8000000 for tests, systemd-run MemoryMax=10G for builds"
+    },
+    "gpu_pc": {
+      "host": "sketchyup-gpu",
+      "checked": "2026-11-08 02:53",
+      "uptime_load": "3.69 3.72 3.66",
+      "gpu_busy_percent": 99,
+      "blender_jobs": [
+        {"pid": 2605, "command": "blender -b (a render job)", "started_by_this_worker": false, "stopped_by_this_worker": false}
+      ]
+    }
+  },
+  "binaries": {
+    "limits_r115_acceptance": {
+      "laptop_sha256_pre_review": "33194787c9d488352cc35ebe7c6f0d8230e17a921195b370ec9bee1fb1db7dd8",
+      "laptop_sha256_review": "c6fe485b1694975941568c2aeebec5957252529723070baffeac9e3ec5437fc5",
+      "gpu_pc_copy": "pre-review; must be copied again before the cases run"
+    }
+  },
+  "acceptance": {
+    "status": "pending",
+    "reason": "GPU PC busy: a Blender job not started by this worker held it at 99% GPU busy",
+    "cases": [
+      {"brief": 1, "program_case": "unique", "result": "not run"},
+      {"brief": 2, "program_case": "materialized", "result": "not run"},
+      {"brief": 3, "program_case": "one-body", "result": "not run"},
+      {"brief": 4, "program_case": "chunk", "result": "not run"},
+      {"brief": 5, "program_case": "textures", "result": "not run"},
+      {"brief": 6, "program_cases": ["export-glb", "export-obj", "export-stl", "export-dxf"], "result": "not run"},
+      {"brief": 7, "program_cases": ["import-obj", "import-stl", "import-gltf"], "result": "not run"},
+      {"brief": 8, "program_case": null, "result": "not run", "reason": "the STEP helper is not built on the GPU PC"}
+    ],
+    "laptop_smoke": {
+      "flag": "--smoke",
+      "cases": 12,
+      "all_steps_ok": true,
+      "note": "small sizes; prove code paths, not limits"
+    }
+  },
+  "tests": {
+    "affected_set_local": {
+      "registered": 91,
+      "passed": 85,
+      "skipped_real_tool_tests": 6,
+      "failed": 0,
+      "parallel": 2,
+      "wall_seconds": 125
+    },
+    "serial_seconds_after_review": {
+      "document_limits": 29.96,
+      "incremental_validation": 44.25,
+      "ifc_convert": 27.33,
+      "glb_export": 10.62,
+      "skp_mapping": 7.00,
+      "gltf_import": 2.65,
+      "asset_io": 1.06,
+      "document_limits_io": 0.16,
+      "history": 0.58,
+      "stl_source": 0.06,
+      "gltf_package": 0.02
+    },
+    "not_run_locally": ["ifc_import_worker_tests.py (the IFC helper is not built here)", "all *_real tests (need Blender, pdftoppm or CI variables)"]
+  },
+  "sweep_summary": "Messages that print a bound: see the record's review section and the sweep list. Each named file prints its constant."
+}

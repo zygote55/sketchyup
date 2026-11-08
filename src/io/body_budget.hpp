@@ -10,10 +10,11 @@ namespace sketchy {
 // over one body does not refuse: it continues in the next body (see continuedBodyName).
 struct BodyBudget {
     std::size_t faces{}, vertices{}, edges{};
+    // The face and vertex bound of one body: the product bound unless a caller passes a lower one (a test does).
+    std::size_t limit{Surface::bodyLimit};
     // Whether this many more faces, vertices and edges fit in the body.
     bool admits(std::size_t moreFaces, std::size_t moreVertices, std::size_t moreEdges) const {
-        return faces + moreFaces <= Surface::bodyLimit &&
-               vertices + moreVertices <= Surface::bodyLimit &&
+        return faces + moreFaces <= limit && vertices + moreVertices <= limit &&
                edges + moreEdges <= Topology::edgeLimit;
     }
     void add(std::size_t moreFaces, std::size_t moreVertices, std::size_t moreEdges) {

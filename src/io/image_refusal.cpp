@@ -1,4 +1,6 @@
 #include "io/image_refusal.hpp"
+#include "core/asset_records.hpp"
+#include "io/texture_image.hpp"
 
 namespace sketchy {
 namespace {
@@ -10,9 +12,11 @@ std::string sentenceFor(const std::string &code, const std::vector<std::string> 
     if (code == "image-type")
         return "This is not a PNG, JPEG or GeoTIFF file.";
     if (code == "image-size")
-        return "The image is " + at(0) + " pixels. The limit is 4096 × 4096.";
+        return "The image is " + at(0) + " pixels. The limit is " + std::to_string(TextureImage::dimensionLimit) +
+           " × " + std::to_string(TextureImage::dimensionLimit) + ".";
     if (code == "stored-size")
-        return "The image is " + at(0) + " as stored. The limit is 16 MiB. Crop it or reduce it in an "
+        return "The image is " + at(0) + " as stored. The limit is " +
+           std::to_string(AssetPayload::limit / (1024 * 1024)) + " MiB. Crop it or reduce it in an "
                "image editor, then import it again.";
     if (code == "image-extent")
         return "The image would cover " + at(0) + " in one direction. A placed image can cover at most "

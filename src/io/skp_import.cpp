@@ -37,7 +37,7 @@ constexpr std::size_t materialNameBytes = 1024;  // the native material cap
 constexpr std::size_t materialLimit = 1024;      // validateMaterialRecords
 constexpr std::size_t maxNesting = 64;          // a placement's depth (a guard against cycles)
 constexpr std::size_t locationsPerKind = 32;    // ADR 0176 section 5
-constexpr std::size_t textureDimensionLimit = 4096;
+constexpr std::size_t textureDimensionLimit = TextureImage::dimensionLimit;
 constexpr double metresPerInch = 0.0254;
 constexpr double tileEpsilon = 1e-9;
 constexpr double vertical = 1e-3;  // the exporter's face-frame tolerance (face_groups.cpp)
@@ -218,7 +218,8 @@ struct Bucket {
 
 class Converter {
   public:
-    Converter(const SkpPackage &package, const SkpConversionHooks &hooks) : pkg(package), hooks(hooks) {
+    Converter(const SkpPackage &package, const SkpConversionHooks &hooks, std::size_t bodyLimitValue)
+        : pkg(package), hooks(hooks), bodyLimit(bodyLimitValue) {
         // The one undoable entry of the whole import (ADR 0176 section 4).
         edit.label = "Import .skp file";
     }
@@ -286,6 +287,7 @@ class Converter {
 
     const SkpPackage &pkg;
     SkpConversionHooks hooks;
+    std::size_t bodyLimit;  // the largest body in faces and vertices (SkpImportOptions)
     Edit edit;
     Id nextBody{1}, nextTag{1}, nextMaterial{1}, nextAsset{1};
     std::vector<Canonical> canonical;
@@ -524,7 +526,7 @@ Id Converter::materialOf(long long index) const {
 
 // The texture as a native asset: PNG and JPEG are kept as they are when the native decoder reads
 // them; any other image (or a PNG it refuses, such as 16 bits per channel) is decoded here and
-// re-encoded as PNG. Images beyond 4096 by 4096 pixels are refused.
+// re-encoded as PNG. Images beyond 8192 by 8192 pixels (R115) are refused.
 Id Converter::textureAsset(long long index) {
     if (const auto found = assetIds.find(index); found != assetIds.end())
         return found->second;
@@ -798,7 +800,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
         // visibility, so the geometry continues rather than drops (R113, D-102).
         const BodyBudget full{bodies.back().body.surface.faces.size(),
                               bodies.back().body.surface.vertices.size(),
-                              bodies.back().edgeKeys.size()};
+                              bodies.back().edgeKeys.size(), bodyLimit};
         if (!full.admits(1, newVertices.size(), newEdges.size())) {
             openBody();
             newVertices.clear();
@@ -814,7 +816,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
         trial.faces += 1;
         trial.vertices += newVertices.size();
         trial.edges += newEdges.size();
-        if (bodyFaces > Surface::bodyLimit || bodyVertices > Surface::bodyLimit ||
+        if (bodyFaces > bodyLimit || bodyVertices > bodyLimit ||
             bodyEdges > Topology::edgeLimit) {
             note("bodyLimit");
             omit("face");
@@ -951,7 +953,7 @@ Canonical Converter::buildDefinition(std::size_t d) {
                 ++fresh;
             if (key.second != key.first && !chunk->vertexIds.contains(key.second))
                 ++fresh;
-            if (!BodyBudget{0, chunk->body.surface.vertices.size(), chunk->body.surface.wires.size()}
+            if (!BodyBudget{0, chunk->body.surface.vertices.size(), chunk->body.surface.wires.size(), bodyLimit}
                      .admits(0, fresh, 1))
                 chunk = &openChunk();
             const Id a = vertexOf(*chunk, definition, key.first);
@@ -1329,10 +1331,10 @@ SkpImport Converter::run() {
 
 } // namespace
 
-SkpImport importSkpPackage(const SkpPackage &package, const SkpImportOptions &, const SkpConversionHooks &hooks) {
+SkpImport importSkpPackage(const SkpPackage &package, const SkpImportOptions &options, const SkpConversionHooks &hooks) {
     if (package.definitions.empty())
         throw IfcImportError("package", "The SketchUp package has no root definition.");
-    Converter converter(package, hooks);
+    Converter converter(package, hooks, options.bodyLimit);
     return converter.run();
 }
 

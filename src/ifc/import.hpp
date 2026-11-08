@@ -17,8 +17,12 @@ struct ImportOptions {
   bool skipSpaces{false};
   bool gridAligned{false};  // --georef grid: rotate the model by the map conversion's rotation (decision 6b)
   int maxVoidsPerElement{100};
-  std::size_t maxNodes{40000};  // the package's node bound (lowered by tests)
+  std::size_t maxNodes{800000};  // the package's node bound, IfcPackageLimits::nodes (R115; lowered by tests)
   std::size_t maxEntities{16000000};
+  // The kernel's triangle bounds (ADR 0171 section 6.4), as IfcPackageLimits::meshTriangles and
+  // IfcPackageLimits::totalTriangles. Lowered by the tests to reach the refusal boundary cheaply.
+  std::size_t maxMeshTriangles{1600000};
+  std::size_t maxTotalTriangles{10000000};
   std::vector<int> excludeSteps;
   int diagnoseFrom{-1};
   int diagnoseSeconds{20};

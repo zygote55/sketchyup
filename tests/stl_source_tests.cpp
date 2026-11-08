@@ -112,7 +112,11 @@ int main(int argc, char **argv) {
         rejects([&] { parseStl(ascii, {1, StlUpAxis(99)}); });
         rejects(
             [&] { parseStl("solid " + QByteArray(513, 'a') + "\n" + ascii, {1, StlUpAxis::Z}); });
-        // The 1 GiB input bound (R115) is a constant: a buffer of that size is not built here.
+        // The input bound (R115: 1 GiB) is a parameter of parseStl, so the boundary is reached with the bytes of
+        // this file: one byte under its size is refused, and its own size is accepted.
+        rejects([&] { parseStl(ascii, {1, StlUpAxis::Z}, qsizetype(ascii.size()) - 1); });
+        check(!parseStl(ascii, {1, StlUpAxis::Z}, qsizetype(ascii.size())).facets.empty(),
+              "An STL file of exactly the input bound is accepted");
         std::cout << "STL bounded binary/ASCII grammar, count, units, axis, normals and source "
                      "reports passed\n";
     } catch (const std::exception &e) {

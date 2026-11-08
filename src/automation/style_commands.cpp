@@ -9,7 +9,8 @@ namespace {
 // Canonical base64 of one whole style file, bounded before decoding.
 QByteArray styleData(const QJsonValue &value) {
     if (!value.isString() || value.toString().size() > qsizetype(4 * ((styleFileLimit + 2) / 3)))
-        throw std::runtime_error("Style data must be canonical base64 of at most 16 MiB");
+        throw std::runtime_error("Style data must be canonical base64 of at most " +
+                                 std::to_string(styleFileLimit / (1024 * 1024)) + " MiB");
     const auto encoded = value.toString().toLatin1();
     if (QString::fromLatin1(encoded) != value.toString())
         throw std::runtime_error("Style data must be canonical base64");

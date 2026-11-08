@@ -640,3 +640,22 @@ classes are counted as before, and a limit is refused by name with its value.
 - The 3.75 GiB and 8 GiB ceilings of R082w and R112 were protections for the development laptop. They are void, and no
   product limit is derived from them.
 - The STEP output bound: the brief asks for 512 MiB inside the helper's memory limit. The result is in R115.
+
+**Review fixes (2026-11-08, PR #585).** A review of the PR found places that still refused or broke a model inside
+the new limits. The product values did not change; the fixes are:
+
+- The glTF import's parse budgets now follow the export's own bounds: a GLB the export writes for a model inside the
+  unique limit imports, double-sided faces included. Before, the import refused it at 16,000,000 accessor elements,
+  16 MiB of JSON, 10,000 nodes or meshes, 10,000 primitives and 1,000,000 JSON values. The file bound is the export's
+  2 GiB binary bound, and the JSON bound its 128 MiB.
+- The IFC import's node bound is the package's, 800,000 (it was the R110 materialized bound of 40,000), and the app
+  passes the package's node and triangle bounds to the helper.
+- A GLB's byte bounds stop at INT_MAX at any benchmark scale. At scale 8 the binary bound was 16 GiB, and the writer's
+  int offsets and 32-bit chunk lengths wrapped.
+- A catalog or template library scan may read one bundle at the bundle limit (1,040 MiB, not 256 MiB). A bounded read
+  reserves its file's size, not its bound.
+- The SKP helper's address-space limit is 8 GiB (it was 4 GiB), and the package total (2 GiB) is checked before the
+  package is assembled. The SKP texture limit is 8,192 pixels (it was 4,096).
+
+**Contradiction with ADR 0176 section 9,** which says the SKP import takes no options. `SkpImportOptions`
+now has one field, `bodyLimit`, which the tests lower to reach the split of a body. The product does not set it.

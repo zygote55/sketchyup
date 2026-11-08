@@ -1,5 +1,7 @@
 #include "io/ifc_worker.hpp"
 
+#include "io/ifc_package.hpp"
+
 #include <algorithm>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -86,7 +88,8 @@ QString checkIfcSource(const QString &path) {
     if (!info.isFile())
         refuse("notAFile", "The IFC source must be a regular file.");
     if (info.size() > maxFileBytes)
-        refuse("tooLarge", "The IFC file is larger than 128 MiB (" + std::to_string(info.size()) + " bytes).");
+        refuse("tooLarge", "The IFC file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB (" +
+                                         std::to_string(info.size()) + " bytes).");
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         refuse("unreadable", "The IFC file cannot be read.");
@@ -136,7 +139,10 @@ RunResult runOnce(const QString &worker, const QString &directory, const QString
     QStringList args{"--import", input, "--output", output, "--threads", QString::number(threads), "--deflection",
                      QString::number(options.chordDeviationMm / 1000.0, 'g', 12), "--angular-deflection", "0.5",
                      "--max-voids", QString::number(options.maxVoidsPerElement), "--max-entities",
-                     QString::number(options.maxEntities)};
+                     QString::number(options.maxEntities), "--max-nodes",
+                     QString::number(IfcPackageLimits::nodes), "--max-mesh-triangles",
+                     QString::number(IfcPackageLimits::meshTriangles), "--max-total-triangles",
+                     QString::number(IfcPackageLimits::totalTriangles)};
     if (!options.lengthUnit.isEmpty())
         args << "--length-unit" << options.lengthUnit;
     if (importOptions.spaces == IfcSpaces::Skip)
@@ -351,7 +357,7 @@ void copyBounded(const QString &source, const QString &destination) {
     ::close(in);
     ::close(out);
     if (tooLarge)
-        refuse("tooLarge", "The IFC file is larger than 128 MiB.");
+        refuse("tooLarge", "The IFC file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB.");
     if (failed)
         refuse("unreadable", "The IFC file could not be copied into the private working directory.");
 }
@@ -365,7 +371,8 @@ IfcImport importIfcFile(const QString &path, const IfcImportOptions &options, co
         if (!info.isFile())
             refuse("notAFile", "The IFC source must be a regular file.");
         if (info.size() > maxFileBytes)
-            refuse("tooLarge", "The IFC file is larger than 128 MiB (" + std::to_string(info.size()) + " bytes).");
+            refuse("tooLarge", "The IFC file is larger than " + std::to_string(maxFileBytes / (1024 * 1024)) + " MiB (" +
+                                         std::to_string(info.size()) + " bytes).");
     }
     const QString workerPath = findIfcWorker(worker.workerPath);
     if (workerPath.isEmpty())

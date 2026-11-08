@@ -778,7 +778,8 @@ std::string importStep(const StepImportOptions& options) {
 
   if (file.bytes > kMaxInputBytes) {
     status = "refused-size";
-    notices.push_back("the file is over 128 MiB; it is refused (ADR 0172 §6)");
+    notices.push_back("the file is over " + std::to_string(kMaxInputBytes / (1024 * 1024)) +
+                      " MiB; it is refused (ADR 0172 §6)");
   } else if (!file.readable) {
     status = "failed-read";
     notices.push_back("the file could not be read");
@@ -886,7 +887,9 @@ int runStepImportPackage(const StepImportOptions& options) {
 
   progress.phase("read");
   const StepFileFacts file = stepFileFacts(options.file);
-  if (file.bytes > kMaxInputBytes) return refuse("size", "The file is over 128 MiB; it is refused (ADR 0172 §6).");
+  if (file.bytes > kMaxInputBytes)
+    return refuse("size", "The file is over " + std::to_string(kMaxInputBytes / (1024 * 1024)) +
+                              " MiB; it is refused (ADR 0172 §6).");
   if (!file.readable) return refuse("read", "The file could not be read.");
   if (!file.isoHeader) return refuse("header", "The file does not start with an ISO-10303-21 header; it is refused.");
   if (file.schema == "other") return refuse("schema", "The FILE_SCHEMA " + clip(file.schemaRaw, 40) + " is not AP203, AP214 or AP242; it is refused.");

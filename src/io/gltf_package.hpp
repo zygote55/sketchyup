@@ -1,5 +1,6 @@
 #pragma once
 #include <QByteArray>
+#include <cstddef>
 #include <QJsonObject>
 #include <QString>
 #include <memory>
@@ -22,4 +23,10 @@ class GltfPackage {
     explicit GltfPackage(std::unique_ptr<Impl> impl);
     std::unique_ptr<Impl> impl_;
 };
+// The parser's budgets (R115, review finding 5), for the tests: each one admits what the app's own GLB export
+// writes for a model inside the unique limit (see gltf_package.cpp).
+struct GltfParseBudgets {
+    std::size_t file, json, values, accessorCount, accessorElements, primitiveElements, primitives, records;
+};
+GltfParseBudgets gltfParseBudgets();
 } // namespace sketchy

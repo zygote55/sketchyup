@@ -665,9 +665,9 @@ does not change the size of the model.
 
 ### Limits
 
-- The file: 1 GiB at most (R115; 256 MiB before). A larger file is refused before the helper starts.
-- The helper: 4 GiB of address space, 480 seconds of CPU time, 512 MiB of output, and the time
-  allowance above. A helper that goes over one of these limits stops, and nothing is created.
+- The file: 2 GiB at most (R115; 256 MiB before). A larger file is refused before the helper starts.
+- The helper: 8 GiB of address space (R115; 4 GiB before), 480 seconds of CPU time, 8 GiB of output, and the time
+  allowance above. A package over 2 GiB is refused. A helper that goes over one of these limits stops, and nothing is created.
 - The model: one body of up to 800,000 faces or vertices and 2,400,000 edges (R115). A file's mesh over that
   continues in the next body (named "Name (2)", and so on) and is reported under `bodySplits`, as described
   under [Format limits](#exchange-and-present-a-model); shading does not carry across the split. One component
@@ -1204,11 +1204,11 @@ A refused image stops the command with status 1. Its error is JSON on standard e
 
 ### Size limits
 
-- At most 4096 × 4096 pixels.
-- At most 16 MiB as stored. A PNG or JPEG is stored as its own bytes, so the file must be 16 MiB or less. A
-  GeoTIFF is stored as a PNG of its pixels, and that PNG must be 16 MiB or less. A larger image is refused. It
-  is not resampled: crop or reduce it in an image editor, then import it again. A 4096 × 4096 photograph may
-  be larger than 16 MiB as a PNG.
+- At most 8192 × 8192 pixels (R115; 4096 × 4096 before). A georeferenced image is at most 4096 × 4096 pixels.
+- At most 64 MiB as stored (R115; 16 MiB before). A PNG or JPEG is stored as its own bytes, so the file must be 64 MiB or
+  less. A GeoTIFF is stored as a PNG of its pixels, and that PNG must be 64 MiB or less. A larger image is refused. It
+  is not resampled: crop or reduce it in an image editor, then import it again. A large photograph may be larger
+  than 64 MiB as a PNG.
 - A GeoTIFF file over 128 MiB is not read.
 - Each side of the placed image covers at most 1,000 km.
 - Only north-up images are read.
@@ -1298,7 +1298,7 @@ declaration; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives t
 
 **Older releases.** An edge stroke saves the file as format 31, and a sized material as format 33. SketchyUp 1.3.x and 1.2.x refuse both with "Unsupported container field". To save a file that those releases must open, turn off the edge stroke and clear the material sizes first; the file then saves in the lowest format its content needs.
 
-**Limits.** A catalog file is at most 130 MiB, and a texture at most 16 MiB. A catalog holds at most 128 entries and 256 assets. A catalog insert shows a progress sheet after one second, and **Cancel** stops it before its edit is composed. Once the insert has been composed, Cancel comes too late and the insert is kept. The Styles dialog's gaps are fixed in 1.5.0 for the asset catalog and the Styles tab: **Save report…** writes the report as text, the usage bar is solid, hatched and cross-hatched with a legend, and a refusal opens with "Nothing was saved." or "Nothing was applied." The IFC import, IFC export and STEP export reports keep a colour-only bar. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
+**Limits.** A catalog file is at most 1,040 MiB, and a texture at most 64 MiB (R115). A catalog holds at most 128 entries and 256 assets. A catalog insert shows a progress sheet after one second, and **Cancel** stops it before its edit is composed. Once the insert has been composed, Cancel comes too late and the insert is kept. The Styles dialog's gaps are fixed in 1.5.0 for the asset catalog and the Styles tab: **Save report…** writes the report as text, the usage bar is solid, hatched and cross-hatched with a legend, and a refusal opens with "Nothing was saved." or "Nothing was applied." The IFC import, IFC export and STEP export reports keep a colour-only bar. Catalog components are placed at the model's origin, and a template in a catalog cannot be opened as a model yet. Custom styles and asset catalogs are in the 1.4.0 group, released only through the M10 gate; the [support matrix](SUPPORT_MATRIX.md#exchange-boundaries) gives the claimed limits.
 
 ## Troubleshooting
 

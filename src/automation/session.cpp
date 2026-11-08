@@ -14,7 +14,7 @@
 #include <QJsonDocument>
 namespace sketchy {
 namespace {
-[[noreturn]] void fail(const char *code, const char *message) {
+[[noreturn]] void fail(const char *code, const std::string &message) {
     throw InspectionError(code, message);
 }
 QByteArray hash(const QByteArray &bytes) {
@@ -24,11 +24,12 @@ QByteArray read(const QString &path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         fail("INPUT_ERROR", "Cannot read the explicitly selected model");
-    const auto bytes = file.read(qint64(NativeLimits::fileBytes) + 1);
+    const auto bytes = file.read(qMin(file.size(), qint64(NativeLimits::fileBytes)) + 1);
     if (file.error() != QFileDevice::NoError)
         fail("INPUT_ERROR", "Could not read model bytes");
     if (bytes.size() > qsizetype(NativeLimits::fileBytes))
-        fail("LIMIT_EXCEEDED", "Model exceeds 256 MiB");
+        fail("LIMIT_EXCEEDED",
+             "Model exceeds " + std::to_string(NativeLimits::fileBytes / (1024 * 1024)) + " MiB");
     return bytes;
 }
 QString path(const QString &value) {

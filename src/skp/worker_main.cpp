@@ -5,8 +5,8 @@
 // input is readable, the package's directory is writable, and a system call outside the policy kills it.
 //
 // The helper enforces its own limits (the IFC helper takes them from the application):
-// RLIMIT_AS 4 GiB (absent in the sanitizer build, where the 4 GiB ceiling would collide with the
-// sanitizer's reservations), RLIMIT_CPU 480 s and RLIMIT_FSIZE 512 MiB, plus a 120 s deadline.
+// RLIMIT_AS 8 GiB (absent in the sanitizer build, where the ceiling would collide with the
+// sanitizer's reservations), RLIMIT_CPU 480 s and RLIMIT_FSIZE 8 GiB, plus a 120 s deadline (R115).
 // The --rlimit-* and --deadline-seconds options override the limits for the tests.
 #include <sys/resource.h>
 
@@ -41,9 +41,9 @@ void usage(std::FILE* stream) {
       "           options:\n"
       "           --size-limit-bytes N   the input size ceiling (default 2 GiB)\n"
       "           --deadline-seconds N   the wall-clock deadline (default 120)\n"
-      "           --rlimit-as BYTES      override the 4 GiB address limit (0 disables it)\n"
+      "           --rlimit-as BYTES      override the 8 GiB address limit (0 disables it)\n"
       "           --rlimit-cpu SECONDS   override the 480 s CPU limit\n"
-      "           --rlimit-fsize BYTES   override the 512 MiB output limit\n"
+      "           --rlimit-fsize BYTES   override the 8 GiB output limit\n"
       "           --dry-run              parse and count, write no package\n",
       stream);
 }
@@ -59,9 +59,9 @@ int fail(const std::string& message) {
 void applyDefaults(sketchyup::skp::SkpImportOptions& options) {
   if (options.rlimitAs == 0) {
 #ifdef SKP_WORKER_NO_ADDRESS_LIMIT
-    options.rlimitAs = 0;  // the sanitizer build: the 4 GiB ceiling would collide with its reservations
+    options.rlimitAs = 0;  // the sanitizer build: the 8 GiB ceiling would collide with its reservations
 #else
-    options.rlimitAs = 4ull * 1024 * 1024 * 1024;
+    options.rlimitAs = 8ull * 1024 * 1024 * 1024;  // R115: 8 GiB (see skp_worker.hpp)
 #endif
   }
   if (options.rlimitCpu == 0) options.rlimitCpu = 480;

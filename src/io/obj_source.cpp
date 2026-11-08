@@ -212,7 +212,8 @@ struct Parser {
 ObjSource parseObj(const QByteArray &bytes, ObjImportOptions options) {
     options.validate();
     if (bytes.size() > byteLimit || bytes.contains('\0'))
-        throw std::runtime_error("OBJ text exceeds 64 MiB or contains NUL");
+        throw std::runtime_error("OBJ text exceeds " + std::to_string(byteLimit / (1024 * 1024)) +
+                                 " MiB or contains NUL");
     auto payload = bytes;
     if (payload.startsWith("\xef\xbb\xbf"))
         payload.remove(0, 3);

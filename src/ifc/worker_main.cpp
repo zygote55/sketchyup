@@ -57,6 +57,7 @@ void usage(std::FILE* stream) {
       "           read an IFC file and write an IFC conversion package (R097.b); options:\n"
       "           --kernel NAME  --threads N  --deflection METRES  --angular-deflection RADIANS\n"
       "           --length-unit mm|cm|m|in|ft  --skip-spaces  --georef keep|grid  --max-voids N  --max-nodes N  --max-entities N\n"
+      "           --max-mesh-triangles N  --max-total-triangles N  (the kernel's bounds; tests)\n"
       "           --exclude-step N  --diagnose-from TASK  --diagnose-seconds N  --rlimit-as BYTES  --rlimit-cpu SECONDS  --rlimit-fsize BYTES\n"
       "           --test-fault crash|abort|hang|alloc:N  --dry-run\n"
       "       sketchyup-ifc-worker --export PACKAGE --output FILE.ifc [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--rlimit-fsize BYTES]\n"
@@ -144,6 +145,8 @@ int main(int argc, char** argv) {
         }
         else if (argument == "--max-voids" && hasValue) options.maxVoidsPerElement = std::stoi(argv[++i]);
         else if (argument == "--max-nodes" && hasValue) options.maxNodes = static_cast<std::size_t>(std::stoull(argv[++i]));
+        else if (argument == "--max-mesh-triangles" && hasValue) options.maxMeshTriangles = static_cast<std::size_t>(std::stoull(argv[++i]));
+        else if (argument == "--max-total-triangles" && hasValue) options.maxTotalTriangles = static_cast<std::size_t>(std::stoull(argv[++i]));
         else if (argument == "--max-entities" && hasValue) options.maxEntities = static_cast<std::size_t>(std::stoull(argv[++i]));
         else if (argument == "--exclude-step" && hasValue) options.excludeSteps.push_back(std::stoi(argv[++i]));
         else if (argument == "--diagnose-from" && hasValue) options.diagnoseFrom = std::stoi(argv[++i]);
