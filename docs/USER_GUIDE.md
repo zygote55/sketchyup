@@ -678,8 +678,8 @@ does not change the size of the model.
   of up to 200,000 faces, vertices or wires and 600,000 edges. A component over those limits is left out and
   reported, and the rest of the model comes across. The document also takes at most 10,000 distinct
   geometry records, 300,000 faces, vertices and wires and 900,000 edges of distinct geometry (a component
-  counts once), 600,000 faces after placement and 1,024 materials, and 2,048 component definitions besides
-  its root (1,024 before 1.9.0, R117). Definitions beyond the 2,048th are left out and counted in the notices
+  counts once), 600,000 faces after placement and 1,024 materials, and 4,096 component definitions besides
+  its root (1,024 before R117). Definitions beyond the 4,096th are left out and counted in the notices
   ("definitionLimit"), and so are the placements of them.
 - Textures: an image over 4,096 by 4,096 pixels is not imported, and the report says so.
 - Nesting: components nested more than 64 levels deep are left out and reported.

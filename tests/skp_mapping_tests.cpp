@@ -812,7 +812,7 @@ int main(int argc, char **argv) {
 
     // R113 (D-102, ADR 0176): a file with more definitions than a document takes. The package
     // allows 100,000 definitions; a document takes componentDefinitionCountLimit besides its root
-    // (1,024 in R113, 2,048 from R117). The import keeps the first ones, omits and counts the rest,
+    // (1,024 in R113, 4,096 from R117). The import keeps the first ones, omits and counts the rest,
     // and is not refused.
     {
         auto package = packageOf(fixture("component_instances.skp"), temp);

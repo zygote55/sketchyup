@@ -2,7 +2,7 @@
   "record": "R117",
   "title": "Edit path, push/pull on large bodies, history charge and definition count",
   "date": "2026-11-07",
-  "status": "Fixed for D-104 (charge), D-106 and the D-107 edit path. Creation is not near-linear; the count is raised to 2,048. GPU cases for the 176,000-face definition, 2,048 and 4,096 definitions are pending or not run (see not_run).",
+  "status": "Done for D-104 (charge part), D-106 and the D-107 edit path. Creation is not near-linear (D-107 stays open for it). The definition count is raised to 4,096, the largest tier measured within the budgets on the GPU PC. The 176,000-face definition is refused by the undo budget at 3 and 27 placements (scale 8), as in R114.",
   "conditions": {
     "laptop": {
       "compiler": "GCC 16.2.1",
@@ -11,14 +11,15 @@
       "build_type": "RelWithDebInfo (profiles and timed driver), headless core",
       "driver": "tests/edit_path_benchmark.cpp",
       "samples_per_edit_kind": 20,
-      "profiler": "LD_PRELOAD SIGPROF sampler, outside the repository (perf not installed; gdb cannot attach with ptrace_scope 1)"
+      "profiler": "LD_PRELOAD SIGPROF sampler kept outside the repository (perf not installed; gdb cannot attach with ptrace_scope 1)",
+      "load_note": "shared with other workers and processes; timings at 4,096 taken on a shared machine"
     },
     "gpu_pc": {
-      "machine": "CachyOS guest, RX 6800 XT, Mesa, Qt 6.12, X11",
+      "machine": "CachyOS guest, 12 vCPUs, RX 6800 XT, Mesa, Qt 6.12, X11",
       "harness": "limits_hardware_benchmark (R114)",
       "builds": {
         "scale_8": "Release, SKETCHYUP_BENCHMARK_LIMIT_SCALE=8 (R114 conditions)",
-        "product": "Release, product limits"
+        "product": "Release, product limits (count limit 4,096)"
       },
       "case_limits": {
         "MemoryMax": "18G",
@@ -26,7 +27,8 @@
         "RuntimeMaxSec": 1800,
         "LimitCORE": 0,
         "lock": "flock -w 3600 on the shared gpu.lock"
-      }
+      },
+      "wait_rule": "each case started when the GPU was at or below 10% busy"
     }
   },
   "profiles_before": {
@@ -57,7 +59,8 @@
         "1024": 6.196,
         "2048": 52.715,
         "4096": 222.743
-      }
+      },
+      "note": "the 4,096 run was on a shared machine"
     },
     "placement_move_p95_ms": {
       "before_1024": 82.25,
@@ -81,18 +84,18 @@
       "after_4096_scale16": 7.58
     },
     "native_product": {
-      "2048": {
-        "save_s": 1.684,
-        "open_s": 0.964,
-        "file_bytes": 15655322,
-        "reopened_definitions": 2048,
-        "reopened_history_empty": true
-      },
       "1024": {
         "save_s": 0.377,
         "open_s": 0.575,
         "file_bytes": 7819404,
         "reopened_definitions": 1024,
+        "reopened_history_empty": true
+      },
+      "2048": {
+        "save_s": 1.684,
+        "open_s": 0.964,
+        "file_bytes": 15655322,
+        "reopened_definitions": 2048,
         "reopened_history_empty": true
       }
     },
@@ -178,6 +181,91 @@
         5.51
       ],
       "refusals": []
+    },
+    "definitions_1024_product": {
+      "runs": 1,
+      "frame_p95_ms": 3.08,
+      "move_feedback_p95_ms": 5.48,
+      "definition_edit_feedback_p95_ms": 13.53,
+      "undo_p95_ms": 4.16,
+      "fixture_seconds": 4.77,
+      "refusals": []
+    },
+    "definitions_2048_product": {
+      "runs": 1,
+      "frame_p95_ms": 5.44,
+      "move_feedback_p95_ms": 48.82,
+      "move_feedback_p50_ms": 8.66,
+      "definition_edit_feedback_p95_ms": 85.45,
+      "definition_edit_feedback_p50_ms": 26.8,
+      "undo_p95_ms": 62.16,
+      "fixture_seconds": 22.49,
+      "refusals": [],
+      "note": "noisy: another user's GPU load returned during the campaign; not used for the decision"
+    },
+    "definitions_4096_product": {
+      "runs": 1,
+      "frame_p95_ms": 10.08,
+      "move_feedback_p95_ms": 21.73,
+      "move_feedback_p50_ms": 19.11,
+      "definition_edit_feedback_p95_ms": 58.78,
+      "definition_edit_feedback_p50_ms": 55.87,
+      "undo_p95_ms": 19.21,
+      "redo_p95_ms": 18.59,
+      "fixture_seconds": 117.72,
+      "native_save_s": 1.205,
+      "native_open_s": 4.138,
+      "file_bytes": 31327629,
+      "reopened_definitions": 4096,
+      "reopened_history_empty": true,
+      "refusals": []
+    },
+    "definitions_4096_scale8": {
+      "runs": 1,
+      "frame_p95_ms": 9.29,
+      "move_feedback_p95_ms": 21.52,
+      "definition_edit_feedback_p95_ms": 58.58,
+      "undo_p95_ms": 22.14,
+      "fixture_seconds": 115.11,
+      "refusals": []
+    },
+    "dense_definition_176000_3_placements_scale8": {
+      "runs": 3,
+      "frame_p95_ms": [
+        1.95,
+        1.7,
+        1.8
+      ],
+      "move_feedback_p95_ms": [
+        13.97,
+        49.38,
+        27.04
+      ],
+      "move_feedback_p50_ms": [
+        12.38,
+        27.83,
+        12.56
+      ],
+      "undo_p95_ms": [
+        12.21,
+        41.13,
+        34.14
+      ],
+      "definition_edit": "refused: Edit exceeds the 192 MiB history budget",
+      "fixture_seconds": [
+        3.83,
+        2.9,
+        3.21
+      ]
+    },
+    "dense_definition_176000_27_placements_scale8": {
+      "runs": 1,
+      "frame_p95_ms": 6.59,
+      "move_feedback_p95_ms": 15.39,
+      "move_feedback_p50_ms": 14.85,
+      "undo_p95_ms": 15.55,
+      "definition_edit": "refused: Edit exceeds the 192 MiB history budget",
+      "fixture_seconds": 13.43
     }
   },
   "targets": [
@@ -185,60 +273,75 @@
       "case": "Move a placement, one 176,000-face definition",
       "r114_pc_ms": 258,
       "target": "under 100 ms p95",
-      "result": "pending (GPU queue)"
+      "result": "met on the GPU PC (scale 8): 14, 27 and 49 ms p95 at 3 placements (three runs); 15 ms p95 at 27 placements"
     },
     {
       "case": "Move a placement, 1,024 definitions",
       "r114_pc_ms": 268,
       "target": "under 100 ms p95",
-      "result": "5.1 to 6.4 ms p95 (GPU PC, scale 8, feedback including frame)"
+      "result": "met: 5.1 to 6.4 ms p95 on the GPU PC (scale 8, three runs); 5.5 ms (product)"
     },
     {
       "case": "Definition edit, 1,024 definitions",
       "r114_pc_ms": 1057,
       "target": "report; under 100 ms if the profile allows",
-      "result": "13.8 to 14.6 ms p95 (GPU PC, scale 8); 11 to 17 ms on the laptop"
+      "result": "13.8 to 14.6 ms p95 on the GPU PC (scale 8); 13.5 ms (product)"
+    },
+    {
+      "case": "Definition edit, 176,000-face definition",
+      "r114_pc_ms": "not measured",
+      "target": "not a stated target",
+      "result": "refused by the undo budget at 3 and 27 placements (scale 8), as in R114"
     },
     {
       "case": "Create 1,024 definitions",
       "r114_pc_ms": 533000,
       "target": "near-linear; report 256, 1,024, 4,096",
-      "result": "not met: 0.6 to 0.8 s at 256, 6.2 to 8.0 s at 1,024, 223 s at 4,096 (laptop, creation grows 2.5 to 6 times per doubling)"
+      "result": "not met: laptop 0.6 to 0.8 s at 256, 6.2 to 8.0 s at 1,024, 223 s at 4,096 (shared machine); GPU PC 4.8 s at 1,024 and 118 s at 4,096 (product). Creation grows 2.5 to 6 times per doubling"
     },
     {
       "case": "Push/pull on 1,000, 10,000 and 100,000 faces",
       "r114_pc_ms": "refused above 1,000 faces",
       "target": "works; near-linear; report p95",
-      "result": "1,000: 10.3 ms p95; 10,000: 110.9 ms p95; 99,000: 1,337.6 ms p95; 100,000: refused by the one-body limit when the push adds faces"
+      "result": "1,000: 10.3 ms p95; 10,000: 110.9 ms p95; 99,000: 1,337.6 ms p95 (laptop); 100,000: refused by the one-body limit when the push adds faces"
     }
   ],
   "tiers": [
     {
       "definitions": 1024,
-      "creation_s": "6.2 to 8.0",
-      "move_p95_ms": "0.8 to 2.2",
-      "definition_edit_p95_ms": "11 to 17",
+      "creation_s": "laptop 6.2 to 8.0; PC 4.8",
+      "move_p95_ms": "laptop 0.8 to 2.2; PC 5.5",
+      "definition_edit_p95_ms": "laptop 11 to 17; PC 13.5",
       "verdict": "within budgets"
     },
     {
       "definitions": 2048,
-      "creation_s": "38 to 53",
-      "move_p95_ms": "3.4 to 4.8",
-      "definition_edit_p95_ms": "38 to 53",
-      "verdict": "within budgets; chosen as the limit"
+      "creation_s": "laptop 38 to 53; PC 22.5",
+      "move_p95_ms": "laptop 3.4 to 4.8; PC 48.8 (one noisy run)",
+      "definition_edit_p95_ms": "laptop 38 to 53; PC 85.5 (one noisy run)",
+      "verdict": "within budgets; PC run noisy; superseded by 4,096"
     },
     {
       "definitions": 4096,
-      "creation_s": 223,
-      "move_p95_ms": 12.9,
-      "definition_edit_p95_ms": 148.3,
-      "verdict": "over the 100 ms definition-edit budget; stops the next tier"
+      "creation_s": "laptop 223 (shared); PC 118",
+      "move_p95_ms": "laptop 12.9 (shared); PC 21.7",
+      "definition_edit_p95_ms": "laptop 148 (shared); PC 58.8",
+      "verdict": "within budgets on the PC; chosen as the limit"
+    },
+    {
+      "definitions": 8192,
+      "verdict": "not built; projected about 120 ms definition-edit p95 (about 2 times per doubling from the PC's 1,024 and 4,096 runs); stops the next tier"
     },
     {
       "definitions": 16384,
-      "verdict": "not built: creation at the measured growth would take hours"
+      "verdict": "not built: more than 15 minutes of creation on the PC, and 458,000 faces for 28-face prisms exceed the product unique limit of 300,000"
     }
   ],
+  "decision": {
+    "count_limit_before": 1024,
+    "count_limit_after": 4096,
+    "reason": "the largest measured tier within the 100 ms edit budgets on the GPU PC product build; the 8,192 tier is projected above the budget"
+  },
   "tests": {
     "run_on_laptop_final_sources": [
       "component_record_tests",
@@ -276,6 +379,17 @@
       "unique_limits_acceptance_tests"
     ],
     "result": "all 33 test executables passed (exit 0)",
+    "affected_by_4096_limit_rerun": [
+      "component_record_tests",
+      "component_tests",
+      "skp_mapping_tests",
+      "native_format_tests",
+      "persistence_tests",
+      "incremental_validation_tests",
+      "component_parameter_tests",
+      "core_tests",
+      "document_limits_io_tests"
+    ],
     "not_run": [
       "the other registered CTest tests (270 are registered in this configuration; these are the ones the change can affect)",
       "desktop tests (not built)",
@@ -283,14 +397,14 @@
     ]
   },
   "not_run": [
-    "16,384 definitions: not built (creation time)",
-    "save and open at 4,096 definitions: product limit refuses the count",
-    "GPU cases queued but not run when this record was written: dense-definition 3 and 27 placements (scale 8), definitions 4,096 (scale 8), definitions 2,048 and 1,024 (product)",
-    "push/pull at 100,000 faces: refused by the one-body limit",
+    "8,192 and 16,384 definitions: not built",
+    "a quiet laptop run at 4,096 definitions (the laptop was shared; the PC product run is the evidence)",
+    "the 176,000-face definition edit: refused by the budget, so no timing",
     "material limit (1,024): not raised, not measured"
   ],
   "contradictions": [
     "ADR 0005 history budget (R110, R114 notes): the charge counted both copies of a changed record; superseded by R117 for bodies and component records",
-    "ADR 0005 R114 notes on push/pull: the context limit and the 1,000,000-pair budget are gone"
+    "ADR 0005 R114 notes on push/pull: the context limit and the 1,000,000-pair budget are gone",
+    "R114 refusal of the 176,000-face definition at 3 placements still holds at scale 8 under the corrected charge"
   ]
 }

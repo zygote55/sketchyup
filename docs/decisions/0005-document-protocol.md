@@ -618,12 +618,13 @@ Measured on 2026-11-07 on the development laptop and on the GPU PC. The full rec
   still considers the definition's faces only; the placements' records are still in the charge, once. Scenes,
   sections, tags, materials, assets, annotations, drawing records and camera paths still charge both copies.
   R117 did not change them, because the defect was about bodies and component records. That is a follow-up.
-- **The definition count is 2,048, not 1,024.** `componentDefinitionCountLimit` now follows the document's
+- **The definition count is 4,096, not 1,024.** `componentDefinitionCountLimit` now follows the document's
   scale. The native loader had its own literal 1,024, which refused a saved document with more definitions;
-  it follows the limit now. On the laptop, creation takes about 38 to 53 s at 2,048 and 6 to 8 s at 1,024;
-  a definition edit takes 38 to 53 ms p95 at 2,048. A definition edit at 4,096 takes 148 ms p95, so the
-  count stops there. Creation is still superlinear, and the next tier needs an incremental path for
-  definition changes (see the record).
+  it follows the limit now. On the GPU PC (product build) a placement move takes 22 ms p95 and a definition
+  edit 59 ms p95 at 4,096 definitions, a frame 10 ms p95, and creation takes 118 s. On the laptop, creation
+  takes 6 to 8 s at 1,024 and 38 to 53 s at 2,048. The next tier (8,192) is projected at about 120 ms per
+  definition edit and was not built; creation is still superlinear, and the next step is an incremental path
+  for definition changes (see the record).
 - **The one-body limit does not change.** Push/pull's refusal of a body above 1,000 faces came from a
   context limit this ADR's R114 notes record. It is gone (see the next section). A body is still limited to
   100,000 faces and vertices (`Surface::bodyLimit`), and a push that would take it over is refused by that
