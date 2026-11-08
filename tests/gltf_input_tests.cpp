@@ -106,9 +106,14 @@ int main(int argc, char **argv) {
         cancel = false;
         window.importGltfPath(source);
         timer.stop();
-        check(prompts == 2 && reportSeen && doc.dirty() && !doc.instances().empty() &&
-                  !doc.scenes().empty(),
-              "Native import publishes an unsaved component model with cameras");
+        // The fixture's one mesh is used by one node, so it imports as that node's group with no
+        // component placement (R119, D-108).
+        size_t importedFaces = 0;
+        for (const auto &[id, body] : doc.bodies())
+            importedFaces += body->surface.faces.size();
+        check(prompts == 2 && reportSeen && doc.dirty() && doc.instances().empty() &&
+                  importedFaces > 0 && !doc.scenes().empty(),
+              "Native import publishes an unsaved model with cameras; a mesh used once is a group");
         check(copy.open(QIODevice::ReadOnly) && copy.readAll() == bytes,
               "Native import leaves original bytes intact");
         copy.close();
