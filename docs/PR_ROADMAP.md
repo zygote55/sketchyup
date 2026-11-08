@@ -1622,7 +1622,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R114 — Measure the model limits on real hardware
 
-**Status:** In progress. The owner approved using the GPU PC on 2026-11-07. This closes [D-091](verification/R089a-defect-triage.md) if the results are complete.
+**Status:** Done ([PR #583](https://github.com/zygote55/sketchyup/pull/583)). The owner approved using the GPU PC on 2026-11-07, and the measurements are recorded in [R114-hardware-limits](verification/R114-hardware-limits.md) (JSON beside it). Within the frame and edit budgets: 10,000 placements, 2.4 million unique faces, 512 MiB of textures; within the frame budget only: 800,000 faces in one body, 27 placements of a 176,000-face definition, 1,024 definitions. No product limit changes. The 300,000-face tier answers [D-091](verification/R089a-defect-triage.md), which it closes for the AMD GPU. The results also found [D-104 to D-107](verification/R089a-defect-triage.md), owned by R115, [R117](#r117) and [R118](#r118). Binary storage is not justified ([R116](#r116)).
 
 **Requires:** nothing merged; it measures `main`.
 
@@ -1634,7 +1634,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R115 — Raise the placed-face and texture limits
 
-**Status:** Planned, waiting on [R114](#r114). The owner agreed to the raise on 2026-11-07; the numbers come from R114's measurements. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md), [D-100](verification/R089a-defect-triage.md) and the undo-budget part of [D-103](verification/R089a-defect-triage.md) if the new budgets cover them.
+**Status:** Planned; [R114](verification/R114-hardware-limits.md#recommendations) has measured the numbers. The owner agreed to the raise on 2026-11-07. The plan is about eight times today's values, the largest tiers R114 ran: 2.4 million unique faces, 4.8 million placed faces, 80,000 placements, 800,000 faces in one body and in one definition, 512 MiB of stored textures, a 768 MiB model chunk and a 4 GiB undo budget. The 1,024-definition limit stays for [R117](#r117), and the viewport's decoded-texture budget is [R118](#r118). At-limit runs happen on the GPU PC; CI keeps today's model sizes. The memory ceilings of 3.75 GiB and 8 GiB were only protections for the development laptop and do not apply. Every limit that depends on these moves with them, so that no secondary cap is left below the published limits, as happened in R112 and D-102: the read-snapshot budget, the GLB caps, the render snapshot, the texture and file limits, and the one-body and definition limits if R114 supports it. It closes [D-099](verification/R089a-defect-triage.md), [D-100](verification/R089a-defect-triage.md) and the undo-budget part of [D-103](verification/R089a-defect-triage.md) if the new budgets cover them, and the budget part of [D-104](verification/R089a-defect-triage.md).
 
 **Requires:** [R113](#r113), [R114](#r114).
 
@@ -1642,9 +1642,25 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R116 — Binary geometry storage
 
-**Status:** Conditional on [R114](#r114). The owner agreed on 2026-11-07 to build it if the measurements justify it. Geometry is stored as JSON in a chunk of at most 96 MiB, which holds about 400,000 to 480,000 unique faces, or about 136,000 with imported UVs ([D-099](verification/R089a-defect-triage.md)). Going past that needs a new document schema, which older versions refuse to open.
+**Status:** Not built. The owner agreed on 2026-11-07 to build it if the measurements justify it, and [R114](verification/R114-hardware-limits.md#binary-storage-r116) shows they do not. Geometry is stored as JSON in a chunk whose 96 MiB bound is a constant: the same format wrote and read a 258 MB model at 2.4 million faces, in 6 s, so [R115](#r115) raises the bound with no schema change. Reconsider this only if a measured open time or peak memory becomes what stops a model.
 
 **Requires:** [R114](#r114).
+
+<a id="r117"></a>
+
+#### R117 — Fast edits on large models, and push/pull on large bodies
+
+**Status:** Planned. [R114](verification/R114-hardware-limits.md) found that every edit pays for every component definition: moving one placement takes about 258 ms with one 176,000-face definition and 268 ms with 1,024 small ones, against a 100 ms budget ([D-107](verification/R089a-defect-triage.md)). Creating definitions is superlinear: 1,024 took 533 s and 4,096 did not finish in 30 minutes. A definition edit charges the records of every placement to the undo budget, which may be more than the history retains ([D-104](verification/R089a-defect-triage.md)). Push/pull refuses any body above 1,000 faces, and its overlap checks compare every pair of faces ([D-106](verification/R089a-defect-triage.md)). R117 profiles and fixes the edit path, makes definition creation near-linear, makes the history charge match what is retained, makes the push/pull checks near-linear and removes the 1,000-face limit. It then raises the 1,024-definition limit to the largest count measured within the budgets.
+
+**Requires:** [R114](#r114).
+
+<a id="r118"></a>
+
+#### R118 — Viewport textures past the decoded budget
+
+**Status:** Planned. The viewport holds at most 128 MiB of decoded textures and 128 images, so a model inside the stored-texture limit shows placeholders: eight 2048 × 2048 images or two 4096 × 4096 images fill it ([D-105](verification/R089a-defect-triage.md), [R114](verification/R114-hardware-limits.md) item 8). R118 raises the budget and, past it, shows textures at a lower resolution instead of placeholders, so every texture inside the stored limit displays. It is measured on the GPU PC at the stored-texture limit that [R115](#r115) sets.
+
+**Requires:** [R115](#r115).
 
 #### 1.5 follow-ups from the 1.4.0 decisions
 

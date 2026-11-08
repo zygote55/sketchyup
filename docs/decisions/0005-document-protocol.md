@@ -565,3 +565,36 @@ D-083 changes what erasing a context does to its descendants. Where this section
 - **Contract.** `geometry.delete` keeps its documented contract, "Delete context". A group is a context, so the command now does what that contract says. The generated tool reference does not change, and `scripts/generate-tool-reference.py --check` passes.
 - **Tests.** `command_tests`, `deleteGroupCommand`: the subtree is removed, a sibling stays, the result equals `geometry.erase_selection` on the same model, one undo restores the subtree and its parent links, and a nested group removes only its own subtree.
 - **Contradictions.** None.
+
+## Implementation notes (R114: measured limits)
+
+Measured on 2026-11-07 on an AMD Radeon RX 6800 XT, with a benchmark-only build at the limit scale 8 (no
+product limit changed). The full record is [R114](../verification/R114-hardware-limits.md). Four numbers
+bear on this ADR:
+
+- **The history budget counts placements.** A definition edit charges the records of every placement it
+  regenerates, not only the definition's faces. A 26-sided prism definition placed 5,000 times is
+  charged 175.7 MB, under the 192 MiB budget (201,326,592 bytes); at 10,000 placements the same edit is
+  refused with "Edit exceeds the 192 MiB history budget". A 176,000-face definition is refused at three
+  placements. The owner's decision above, that a definition's edit fits once definitions are capped at
+  200,000 faces, held for the faces alone and does not hold for the placements.
+- **A move of one body is charged about 640 bytes per face** (64.0 MB at 100,000 faces, 128.0 MB at
+  200,000), so a move of one body above about 300,000 faces is refused.
+- **The model chunk.** The native model is 107 bytes per unique face for untextured spheres and 132 to
+  140 for dense bodies, and about 536 bytes per placement. Real models take more: R082w v4 measures 209 to 243
+  bytes per face, and a real model of about 292,000 faces about 226, so the 96 MiB bound stops a real model at
+  about 450,000 faces. The bound is a constant and not a limit of the format: the same format wrote and read a
+  258 MB model at 2.4 million faces, so raising it needs no schema change.
+- **Two product caps stop the design's own limits.** The 600,000 materialized vertex limit admits 11,538
+  of the 26-sided prisms, so the 20,000 placement limit is not reachable with them. The viewport holds
+  128 MiB of decoded textures, which is two 4096 by 4096 images, so a model within the 64 MiB stored
+  texture limit can show placeholders for some of its textures. Both are product behaviour, not
+  changed here.
+
+Push-pull is also limited: it refuses a body above 1,000 faces (the context limit), and its coplanar
+face-pair check has a budget of 1,000,000 pairs, which refuses a body above about 1,414 faces at any
+scale. Neither is scaled by the benchmark, so push-pull was not measured on the dense bodies.
+
+**Contradiction.** The "every definition's edit fits the budget" reasoning in the History budget notes
+of R110 considers the definition's faces only. The placements' records are part of the charge, so the
+definition limit alone does not keep a definition's edit inside the budget.

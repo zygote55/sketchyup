@@ -373,7 +373,7 @@ RenderSnapshot RenderSnapshot::capture(const Document &document, RenderOptions o
                 if (result.visible(id, face))
                     for (const auto &loop : value.loops)
                         for (auto vertex : loop) {
-                            require(++references <= 2000000,
+                            require(++references <= 2000000 * DocumentLimits::scale,
                                     "Render snapshot contains too many face vertices");
                             const auto p = transform.point(record->surface.vertices.at(vertex));
                             low = {std::min(low.x, p.x), std::min(low.y, p.y),

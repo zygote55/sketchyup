@@ -1,4 +1,5 @@
 #include "geometry/diagnostics.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 #include <set>
 namespace sketchy {

@@ -31,8 +31,9 @@ struct ComponentDefinition {
 using DefinitionPtr = std::shared_ptr<const ComponentDefinition>;
 using ComponentDefinitions = std::map<Id, DefinitionPtr>;
 // The most component definitions a document holds besides its root (R113, D-102). The format
-// refuses more; an import of a larger file omits the excess, and counts it.
-inline constexpr std::size_t componentDefinitionCountLimit = 1024;
+// refuses more; an import of a larger file omits the excess, and counts it. Scaled only in
+// benchmark builds (R114).
+inline constexpr std::size_t componentDefinitionCountLimit = 1024 * DocumentLimits::scale;
 struct ComponentInstance {
     Id definition{};
     // Definition member -> resolved scene record. For a parametric placement this is

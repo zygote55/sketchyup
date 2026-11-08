@@ -1,6 +1,7 @@
 #pragma once
 #include "core/annotation_records.hpp"
 #include "core/asset_records.hpp"
+#include "core/document_limits.hpp"
 #include "core/component_records.hpp"
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheet_records.hpp"
@@ -356,7 +357,7 @@ class Document {
     // materialized limits need more than the 256 MiB this was before 1.8.0 (ADR 0005, R112). Every
     // admission check that reads readSnapshotBytes() uses this constant, and no refusal message
     // states a number.
-    static constexpr size_t readSnapshotByteLimit = 512 * 1024 * 1024;
+    static constexpr size_t readSnapshotByteLimit = 512 * 1024 * 1024 * DocumentLimits::scale;
     // Conservative admission charge for all retained records, including assets
     // and allocator bookkeeping; shared records are charged at full size.
     size_t readSnapshotBytes() const;

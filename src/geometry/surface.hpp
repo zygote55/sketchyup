@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include "core/document_limits.hpp"
+
 namespace sketchy {
 using Id = std::uint64_t;
 constexpr double tolerance = 1e-7;
@@ -41,7 +43,8 @@ struct Edge {
 struct Surface {
     // One body's own limit (R113, D-102): at most this many vertices and faces. It is a limit of
     // the editing kernel, not of the document, so an import over it continues in another body.
-    static constexpr std::size_t bodyLimit = 100000;
+    // Scaled only in benchmark builds (R114).
+    static constexpr std::size_t bodyLimit = 100000 * DocumentLimits::scale;
     std::map<Id, Vec3> vertices;
     std::map<Id, Face> faces;
     // Wire edges are authoritative too; face adjacency is derived from ordered loops.

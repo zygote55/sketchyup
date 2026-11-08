@@ -1668,6 +1668,11 @@ if(SKETCHYUP_BUILD_DESKTOP)
       PREFIX "/benchmark" BASE tests/fixtures/performance
       FILES tests/fixtures/performance/front.png tests/fixtures/performance/back.png)
     target_compile_definitions(real_model_benchmark PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+    # R114 (benchmark only): the limit families on the GPU PC. Build with
+    # -DSKETCHYUP_BENCHMARK_LIMIT_SCALE=8 so that the limits it reports are the scaled ones.
+    sketchyup_native_fixture(limits_hardware_benchmark tests/limits_hardware_benchmark.cpp)
+    target_link_libraries(limits_hardware_benchmark PRIVATE sketchyup_desktop Qt6::Test)
+    target_compile_definitions(limits_hardware_benchmark PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
     # R095.f: the ADR 0168 section 6 terrain budgets at 250,000 triangles (manual; Release).
     sketchyup_native_fixture(terrain_budget_benchmark tests/terrain_budget_benchmark.cpp)
     target_link_libraries(terrain_budget_benchmark PRIVATE sketchyup_desktop Qt6::Test)

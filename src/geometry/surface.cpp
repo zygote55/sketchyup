@@ -1,4 +1,5 @@
 #include "geometry/surface.hpp"
+#include "core/document_limits.hpp"
 #include <algorithm>
 #include <clipper2/clipper.h>
 #include <limits>

@@ -20,7 +20,9 @@
 #include <limits>
 namespace sketchy {
 namespace {
-constexpr qsizetype binaryLimit = 256 * 1024 * 1024, jsonLimit = 16 * 1024 * 1024;
+// Scaled with the benchmark-only limit scale (R114); the published values at scale 1.
+constexpr qsizetype binaryLimit = 256 * 1024 * 1024 * DocumentLimits::scale,
+                    jsonLimit = 16 * 1024 * 1024 * DocumentLimits::scale;
 void require(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
@@ -292,7 +294,8 @@ struct Writer {
                 require(++faces <= visibleFaceBudget, "GLB has too many visible faces");
             for (const auto &loop : record.loops) {
                 references += loop.size();
-                require(references <= 2000000, "GLB has too many face vertices");
+                require(references <= 2000000 * DocumentLimits::scale,
+                        "GLB has too many face vertices");
             }
             if (!cuts.empty() && !retained.contains(face))
                 continue;
