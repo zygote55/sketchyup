@@ -1,8 +1,8 @@
 #pragma once
 #include "core/annotation_records.hpp"
 #include "core/asset_records.hpp"
-#include "core/document_limits.hpp"
 #include "core/component_records.hpp"
+#include "core/document_limits.hpp"
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheet_records.hpp"
 #include "core/hosted_components.hpp"
@@ -395,8 +395,13 @@ class Document {
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
     friend struct DocumentDecodeAccess;
-    void restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
-                        std::map<Id, BodyPtr> bodies, std::uint64_t revision,
+    // Defined only in components.cpp: the component draft restores the stored, validated
+    // definitions of its document without validating or copying them again (R117, D-107).
+    friend struct DocumentDraftAccess;
+    // storedDefinitions: the definitions are the stored records of a validated document (a
+    // component draft), so they are neither validated nor copied again (R117, D-107).
+    void restoreRecords(bool decoderOwnsBodies, bool storedDefinitions, std::string identity,
+                        Id next, std::map<Id, BodyPtr> bodies, std::uint64_t revision,
                         ComponentDefinitions definitions, ComponentInstances instances,
                         Id nextDefinitionId, TagRecords tags, Id nextTagId,
                         MaterialRecords materials, Id nextMaterialId, AssetRecords assets,

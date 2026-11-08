@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+Edit path, push/pull on large bodies and the definition count (R117, [D-104, D-106, D-107](docs/verification/R089a-defect-triage.md)): see [R117](docs/verification/R117-edit-path.md).
+
+- Changed (R117, D-107): an edit that changes no component definition no longer re-validates every definition, and an edit that changes one checks that definition and the definitions that place it. At 1,024 definitions a placement move takes 5 to 6 ms p95 on the GPU PC (was 268 ms) and a definition edit 14 ms (was 1,057 ms). Creating many definitions is still superlinear: 1,024 take 6 to 8 s on the development laptop (was 160 s), and 4,096 take 223 s.
+- Changed (R117, D-104): an undo entry charges each changed record once, the copy the change creates, not its before and after copies. The charge now matches the memory the history keeps, within about 5% in the measured cases, so a definition of 99,000 faces placed five times is admitted (the old charge refused it). The 192 MiB budget is unchanged.
+- Changed (R117, D-106): push/pull accepts any body inside the one-body limit (100,000 faces or vertices). The 1,000-face and 10,000-vertex context limit is removed, and the coplanar check takes near-linear time. A 99,000-face sphere pushes in 1.3 s on the development laptop.
+- Changed (R117): a document takes 4,096 component definitions besides its root (was 1,024). A saved file, the native loader and the `.skp` import follow the same limit.
+- Changed (R117): the native loader takes the document's definition limit. It had its own literal, 1,024, which would have refused a saved document once the limit was raised.
+
 Format count limits (R113, D-102, [PR_ROADMAP R113](docs/PR_ROADMAP.md#r113)): the file formats now take the document's limits rather than 100,000.
 
 - Changed (R113): OBJ, STL, glTF and DXF exports take the model's materialized limits (600,000 faces, 900,000 edges, placements included), and the imports take the unique limits (300,000 faces, vertices and wires, 900,000 edges). A file over a limit is refused by name, with the count and the limit, and nothing is created.

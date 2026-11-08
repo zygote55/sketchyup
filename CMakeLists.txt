@@ -133,6 +133,24 @@ target_compile_definitions(sketchyup_core_benchmark_limits PUBLIC SKETCHYUP_BENC
 target_link_libraries(sketchyup_core_benchmark_limits PRIVATE clipper2 sketchyup_manifold PUBLIC sketchyup_solar sketchyup_parameter_expression sketchyup_terrain_triangulation sketchyup_geo)
 add_executable(component_placement_scaling_raised_limits EXCLUDE_FROM_ALL tests/component_placement_scaling.cpp)
 target_link_libraries(component_placement_scaling_raised_limits PRIVATE sketchyup_core_benchmark_limits)
+# R117 (benchmark only): the edit path's timings and history charge, headless. The scaled build
+# links a private core copy at scale 16, which reaches the 16,384-definition tier.
+add_executable(edit_path_benchmark EXCLUDE_FROM_ALL tests/edit_path_benchmark.cpp)
+if(SKETCHYUP_BUILD_CLI OR SKETCHYUP_BUILD_DESKTOP)
+  # The product driver also times the native save and open (sketchyup_io exists in these builds).
+  target_link_libraries(edit_path_benchmark PRIVATE sketchyup_core sketchyup_io Qt6::Core)
+  target_compile_definitions(edit_path_benchmark PRIVATE R117_EDIT_IO)
+else()
+  target_link_libraries(edit_path_benchmark PRIVATE sketchyup_core)
+endif()
+target_compile_definitions(edit_path_benchmark PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+add_library(sketchyup_core_edit_benchmark_limits STATIC EXCLUDE_FROM_ALL ${sketchyup_core_sources})
+target_include_directories(sketchyup_core_edit_benchmark_limits PUBLIC src)
+target_compile_definitions(sketchyup_core_edit_benchmark_limits PUBLIC SKETCHYUP_BENCHMARK_LIMIT_SCALE=16)
+target_link_libraries(sketchyup_core_edit_benchmark_limits PRIVATE clipper2 sketchyup_manifold PUBLIC sketchyup_solar sketchyup_parameter_expression sketchyup_terrain_triangulation sketchyup_geo)
+add_executable(edit_path_benchmark_scaled EXCLUDE_FROM_ALL tests/edit_path_benchmark.cpp)
+target_link_libraries(edit_path_benchmark_scaled PRIVATE sketchyup_core_edit_benchmark_limits)
+target_compile_definitions(edit_path_benchmark_scaled PRIVATE SKETCHYUP_BENCHMARK_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
 include(CTest)
 if(SKETCHYUP_BUILD_IFC)
   # R097.a (ADR 0171): IfcOpenShell as private shared libraries and the helper that links them.
@@ -353,7 +371,7 @@ if(BUILD_TESTING)
                    -DLIBRARY=$<TARGET_FILE:sketchyup_parameter_expression>
                    -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/parameter_expression_symbols.cmake)
   add_executable(push_pull_tests tests/push_pull_tests.cpp)
-  target_link_libraries(push_pull_tests PRIVATE sketchyup_core)
+  target_link_libraries(push_pull_tests PRIVATE sketchyup_core clipper2)
   add_test(NAME push_pull COMMAND push_pull_tests)
   add_executable(cleanup_tests tests/cleanup_tests.cpp)
   target_link_libraries(cleanup_tests PRIVATE sketchyup_core)

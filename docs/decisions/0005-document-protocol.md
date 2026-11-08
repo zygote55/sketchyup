@@ -598,3 +598,64 @@ scale. Neither is scaled by the benchmark, so push-pull was not measured on the 
 **Contradiction.** The "every definition's edit fits the budget" reasoning in the History budget notes
 of R110 considers the definition's faces only. The placements' records are part of the charge, so the
 definition limit alone does not keep a definition's edit inside the budget.
+
+## Implementation notes (R117: history charge and definition count)
+
+Measured on 2026-11-07 on the development laptop and on the GPU PC. The full record is
+[R117](../verification/R117-edit-path.md). Four numbers bear on this ADR:
+
+- **The charge counted each changed record twice, and the history keeps one copy.** An edit charged a
+  changed record its before copy and its after copy. The history holds the before copy while the edit is
+  applied and the after copy while it is undone; the other copy is the live record, or a copy an earlier
+  edit already charged. A chain of edits therefore charged every version twice. The charge is now the copy
+  the change creates (its after), or for an erasure the copy it removes (its before). Measured against the
+  heap in use after one edit: a definition edit at 5,000 placements of a 28-face prism was charged 175.7 MB
+  and now 88.3 MB, against 84.7 MB of heap growth; a move of one 99,000-face body was 63.4 MB and now 31.7 MB,
+  against 30.1 MB. The 192 MiB budget itself is unchanged. The memory the charge leaves out is bounded: for
+  each record, only the oldest version the history keeps is uncharged (the version in the file, or the after
+  copy of an evicted entry). So the history holds at most the budget plus one copy of the records it has
+  touched, and that copy is bounded by the document limits.
+- **The R114 contradiction is resolved for bodies and component records, and it holds for the rest.** A
+  definition edit at five placements of a 99,000-face definition (495,000 faces) is now admitted at 190.1 MB,
+  where the old charge was about 380 MB. The "every definition's edit fits the budget" reasoning of R110
+  still considers the definition's faces only; the placements' records are still in the charge, once. Scenes,
+  sections, tags, materials, assets, annotations, drawing records and camera paths still charge both copies.
+  R117 did not change them, because the defect was about bodies and component records. That is a follow-up.
+- **The definition count is 4,096, not 1,024.** `componentDefinitionCountLimit` now follows the document's
+  scale. The native loader had its own literal 1,024, which refused a saved document with more definitions;
+  it follows the limit now. On the GPU PC (product build) a placement move takes 22 ms p95 and a definition
+  edit 59 ms p95 at 4,096 definitions, a frame 10 ms p95, and creation takes 118 s. On the laptop, creation
+  takes 6 to 8 s at 1,024 and 38 to 53 s at 2,048. The next tier (8,192) is projected at about 120 ms per
+  definition edit and was not built; creation is still superlinear, and the next step is an incremental path
+  for definition changes (see the record).
+- **The one-body limit does not change.** Push/pull's refusal of a body above 1,000 faces came from a
+  context limit this ADR's R114 notes record. It is gone (see the next section). A body is still limited to
+  100,000 faces and vertices (`Surface::bodyLimit`), and a push that would take it over is refused by that
+  limit.
+
+## Implementation notes (R117: push/pull and the edit path)
+
+**Push/pull.** The context limit (1,000 faces and 10,000 vertices) is removed, so push/pull accepts any body
+inside the one-body limit. Its coplanar check was pairwise, with a budget of 1,000,000 pairs, which refused
+a body above about 1,414 faces; it is now a grid over grown bounding boxes, with the same pair test, so it
+is near-linear. The opposite-face cut tests only vertices within the tolerance of its plane. Measured on
+spheres, one push of 1 cm, undo included: 1,000 faces 10 ms p95, 10,000 faces 111 ms, 99,000 faces 1.34 s.
+The pre-R117 push/pull is kept in the test file as the reference: 80 random bodies and 480 pushes must give
+the same results and refusals. There is no push/pull ADR; this ADR states the push/pull limit, so the
+change is recorded here.
+
+**The edit path.** A commit that changes no definition, tag, material or asset no longer re-validates every
+component definition; the definitions were validated when they were stored. An edit that changes a definition
+validates it and the definitions that place it. The full oracle, and a tag, material or asset change, still
+validate every definition. A component draft shares the stored definitions instead of restoring (and
+re-validating) them. `placeComponent` and `publish` need only the expansion sizes of what they place.
+Measured at 1,024 definitions on the GPU PC: a placement move 5 to 6 ms p95 (was 268 ms), a definition edit
+14 ms p95 (was 1,057 ms). Each validation is the same check as before on the records it covers.
+
+**Contradictions with the earlier notes.** The R114 note "Push-pull is also limited" and its budget of
+1,000,000 pairs are superseded. The R114 note on the charge is superseded for bodies and component records,
+as the first section above states. R114's refusal of a 176,000-face definition at three placements was
+measured at scale 8 with the old charge, and it still holds under the new charge: the GPU PC run at scale 8
+refuses that definition's edit at 3 and at 27 placements. At product limits such a definition needs at least
+two bodies (a body is capped at 100,000 faces, a definition at 200,000), and its edit at three placements is
+estimated at about 225 MB, over the 192 MiB budget. That is the budget part of D-104, which R115 owns.
