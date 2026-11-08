@@ -1666,7 +1666,7 @@ Implementation split ([ADR 0166](decisions/0166-configurable-component-interface
 
 #### R119 — glTF meshes used by one node import as groups
 
-**Status:** In review, with the at-limit import on the GPU PC still to run ([record](verification/R119-gltf-meshes.md), JSON beside it). The owner decided on 2026-11-08 that a glTF mesh used by one node imports as a plain group, and only a mesh used by several nodes becomes a component. So a GLB that SketchyUp exported from a model of more than 4,096 bodies imports again, since its bodies are not definitions ([D-108](verification/R089a-defect-triage.md)). A mesh used by several nodes is one component definition, counted against the 4,096 limit, which is named before anything is built.
+**Status:** In progress, in its pull request, with the at-limit import on the GPU PC still to run ([record](verification/R119-gltf-meshes.md), JSON beside it). The owner decided on 2026-11-08 that a glTF mesh used by one node imports as a plain group, and only a mesh used by several nodes becomes a component. So a GLB that SketchyUp exported from a model of more than 4,096 bodies imports again, since its bodies are not definitions ([D-108](verification/R089a-defect-triage.md)). A mesh used by several nodes is one component definition, counted against the 4,096 limit, which is named before anything is built.
 
 **Requires:** [R115](#r115).
 
