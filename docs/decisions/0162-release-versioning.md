@@ -318,3 +318,36 @@ informational: readers accept any writer string, and retained fixtures that reco
   - The README's `v=1.7.0` install snippet and its "current release" line also change at a release publication, not at preparation.
   - The R089a rows D-094 to D-096 still say "in this PR" (the branch that fixed them); the rows are history and are not reworded.
 - Resolved at the publication (2026-11-07). The README's `v=1.8.0` install snippet and its "current release" line name 1.8.0. The R089.a rows D-094 to D-098 name the PRs that fixed them (#569, #571, #573 and #575), so their wording changed at publication, against the last item above. [#579](https://github.com/zygote55/sketchyup/pull/579) moved the screenshot Dockerfile and `docs/images/README.md` to 1.8.0 and regenerated the images from the published package.
+
+## Implementation notes (1.9.0 release preparation)
+
+- The prior release for the 1.9.0-1 package is the published `sketchyup-1.8.0-1-x86_64.pkg.tar.zst` (SHA-256
+  `d44e2f6632712232d889e5deec0e8178cc670df8def1502249a8fb571e21dd34`, which the 1.8.0 `SHA256SUMS` lists). Unpacked with
+  `bsdtar`, without pacman, its `sketchyup-cli --version` prints `sketchyup-cli 1.8.0`. Its `--capabilities` has the same key
+  paths as the 1.9.0 output (25,134 paths each, compared with `jq`); only the values of the `limits` fields differ.
+- The version is set in `CMakeLists.txt` and `pkgver`; `scripts/release-version.sh` prints `1.9.0`. `pkgrel` is 1.
+- No document schema changed: `nativeDocumentVersion` is 35 (`src/io/native_format.hpp`).
+- The downgrade checks use the 1.8.0 CLI, which refuses a file over its limits with its own message and leaves it unchanged:
+  1,025 component definitions (`Too many component records`), 306,000 unique vertices and 612,000 materialized vertices.
+  A 17-placement prism model (153,034 visible faces) opens and exports to GLB in 1.8.0. The 1.8.0 CLI refuses a file at open,
+  not at export: a file it can open has at most 600,000 materialized vertices and so at most 600,000 visible faces, so the
+  1.8.0 visible-face cap cannot refuse one. The checks are in `packaging/arch/verify-package.sh`, and the messages are as the
+  1.8.0 CLI printed them.
+- Two defects that the preparation found are fixed in it and recorded in the triage: D-111, `limits.componentDefinitions`
+  reported the literal 1,024 (the enforced limit is 4,096, from R117); and D-112, the Blender worker's GLB paired-triangle bound
+  was R113's 1,800,000 (the export's bound is 14,400,000, from R115).
+- The writer-bearing fixtures were regenerated with their generators for the `SketchyUp/1.9.0` writer: the geographic site,
+  the material texture size and the schema-34 terrain (their `--write-fixture` tests), the schema-35 reference image (the CLI
+  import, as the fixtures README gives it), the five catalog fixtures (`catalog_tests --write-fixtures`), and the six IFC
+  export goldens (`IFC_UPDATE_GOLDENS=1 ifc_export_tests`). Each golden differs from its 1.8.0 version only in the version
+  strings. The 1.8.0 CLI opens every regenerated native fixture unchanged.
+- The corpus stays at v6. The eight `inputSha256` values in each of the six manifests were re-pinned from the real
+  `provider_trial --describe` output for the 1.9.0 writer. The eight trials' `toolsSha256` values are unchanged, so the
+  surfaces did not move. `provider_release_corpus_tests.py`, `provider_release_score_tests.py` and `assistant_tool_surface_tests`
+  pass. The R115 change to `tests/assistant-tool-surface-baseline.json` (the every-command-with-clarification surface) is not
+  pinned by v6.
+- The release-candidate build used the pinned image without `mold`, which the `ci-fast` and `ifc-app` presets ask for, so the
+  preparation configured with `-DCMAKE_LINKER_TYPE=DEFAULT`. The IFC sub-build of IfcOpenShell runs `--parallel 4` unless
+  `SKETCHYUP_IFC_JOBS` is set; the preparation set it to 2, because four compile jobs were killed under the 4 GiB container cap.
+- The README `v=` snippet, its "current release" line and the screenshots stay at 1.8.0 until the release publication, as the
+  1.8.0 entry above says.
