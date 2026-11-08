@@ -1831,7 +1831,11 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
             charged += sizeof(Change) + bytes(change.before) - paintBytes(*change.before) +
                        std::max(paintBytes(*change.before), paintBytes(*change.after));
         else
-            charged += sizeof(Change) + bytes(change.before) + bytes(change.after);
+            // A changed record is charged once: the copy the change creates (its after), or for
+            // an erasure the copy it removes (its before). The other copy is the one the edit
+            // replaced, which an earlier edit created or the file held, or the live one. Charging
+            // both counted every version twice along a chain of edits (D-104, R117).
+            charged += sizeof(Change) + (change.after ? bytes(change.after) : bytes(change.before));
         const std::map<Id, Curve> noCurves;
         changes.curves = compareCurves(change.before ? change.before->curves : noCurves,
                                        change.after ? change.after->curves : noCurves);
@@ -1901,12 +1905,14 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
         edit.bytes += 96 + targets.size() * sizeof(Id);
     for (const auto &change : edit.annotations)
         edit.bytes += sizeof(AnnotationChange) + annotationBytes(change.before) + annotationBytes(change.after);
+    // Component records are charged as the body records are: the copy a change creates, or the
+    // copy an erasure removes (D-104, R117).
     for (const auto &change : edit.definitions)
         edit.bytes +=
-            sizeof(DefinitionChange) + componentBytes(change.before) + componentBytes(change.after);
+            sizeof(DefinitionChange) + componentBytes(change.after ? change.after : change.before);
     for (const auto &change : edit.instances)
         edit.bytes +=
-            sizeof(InstanceChange) + componentBytes(change.before) + componentBytes(change.after);
+            sizeof(InstanceChange) + componentBytes(change.after ? change.after : change.before);
     for (const auto &change : edit.tags)
         edit.bytes += sizeof(TagChange) +
                       (change.before ? sizeof(TagRecord) + change.before->name.size() + 64 : 0) +
@@ -1980,8 +1986,20 @@ ChangeReport Document::applyEdit(Edit edit, std::uint64_t expected, bool fullVal
     }
     validateMaterialAssignments(materials, assignedBodies);
     validateReferenceImageAssets(assignedBodies, assets);
-    validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
-                                 nextMaterial, assets, nextAsset);
+    // Stored definitions were validated when they were stored (D-107, R117). An edit that changes
+    // no definition, tag, material or asset leaves them as they are, so it skips them. An edit
+    // that changes a definition checks the changed ones and the definitions that place them. A
+    // tag, material or asset change, and the full oracle, check every definition.
+    if (fullValidation || !edit.tags.empty() || !edit.materials.empty() || !edit.assets.empty()) {
+        validateComponentDefinitions(definitions, nextDefinition, tags, nextTag, materials,
+                                     nextMaterial, assets, nextAsset);
+    } else if (!edit.definitions.empty()) {
+        std::set<Id> changedDefinitions;
+        for (const auto &change : edit.definitions)
+            changedDefinitions.insert(change.id);
+        validateComponentDefinitionChanges(definitions, changedDefinitions, nextDefinition, tags,
+                                           nextTag, materials, nextMaterial, assets, nextAsset);
+    }
     if (!edit.definitions.empty() || nextDriver != nextComponentDriverId_)
         validateComponentParameterRecords(definitions, &definitions_, nextDriver);
     // Every placement's evaluation and regeneration runs on the staged records before
@@ -2699,7 +2717,7 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                        std::optional<SiteOrigin> site, CameraPathRecords cameraPaths,
                        Id nextCameraPathId, RenderPresetRecords renderPresets,
                        Id nextRenderPresetId, bool componentDraft) {
-    restoreRecords(false, std::move(identity), next, std::move(bodies), revision,
+    restoreRecords(false, false, std::move(identity), next, std::move(bodies), revision,
                    std::move(definitions), std::move(instances), nextDefinitionId, std::move(tags),
                    nextTagId, std::move(materials), nextMaterialId, std::move(assets), nextAssetId,
                    units, std::move(hosted), style, std::move(scenes), nextSceneId,
@@ -2707,26 +2725,22 @@ void Document::restore(std::string identity, Id next, std::map<Id, BodyPtr> bodi
                    std::move(annotations), nextAnnotationId, solar, displayPrecision,
                    std::move(drawingSheets), nextDrawingSheetId, std::move(drawingViews),
                    nextDrawingViewId, std::move(drawingItems), nextDrawingItemId,
-                   nextComponentDriverId, std::move(site), std::move(cameraPaths),
-                   nextCameraPathId, std::move(renderPresets), nextRenderPresetId, componentDraft);
+                   nextComponentDriverId, std::move(site), std::move(cameraPaths), nextCameraPathId,
+                   std::move(renderPresets), nextRenderPresetId, componentDraft);
 }
-void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
-                              std::map<Id, BodyPtr> bodies, std::uint64_t revision,
-                              ComponentDefinitions definitions, ComponentInstances instances,
-                              Id nextDefinitionId, TagRecords tags, Id nextTagId,
-                              MaterialRecords materials, Id nextMaterialId, AssetRecords assets,
-                              Id nextAssetId, DisplayUnit units, HostedPtr hosted, ModelStyle style,
-                              SceneRecords scenes, Id nextSceneId, SectionRecords sections,
-                              Id nextSectionId, ActiveSections activeSections,
-                              AnnotationRecords annotations, Id nextAnnotationId,
-                              SolarSettings solar, int displayPrecision,
-                              DrawingSheetRecords drawingSheets, Id nextDrawingSheetId,
-                              DrawingViewRecords drawingViews, Id nextDrawingViewId,
-                              DrawingItemRecords drawingItems, Id nextDrawingItemId,
-                              Id nextComponentDriverId, std::optional<SiteOrigin> site,
-                              CameraPathRecords cameraPaths, Id nextCameraPathId,
-                              RenderPresetRecords renderPresets, Id nextRenderPresetId,
-                              bool componentDraft) {
+void Document::restoreRecords(
+    bool decoderOwnsBodies, bool storedDefinitions, std::string identity, Id next,
+    std::map<Id, BodyPtr> bodies, std::uint64_t revision, ComponentDefinitions definitions,
+    ComponentInstances instances, Id nextDefinitionId, TagRecords tags, Id nextTagId,
+    MaterialRecords materials, Id nextMaterialId, AssetRecords assets, Id nextAssetId,
+    DisplayUnit units, HostedPtr hosted, ModelStyle style, SceneRecords scenes, Id nextSceneId,
+    SectionRecords sections, Id nextSectionId, ActiveSections activeSections,
+    AnnotationRecords annotations, Id nextAnnotationId, SolarSettings solar, int displayPrecision,
+    DrawingSheetRecords drawingSheets, Id nextDrawingSheetId, DrawingViewRecords drawingViews,
+    Id nextDrawingViewId, DrawingItemRecords drawingItems, Id nextDrawingItemId,
+    Id nextComponentDriverId, std::optional<SiteOrigin> site, CameraPathRecords cameraPaths,
+    Id nextCameraPathId, RenderPresetRecords renderPresets, Id nextRenderPresetId,
+    bool componentDraft) {
     requireDisplayPrecision(units, displayPrecision);
     style.validate();
     solar.validate();
@@ -2785,10 +2799,12 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
             validateEdgeStrokeAssets(*scene->snapshot.style, assets);
     validateMaterialAssignments(materials, bodies);
     validateReferenceImageAssets(bodies, assets);
-    validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
-                                 nextMaterialId, assets, nextAssetId);
+    if (!storedDefinitions)
+        validateComponentDefinitions(definitions, nextDefinitionId, tags, nextTagId, materials,
+                                     nextMaterialId, assets, nextAssetId);
     // Freeze caller records first (freezing keeps their content: each floor is the
-    // record's own), so the variant index names the definitions the document stores.
+    // record's own), so the variant index names the definitions the document stores. Stored
+    // definitions are already frozen, so they keep their records and are only read for floors.
     std::map<Id, DefinitionFloor> definitionFloors;
     for (auto &[id, definition] : definitions) {
         for (const auto &[member, body] : definition->members)
@@ -2798,7 +2814,8 @@ void Document::restoreRecords(bool decoderOwnsBodies, std::string identity, Id n
         floor.nextMemberId = definition->nextMemberId;
         for (const auto &[member, body] : definition->members)
             floor.geometry[member] = {body->surface.nextId, body->topology.nextId};
-        definition = freezeDefinition(definition, floor);
+        if (!storedDefinitions)
+            definition = freezeDefinition(definition, floor);
     }
     for (auto &[root, instance] : instances) {
         if (!instance)

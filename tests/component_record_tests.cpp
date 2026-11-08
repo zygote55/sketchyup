@@ -2,11 +2,21 @@
 #include "core/copy_array.hpp"
 #include "core/groups.hpp"
 #include <iostream>
+#include <random>
+#include <set>
 using namespace sketchy;
 namespace {
 void check(bool ok, const char *message) {
     if (!ok)
         throw std::runtime_error(message);
+}
+template <class F> bool accepts(F run) {
+    try {
+        run();
+        return true;
+    } catch (const std::exception &) {
+        return false;
+    }
 }
 template <class F> void rejects(F run, const char *message) {
     bool rejected = false;
@@ -273,6 +283,30 @@ void documentTransactions() {
     check(allocator.definitions().at(1)->members.at(1)->guides.size() == 2,
           "Redo may restore historical definition geometry identities");
 }
+// The definition count limit (R117) by injected counts: a document takes
+// componentDefinitionCountLimit definitions besides its root, and refuses one more. The definitions
+// are minimal valid groups.
+void countLimit() {
+    auto minimal = [](Id id) {
+        auto definition = std::make_shared<ComponentDefinition>();
+        definition->id = id;
+        definition->root = 1;
+        definition->nextMemberId = 2;
+        auto root = std::make_shared<Body>();
+        root->id = 1;
+        root->kind = BodyKind::Group;
+        root->name = "Group";
+        definition->members[1] = root;
+        return definition;
+    };
+    ComponentDefinitions definitions;
+    for (Id id = 1; id <= componentDefinitionCountLimit; ++id)
+        definitions[id] = minimal(id);
+    validateComponentDefinitions(definitions, componentDefinitionCountLimit + 1);
+    definitions[componentDefinitionCountLimit + 1] = minimal(componentDefinitionCountLimit + 1);
+    rejects([&] { validateComponentDefinitions(definitions, componentDefinitionCountLimit + 2); },
+            "A definition beyond the count limit rejects");
+}
 void graphAndLimits() {
     ComponentDefinitions definitions{{1, fixture()}, {2, reference(2, 1, 2)}};
     const auto sizes = validateComponentDefinitions(definitions, 3);
@@ -324,11 +358,110 @@ void graphAndLimits() {
     rejects([&] { validateComponentDefinitions(graph, 130); },
             "Expanded hierarchy depth remains bounded");
 }
+// The scoped validation of an edit (R117, D-107) checks the changed definitions and the placers of
+// changed definitions. Stored definitions were validated when stored and do not change, so the
+// scoped check must accept exactly the candidates the full check accepts.
+void scopedValidation() {
+    const ComponentDefinitions base{
+        {1, fixture()}, {2, reference(2, 1, 2)}, {3, reference(3, 2, 2)}};
+    validateComponentDefinitions(base, 4);
+    const auto scoped = [](const ComponentDefinitions &candidate, const std::set<Id> &changed,
+                           Id next) {
+        validateComponentDefinitionChanges(candidate, changed, next, {}, 1, {}, 1, {}, 1);
+    };
+    auto unchanged = base;
+    scoped(unchanged, {}, 4);
+    unchanged[4] = fixture(4);
+    scoped(unchanged, {4}, 5);
+    validateComponentDefinitions(unchanged, 5);
+    auto placed = std::make_shared<ComponentDefinition>(*base.at(1));
+    auto placedRoot = std::make_shared<Body>(*placed->members.at(placed->root));
+    placedRoot->transform = Transform::translation({1, 0, 0});
+    placed->members[placedRoot->id] = placedRoot;
+    auto candidate = base;
+    candidate[1] = placed;
+    rejects([&] { scoped(candidate, {1}, 4); }, "A changed definition with a placed root rejects");
+    candidate = base;
+    candidate.erase(1);
+    rejects([&] { scoped(candidate, {1}, 4); },
+            "Erasing a definition that another definition places rejects");
+    candidate = base;
+    candidate[1] = reference(1, 3);
+    rejects([&] { scoped(candidate, {1}, 4); }, "A cycle through a changed definition rejects");
+    candidate = base;
+    candidate[1] = reference(1, 999);
+    rejects([&] { scoped(candidate, {1}, 4); },
+            "A changed definition that places a missing definition rejects");
+    // Seeded random candidates: the scoped and the full check must agree.
+    std::mt19937 rng(20261107);
+    size_t rejected = 0;
+    for (int round = 0; round < 400; ++round) {
+        ComponentDefinitions stored;
+        for (Id id = 1; id <= 6; ++id) {
+            if (id == 1 || rng() % 3 == 0)
+                stored[id] = fixture(id);
+            else
+                stored[id] = reference(id, 1 + rng() % (id - 1), 1 + rng() % 2);
+        }
+        validateComponentDefinitions(stored, 7);
+        ComponentDefinitions next = stored;
+        std::set<Id> changed;
+        for (Id id = 1; id <= 6; ++id) {
+            if (rng() % 3 != 0)
+                continue;
+            changed.insert(id);
+            switch (rng() % 6) {
+            case 0:
+                next.erase(id);
+                break;
+            case 1:
+                next[id] = reference(id, 1 + rng() % 6, 1);
+                break;
+            case 2:
+                next[id] = fixture(id);
+                break;
+            case 3: {
+                auto copy = std::make_shared<ComponentDefinition>(*stored.at(id));
+                auto frame = std::make_shared<Body>(*copy->members.at(copy->root));
+                frame->transform = Transform::translation({0, 0, double(rng() % 3)});
+                copy->members[frame->id] = frame;
+                next[id] = copy;
+                break;
+            }
+            case 4: {
+                auto copy = std::make_shared<ComponentDefinition>(*stored.at(id));
+                const auto member = copy->members.begin()->first;
+                auto body = std::make_shared<Body>(*copy->members.at(member));
+                body->topology.edges.clear();
+                copy->members[member] = body;
+                next[id] = copy;
+                break;
+            }
+            default:
+                next[id] = stored.at(id);
+                break;
+            }
+        }
+        if (rng() % 2) {
+            const Id added = 7;
+            changed.insert(added);
+            next[added] = rng() % 2 ? fixture(added) : reference(added, 1 + rng() % 6, 1);
+        }
+        const bool full = accepts([&] { validateComponentDefinitions(next, 8); });
+        const bool incremental = accepts([&] { scoped(next, changed, 8); });
+        check(full == incremental,
+              "The scoped definition check accepts exactly what the full check accepts");
+        rejected += full ? 0 : 1;
+    }
+    check(rejected > 20 && rejected < 380, "The random candidates exercise both outcomes");
+}
 } // namespace
 int main() {
     try {
         recordsAndProjection();
         graphAndLimits();
+        countLimit();
+        scopedValidation();
         documentTransactions();
         std::cout << "Component definition records, projections, graph cycles and expansion "
                      "budgets passed\n";

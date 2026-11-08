@@ -122,9 +122,9 @@ int main() {
             payload->properties["property" + std::to_string(i)] = std::string(2048, 'x');
         bounded.apply({"Bounded metadata", {{boundedId, beforeProperties, payload}}},
                       bounded.revision());
-        // Each paint charges the body's before and after, about 0.56 MB with the payload above. R115
-        // raised the undo budget to 4 GiB, so 400 paints (about 224 MB) stay within it and nothing is
-        // evicted: this checks the bound and the undo and redo path, not eviction.
+        // Each paint charges the body's after copy (R117: the before copy is the previous paint's), about 0.28 MB
+        // with the payload above. The undo budget is 4 GiB (R115), so 400 paints (about 112 MB) stay within it and
+        // nothing is evicted: this checks the bound and the undo and redo path, not eviction.
         constexpr int paints = 400;
         for (int i = 0; i < paints; ++i)
             bounded.paint(boundedId, {float(i % 10) / 10, .2f, .3f});

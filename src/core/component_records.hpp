@@ -1,12 +1,14 @@
 #pragma once
-#include <cstddef>
 #include "core/asset_records.hpp"
 #include "core/body.hpp"
 #include "core/component_parameter_types.hpp"
 #include "core/document_limits.hpp"
 #include "core/material_records.hpp"
 #include "core/tag_records.hpp"
+#include <cstddef>
+#include <map>
 #include <optional>
+#include <set>
 namespace sketchy {
 class Document;
 struct Edit;
@@ -32,8 +34,9 @@ using DefinitionPtr = std::shared_ptr<const ComponentDefinition>;
 using ComponentDefinitions = std::map<Id, DefinitionPtr>;
 // The most component definitions a document holds besides its root (R113, D-102). The format
 // refuses more; an import of a larger file omits the excess, and counts it. Scaled only in
-// benchmark builds (R114).
-inline constexpr std::size_t componentDefinitionCountLimit = 1024 * DocumentLimits::scale;
+// benchmark builds (R114). Raised from 1,024 to 4,096 by R117: the largest tier measured within the
+// 100 ms edit budget on the GPU PC (the record says what stops 8,192).
+inline constexpr std::size_t componentDefinitionCountLimit = 4096 * DocumentLimits::scale;
 struct ComponentInstance {
     Id definition{};
     // Definition member -> resolved scene record. For a parametric placement this is
@@ -68,6 +71,23 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
                              const TagRecords &tags = {}, Id nextTagId = 1,
                              const MaterialRecords &materials = {}, Id nextMaterialId = 1,
                              const AssetRecords &assets = {}, Id nextAssetId = 1);
+// The validation of an edit that changes the definitions in `changed` and no tag, material or
+// asset record. An ID absent from `definitions` was erased. Every definition keeps its cheap checks
+// (identity, sizes and nested references), so a reference to an erased definition is refused. The
+// geometry of each changed definition is checked as validateComponentDefinitions checks it, and
+// the expansion graph is checked for the changed definitions and every definition that places one.
+// Any other definition was validated when it was stored and is unchanged, so the result equals
+// validateComponentDefinitions on the same candidate. Does not mutate caller-owned records.
+void validateComponentDefinitionChanges(const ComponentDefinitions &definitions,
+                                        const std::set<Id> &changed, Id nextDefinitionId,
+                                        const TagRecords &tags, Id nextTagId,
+                                        const MaterialRecords &materials, Id nextMaterialId,
+                                        const AssetRecords &assets, Id nextAssetId);
+// Expanded sizes of `roots` and of the definitions they reach, with the graph checks (acyclic,
+// nesting depth, expansion budgets) and no geometry checks. Callers use it for stored definitions,
+// whose records are already validated.
+std::map<Id, ComponentSize> componentExpansionSizes(const ComponentDefinitions &definitions,
+                                                    const std::set<Id> &roots);
 // Resolved records must exactly project their canonical definition and binding.
 // Root placement/state is instance-owned; inner members are definition-owned.
 // The canonical comparison of a resolved record with its projection: exact equality,

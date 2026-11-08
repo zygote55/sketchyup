@@ -44,10 +44,10 @@ struct DocumentLimits {
                                               320000 * scale,  320000 * scale};
     // One component definition's own members (R110, 1.7.0, owner decision 2026-11-01). Editing a
     // component replaces its whole record, so the undo charge of one edit is at least the
-    // definition's size, before and after. Vertices, faces and wires are one third of the
+    // definition's size (once, the new copy, since R117). Vertices, faces and wires are one third of the
     // document's unique values (800,000), and edges are one third of theirs (2,400,000), as set in
     // R115. Bodies, curves and guides keep the unique values. The placement count is not checked
-    // here. R117 owns the component definition count (ComponentDefinitions, 1,024).
+    // here. The component definition count is componentDefinitionCountLimit (4,096, from R117).
     static constexpr LimitCounts definition{0,
                                             80000 * scale,
                                             800000 * scale,

@@ -7,6 +7,7 @@
 #include "core/record_overlay.hpp"
 #include <algorithm>
 #include <set>
+#include <vector>
 namespace sketchy {
 void appendSceneMetadataChanges(Edit &edit, const Document &before, const Document &after) {
     auto difference = [](const auto &old, const auto &next, auto &changes) {
@@ -156,10 +157,14 @@ bool matchesComponentProjection(const Body &expected, const Body &actual) {
     comparable.topology.nextId = expected.topology.nextId;
     return comparable == expected;
 }
-std::map<Id, ComponentSize>
-validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
-                             const TagRecords &tags, Id nextTagId, const MaterialRecords &materials,
-                             Id nextMaterialId, const AssetRecords &assets, Id nextAssetId) {
+namespace {
+// The checks one definition needs. `geometry` is false for a definition the edit does not change:
+// it was validated when it was stored, so only its cheap checks run (identity, sizes, and nested
+// references, which may name a definition the edit erased).
+void checkDefinitionRecords(const ComponentDefinitions &definitions, const std::set<Id> *changed,
+                            Id nextDefinitionId, const TagRecords &tags, Id nextTagId,
+                            const MaterialRecords &materials, Id nextMaterialId,
+                            const AssetRecords &assets, Id nextAssetId) {
     if (!nextDefinitionId || definitions.size() > componentDefinitionCountLimit)
         throw std::runtime_error("Invalid component definition allocator or count");
     ComponentSize stored;
@@ -190,26 +195,29 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
         add(stored, own);
         checkLimits(limitCounts(stored), LimitClass::UniqueGeometry, "Component definition",
                     definitionLimitContext(definition->name, id));
-        // Reuse authoritative geometry, topology, curve, guide, hierarchy and
-        // world-bound validation instead of accepting a looser prototype format.
-        Document canonical;
-        canonical.restore("00000000000000000000000000000000", definition->nextMemberId,
-                          definition->members, 0, {}, {}, 1, tags, nextTagId, materials,
-                          nextMaterialId, assets, nextAssetId);
-        if (definition->glue)
-            (void)resolveComponentGlue(*definition);
-        for (const auto &[member, body] : definition->members) {
-            if (canonical.bodies().at(member)->topology != body->topology)
-                throw std::runtime_error("Component prototype requires explicit valid topology");
-            auto ancestor = member;
-            size_t depth = 1;
-            while (ancestor != definition->root) {
-                ancestor = definition->members.at(ancestor)->parent;
-                if (!ancestor || ++depth > 128)
-                    throw std::runtime_error("Component members must descend from one root");
+        if (!changed || changed->contains(id)) {
+            // Reuse authoritative geometry, topology, curve, guide, hierarchy and
+            // world-bound validation instead of accepting a looser prototype format.
+            Document canonical;
+            canonical.restore("00000000000000000000000000000000", definition->nextMemberId,
+                              definition->members, 0, {}, {}, 1, tags, nextTagId, materials,
+                              nextMaterialId, assets, nextAssetId);
+            if (definition->glue)
+                (void)resolveComponentGlue(*definition);
+            for (const auto &[member, body] : definition->members) {
+                if (canonical.bodies().at(member)->topology != body->topology)
+                    throw std::runtime_error(
+                        "Component prototype requires explicit valid topology");
+                auto ancestor = member;
+                size_t depth = 1;
+                while (ancestor != definition->root) {
+                    ancestor = definition->members.at(ancestor)->parent;
+                    if (!ancestor || ++depth > 128)
+                        throw std::runtime_error("Component members must descend from one root");
+                }
+                if (definition->references.contains(body->parent))
+                    throw std::runtime_error("Nested component reference must be a leaf node");
             }
-            if (definition->references.contains(body->parent))
-                throw std::runtime_error("Nested component reference must be a leaf node");
         }
         for (const auto &[member, target] : definition->references) {
             if (!definition->members.contains(member) || !definitions.contains(target))
@@ -221,6 +229,32 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
                     "Nested component reference cannot own independent geometry");
         }
     }
+}
+
+// The changed definitions and every definition that reaches one through placements.
+std::set<Id> placersOf(const ComponentDefinitions &definitions, const std::set<Id> &changed) {
+    std::map<Id, std::vector<Id>> placedBy;
+    for (const auto &[id, definition] : definitions)
+        for (const auto &[member, target] : definition->references)
+            placedBy[target].push_back(id);
+    std::set<Id> affected(changed.begin(), changed.end());
+    std::vector<Id> pending(changed.begin(), changed.end());
+    while (!pending.empty()) {
+        const auto id = pending.back();
+        pending.pop_back();
+        const auto found = placedBy.find(id);
+        if (found == placedBy.end())
+            continue;
+        for (auto parent : found->second)
+            if (affected.insert(parent).second)
+                pending.push_back(parent);
+    }
+    return affected;
+}
+} // namespace
+
+std::map<Id, ComponentSize> componentExpansionSizes(const ComponentDefinitions &definitions,
+                                                    const std::set<Id> &roots) {
     std::map<Id, ComponentSize> sizes;
     std::set<Id> visiting;
     auto visit = [&](auto &&self, Id id) -> ComponentSize {
@@ -252,10 +286,34 @@ validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDef
         sizes[id] = total;
         return total;
     };
-    for (const auto &[id, definition] : definitions)
-        visit(visit, id);
+    for (auto id : roots)
+        if (definitions.contains(id))
+            visit(visit, id);
     return sizes;
 }
+
+std::map<Id, ComponentSize>
+validateComponentDefinitions(const ComponentDefinitions &definitions, Id nextDefinitionId,
+                             const TagRecords &tags, Id nextTagId, const MaterialRecords &materials,
+                             Id nextMaterialId, const AssetRecords &assets, Id nextAssetId) {
+    checkDefinitionRecords(definitions, nullptr, nextDefinitionId, tags, nextTagId, materials,
+                           nextMaterialId, assets, nextAssetId);
+    std::set<Id> all;
+    for (const auto &[id, definition] : definitions)
+        all.insert(id);
+    return componentExpansionSizes(definitions, all);
+}
+
+void validateComponentDefinitionChanges(const ComponentDefinitions &definitions,
+                                        const std::set<Id> &changed, Id nextDefinitionId,
+                                        const TagRecords &tags, Id nextTagId,
+                                        const MaterialRecords &materials, Id nextMaterialId,
+                                        const AssetRecords &assets, Id nextAssetId) {
+    checkDefinitionRecords(definitions, &changed, nextDefinitionId, tags, nextTagId, materials,
+                           nextMaterialId, assets, nextAssetId);
+    (void)componentExpansionSizes(definitions, placersOf(definitions, changed));
+}
+
 namespace {
 // Validate one binding against its definition. Scene and Instances need only
 // contains/at, so the same checks serve whole-map and overlay candidates.

@@ -1,8 +1,8 @@
 #pragma once
 #include "core/annotation_records.hpp"
 #include "core/asset_records.hpp"
-#include "core/document_limits.hpp"
 #include "core/component_records.hpp"
+#include "core/document_limits.hpp"
 #include "core/drawing_item_records.hpp"
 #include "core/drawing_sheet_records.hpp"
 #include "core/hosted_components.hpp"
@@ -284,11 +284,12 @@ class Document {
     bool canUndo() const { return !undo_.empty(); }
     bool canRedo() const { return !redo_.empty(); }
     size_t historyBytes() const { return historyBytes_; }
-    // R115 (owner decision 2026-11-07): 4 GiB, from 192 MiB (R110, 1.7.0). An edit is charged its
-    // records before and after, in full, so the budget limits one edit's size. R114 measured that a
-    // definition edit charges every placement it regenerates and that a move charges about 640 bytes
-    // per face (D-104), so 192 MiB refused edits the published limits admit. The refusal message
-    // states this number (src/core/model.cpp), computed from this constant.
+    // R115 (owner decision 2026-11-07): 4 GiB, from 192 MiB (R110, 1.7.0). An edit is charged each
+    // record it changes once, the copy the change creates (R117, D-104; before R117 the charge was the
+    // record before and after). R114 measured that a definition edit charged every placement it
+    // regenerated and that a move charged about 640 bytes per face (D-104), so 192 MiB refused edits
+    // the published limits admit. The refusal message states this number (src/core/model.cpp),
+    // computed from this constant.
     static constexpr size_t historyLimit = 4ull * 1024 * 1024 * 1024;
     // Terrain's own history limit class (ADR 0168 decision 3, D-043). A terrain operation
     // replaces whole tile sets in one edit, so the record and tile changes of terrain
@@ -397,8 +398,13 @@ class Document {
   private:
     // Only the native decoder may adopt fresh, unaliased mutable body records.
     friend struct DocumentDecodeAccess;
-    void restoreRecords(bool decoderOwnsBodies, std::string identity, Id next,
-                        std::map<Id, BodyPtr> bodies, std::uint64_t revision,
+    // Defined only in components.cpp: the component draft restores the stored, validated
+    // definitions of its document without validating or copying them again (R117, D-107).
+    friend struct DocumentDraftAccess;
+    // storedDefinitions: the definitions are the stored records of a validated document (a
+    // component draft), so they are neither validated nor copied again (R117, D-107).
+    void restoreRecords(bool decoderOwnsBodies, bool storedDefinitions, std::string identity,
+                        Id next, std::map<Id, BodyPtr> bodies, std::uint64_t revision,
                         ComponentDefinitions definitions, ComponentInstances instances,
                         Id nextDefinitionId, TagRecords tags, Id nextTagId,
                         MaterialRecords materials, Id nextMaterialId, AssetRecords assets,
