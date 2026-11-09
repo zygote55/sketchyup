@@ -1,5 +1,170 @@
 # SketchyUp release notes
 
+## 1.9.0
+
+SketchyUp 1.9.0 is a minor release. It raises every model limit to the largest values measured on real hardware (R114 on an AMD Radeon RX 6800 XT, and R115). A model that fits the published limits is no longer refused by a format, an edit, the viewport or a budget that stopped it earlier. The file formats take the document's limits (R113), an edit validates only what it changes (R117), the viewport shows every texture inside the stored limit (R118), and a glTF mesh used by one node imports as a group (R119). It changes no document schema: 1.9.0 reads document versions 1 through 35 and writes 35 at most, as 1.8.0 does. The release is gated through its [M10 acceptance](M10_ACCEPTANCE.md#the-190-release); its record is [verification/G-1.9.0.md](verification/G-1.9.0.md), written at the release candidate.
+
+**The one rule to know.** A file that 1.9.0 writes within the 1.8.0 limits opens in 1.8.0. A file over them is refused by 1.8.0 with its own message, and nothing is changed: 1.8.0 has at most 1,024 component definitions, 300,000 unique vertices and 600,000 materialized vertices. Keep a model within the 1.8.0 limits until every machine that opens it runs 1.9.0. See [Downgrade](#downgrade-to-180).
+
+### Product limits come from measurements
+
+The 3.75 GiB and 8 GiB memory ceilings of the earlier records only protected the development laptop during development and testing. The owner decided on 2026-11-07 that they are not product limits, and that no product limit is derived from them. The limits in this release are the largest values measured on real hardware ([R114](verification/R114-hardware-limits.md), [R115](verification/R115-raised-limits.md)). The 1.8.0 section below describes the 8 GiB ceiling as if it limited the product. That framing is corrected here: the 1.9.0 limits are the table in this section.
+
+### Limits
+
+The 1.8.0 column is the 1.8.0 capability output (`sketchyup-cli --capabilities`) where it has a field, and the values in [R115](verification/R115-raised-limits.md) otherwise. The 1.9.0 column is the 1.9.0 capability output and the sources in `src/`. Values in bytes are binary units.
+
+| Limit | 1.8.0 | 1.9.0 |
+| --- | ---: | ---: |
+| Unique bodies, curves and guides (`bodies`) | 10,000 | 80,000 |
+| Unique vertices, faces and wires (`vertices`) | 300,000 | 2,400,000 |
+| Unique edges | 900,000 | 7,200,000 |
+| Placements, materialized component instances (`placements`) | 20,000 | 80,000 |
+| Materialized bodies, curves and guides (`materializedBodies`) | 40,000 | 320,000 |
+| Materialized vertices, faces and wires (`materializedVertices`) | 600,000 | 4,800,000 |
+| Materialized edges | 900,000 | 7,200,000 |
+| One component definition: vertices, faces and wires (`componentDefinitionVertices`, and the others) | 200,000 | 800,000 |
+| One component definition: edges | 600,000 | 2,400,000 |
+| One body: faces or vertices | 100,000 | 800,000 |
+| One body: edges | 300,000 | 2,400,000 |
+| Component definitions per document (`componentDefinitions`) | 1,024 | 4,096 |
+| Native file (`fileBytes`) | 256 MiB | 2 GiB |
+| Model chunk (`packagedModelBytes`) | 96 MiB | 768 MiB |
+| Read-snapshot budget (`readSnapshotBytes`): every export, render and library or bundle insert that takes a snapshot | 512 MiB | 4 GiB, one budget |
+| Undo (history) budget | 192 MiB | 4 GiB |
+| Automation staging and transactions (retained bytes) | 128 MiB | 1 GiB |
+| One asset (`assetBytes`) | 16 MiB | 64 MiB |
+| Assets in total (`totalAssetBytes`) | 64 MiB | 512 MiB |
+| Texture dimension | 4,096 pixels | 8,192 pixels |
+| GLB visible modelling faces (`glbVisibleFaces`) | 600,000 | 4,800,000 |
+| GLB triangles (the materialized corner bound, 2 × 7,200,000 edges) | 1,000,000 | 14,400,000 |
+| GLB references | 2,000,000 | 16,000,000 |
+| GLB binary, JSON and manifest | 256 MiB, 16 MiB, 192 MiB | 2 GiB less one byte, 128 MiB, 1.5 GiB |
+| OBJ, STL and DXF exports (bytes) | 64 MiB | 2 GiB |
+| OBJ and STL imports (bytes) | 64 MiB | 1 GiB |
+| DXF imports (bytes) | 64 MiB | 2 GiB |
+| glTF imports: file, and JSON | 1 GiB, 16 MiB | 2 GiB, 128 MiB |
+| STEP output | 256 MiB | 512 MiB |
+| STEP triangles per element, and in total | 100,000, 1,000,000 | 1,600,000, 10,000,000 |
+| Render snapshot bodies | 20,000 | 160,000 |
+| Library bundle (catalog and template) | 130 MiB | 1,040 MiB |
+| Terrain triangles | 250,000 | 250,000, unchanged |
+
+A refused limit prints its value: the message names the count, the limit and the item. The 1.8.0 capability output is in the 1.8.0 release; the 1.9.0 output also reports `nativeContainerBytes` 1,396,891,740 (1.8.0: 193,126,492) and the new values above.
+
+### Measured basis
+
+Every case below ran on the GPU PC, an AMD Radeon RX 6800 XT, in the at-limit acceptance of R115 on the merged code (R115 with R117, 2026-11-08). The figures are from the final pass of the GPU PC acceptance in the [R115 record](verification/R115-raised-limits.md), run in the release build.
+
+- **Unique geometry, 2,400,000 faces** (12,000 bodies of 200 faces): build 22 s, save 7.7 s to 238,803,918 bytes, open 20 s, peak 4.4 GiB resident. Moving one body takes 0.0 s, and its history charge is 67,695 bytes.
+- **Materialized, 4,800,000 placed faces** from an 800,000-face definition placed six times: build 102 s, save 2.3 s, open 42.5 s, peak 7.5 GiB resident. A definition edit takes 100 s ([D-109](#known-limitations)). Its history charge is 1.67 GiB, inside the 4 GiB undo budget, with a resident growth of 2.3 GiB. Undo and redo take 0.1 to 0.2 s.
+- **One body of 800,000 faces:** a move takes 10.9 s, with a history of 256,003,695 bytes. Undo and redo take no measurable time.
+- **A model chunk near the 768 MiB bound** with imported UVs ([D-099](#known-limitations)): 595 bodies and 1,190,000 textured faces, a chunk of 796,135,248 bytes (759 MiB). Save takes 23.1 s and open 18.4 s, with a peak of 7.9 GiB.
+- **Exports at the materialized limit:** GLB 98 s, with a 574,980,899-byte manifest and a 57,603,152-byte GLB (the six placements share one mesh); OBJ 77 s, 383,405,885 bytes; binary STL 39 s, 240,000,084 bytes; DXF 59 s, 914,788,283 bytes. The DXF model is one flat grid of 798,848 faces, placed six times.
+- **Imports at the unique limit:** OBJ 112 s with a peak of 8.8 GiB, 2,400,000 faces; binary STL 189 s, 2,400,000 facets.
+- **Edits after R117 at 4,096 definitions** (GPU PC, p95, product build): a placement move 22 ms and a definition edit 59 ms, within the 100 ms budget ([R117](verification/R117-edit-path.md)). Creating 4,096 definitions takes 118 s on the GPU PC and 223 s on the laptop ([D-107](#known-limitations)).
+- **Earlier GPU PC measurements** of the same limits, from [R114](verification/R114-hardware-limits.md): 10,000 placements, 2.4 million unique faces and 512 MiB of textures within the frame and edit budgets. This is the evidence that set the R115 values, which R115 then checked at the limit.
+
+**Not measured in this release:**
+
+- Hardware other than the AMD GPU. [D-091](verification/R089a-defect-triage.md) is closed for that GPU only.
+- The viewport at the 512 MiB texture case and the 8192 × 8192 case on the GPU PC. The GPU PC was unreachable for [R118](verification/R118-viewport-textures.md) on 2026-11-08. Its laptop smoke runs show no placeholder for one 8192 × 8192 texture or for 19 textures of 4096 × 4096 (265 MiB stored).
+- A model with colours or textures at the materialized limit, exported under the 4 GiB budget ([D-100](#known-limitations)).
+- The STEP export at 512 MiB ([D-103](#known-limitations)), and the Blender import of a GLB at the limit. Blender is not on the development laptop.
+- The glTF import at the unique limit after [R119](verification/R119-gltf-meshes.md). Before R119 it was refused by the definition count ([D-108](#fixes)).
+
+### Changes callers can see
+
+- **glTF imports change structure (R119, [D-108](#fixes)).** A mesh used by one node imports as the bodies of that node's group, with no component definition and no instance. A mesh used by several nodes is one component definition, as before. The import report's `meshDefinitions` counts only the shared meshes, and the new `meshGroups` counts the single-use ones. A glTF file with more than 4,096 shared meshes is refused by name, with the count, before anything is built. A single-use mesh's name is dropped: the node's name names the group, and the bodies keep their `Primitive N` names. Two loose bodies with identical geometry export as one mesh used by two nodes, so they import as a component. The round trip keeps the geometry and the faces, but not the separate loose bodies.
+- **Export bytes change (R115).** STL, GLB and OBJ exports write the model's own vertex positions (`triangulateExact`). Before, the grid corners differed by up to 1.6 × 10⁻⁸ m between faces, so the bytes change. The glTF import welds a body's corners by position.
+- **4,096 component definitions (R117).** A saved file, the native loader, the glTF import and the `.skp` import follow the same limit. The `.skp` import keeps the first 4,096 definitions and counts the rest in the notices (`definitionLimit`). The loader had its own literal, 1,024; it is gone.
+- **The undo charge counts each changed record once (R117).** An entry charges the copy an edit creates, not its before and after copies. The charge matches the memory the history keeps, within about 5% in the measured cases, so a definition of 99,000 faces placed five times is admitted. At the R115 materialized limit the charge is 1.67 GiB against 2.3 GiB of resident growth; the [record](verification/R117-edit-path.md) keeps both.
+- **Push and pull work on any body inside the one-body limit (R117).** The 1,000-face and 10,000-vertex context limit is gone, and the coplanar check takes near-linear time. A 99,000-face sphere pushes in 1.3 s on the development laptop.
+- **The file formats take the document's limits (R113).** OBJ, STL, glTF and DXF exports take the materialized limits, and the imports take the unique limits. A mesh over the one-body limit imports as several bodies, named "Name (2)", "Name (3)" and so on, and the import report lists the splits under `bodySplits`. Shading does not carry across a split. The OBJ import no longer takes time quadratic in the faces ([D-102](#fixes)).
+- **The viewport shows every texture inside the stored limit (R118).** The viewport holds 1 GiB of decoded textures and 1,024 images. When the textures at full size exceed that, the largest are shown at reduced resolution, down to 256 pixels on the long side. The viewport's notice names reduced textures. A PNG, drawing view, measured drawing or library thumbnail export of a view with reduced textures is refused, as an image with unavailable pixels is ([D-110](#known-limitations)).
+- **A PNG may carry more chunks (R118).** The chunk bound is at least 4,096, and one chunk per KiB of file for a larger file, so a 64 MiB asset holds an 8192 × 8192 image.
+- **The capability output reports the new limits (R115, R117).** `vertices` 2,400,000, `bodies` 80,000, `placements` 80,000, `materializedVertices` 4,800,000, `materializedBodies` 320,000, the component definition fields, `componentDefinitions` 4,096, `glbVisibleFaces` 4,800,000, `readSnapshotBytes` 4,294,967,296, `documentBytes` and `fileBytes` 2,147,483,648, `packagedModelBytes` 805,306,368, `assetBytes` 67,108,864 and `totalAssetBytes` 536,870,912. No field was removed or added in the capability output, and the generated tool reference matches the built CLI.
+- **Refusal messages print the real limits (R115).** A refused limit names the count, the limit and the item.
+- **Errors are unchanged.** A refused limit keeps the error code it had in 1.8.0, and it changes nothing.
+
+### Fixes
+
+- **Viewport textures (D-105, Major, [R118](verification/R118-viewport-textures.md)).** Every texture inside the stored limit displays, as described above. The fix is in code. The 512 MiB case on the GPU PC, which the RC run makes, closes the row.
+- **glTF meshes used by one node (D-108, Minor, [R119](verification/R119-gltf-meshes.md)).** A glTF with more than 4,096 meshes used by one node is no longer refused: those meshes import as groups. The fix is in code. The at-limit glTF import on the GPU PC, which the RC run makes, closes the row.
+- **Edit feedback (D-104 and D-106, Major, [R115](verification/R115-raised-limits.md) and [R117](verification/R117-edit-path.md)).** The undo budget refused definition edits the published limits admit, and push and pull refused any body over 1,000 faces. Both are closed. The undo budget is 4 GiB now.
+- **Edit cost (D-107, Minor, [R117](verification/R117-edit-path.md)).** A move and a definition edit no longer validate every definition. The creation of many definitions is still superlinear ([D-107](#known-limitations)).
+- **Format caps (D-102, Minor, [R113](verification/R113-format-limits.md)).** OBJ, STL, glTF, DXF and `.skp` follow the document limits. STEP is not in this fix ([D-103](#known-limitations)).
+- **Capability count (D-111, Minor, found by the 1.9.0 preparation).** `componentDefinitions` reported 1,024 after R117 raised the count to 4,096. It now reports the enforced 4,096.
+- **Blender bound (D-112, Minor, found by the 1.9.0 preparation).** The Blender worker refused a GLB with more than 1,800,000 paired triangles, the R113 value, while the export accepts 14,400,000. The worker's bound is now the export's. It is not run on Blender here.
+
+### Known limitations
+
+- **D-099, UV storage (Limitation).** A model with imported UVs stores each textured face in about 528 bytes (glTF imports, front and back). A UV-mapped model now reaches the model chunk's 768 MiB bound at about 1.2 million textured faces, where 1.8.0 reached it at about 136,000. The storage cost is unchanged. The owner left the one-record storage change for a later release.
+- **D-100, colours and textures at the limits (Limitation).** The read-snapshot budget is 4 GiB. A coloured or textured model at the materialized limit has not been exported under it, so that case is open, not claimed.
+- **D-101, a sanitized transaction deadline (Limitation).** In a sanitized build, `unique_limits_acceptance` once failed with `TRANSACTION_EXPIRED`, because a transaction without `ttlSeconds` has 60 s of wall-clock time. The row stays open.
+- **D-103, STEP export (Limitation).** At 256 MiB of output, a STEP export of distinct geometry stopped at about 240,000 triangles. The bound is now 512 MiB, which has not been measured: a 512 MiB run crashed the helper after 90 s, with its container at the 4 GiB cap, and the cause is not confirmed. The STEP case did not run on the GPU PC.
+- **D-107, creating definitions (Minor).** Creating many component definitions is still superlinear: 1,024 take 6 to 8 s on the development laptop, and 4,096 take 223 s there (118 s on the GPU PC).
+- **D-109, large edits (Limitation).** At the R115 limits, large edits work but take seconds to minutes, far above the 100 ms edit budget. A definition edit at the materialized limit takes 100 s, a move of an 800,000-face body 10.9 s, the open of a materialized model 42.5 s, and the OBJ and STL imports of 2,400,000 faces 112 s and 189 s. Nothing is refused or lost. The owner chose to slow down rather than refuse at these sizes.
+- **D-110, raster exports of reduced textures (Limitation).** A view that shows any texture at reduced resolution cannot be exported as a PNG, drawing view, measured drawing or thumbnail. Format exports read the stored textures and are not affected.
+- **D-087 (Minor).** A retained render can burn a terrain's source notice for a terrain outside its view. It stays open.
+- **Carried from 1.8.0.** The memory evidence beyond the AMD GPU is open ([D-091](verification/R089a-defect-triage.md) for the other hardware). `.skp` definitions over the component limit ([D-092](verification/R089a-defect-triage.md)) and the inline parse memory of a native document at its 2 GiB bound ([D-093](verification/R089a-defect-triage.md)) are open. The staging budget is now 1 GiB; [D-090](verification/R089a-defect-triage.md) stays open in the triage.
+- **Defects.** The triage lists 35 open defects at the 1.9.0 preparation: none is release-blocking, 1 is Major (D-105, fixed in code, open until the RC's GPU PC run), 10 are Minor and 24 are Limitations ([triage](verification/R089a-defect-triage.md)).
+
+### Downgrade to 1.8.0
+
+- **What 1.8.0 opens.** Every file that 1.9.0 writes within the 1.8.0 limits, because the format is unchanged. The package acceptance checks three such files against the published 1.8.0-1 CLI: a 153,000-vertex model that is opened and validated unchanged (within 1.8.0's 300,000-vertex limit); a 17-placement prism of 153,034 visible faces, which 1.8.0 opens unchanged and exports to a GLB of 598,212 triangles; and the schema-35 reference-image save, which 1.8.0 opens unchanged.
+- **What 1.8.0 refuses.** A file over its limits is refused with 1.8.0's own message, exit status 1, and no change to the file. The package acceptance checks three of them, each made at check time:
+
+  | A model of 1.9.0 | 1.8.0 refuses it with |
+  | --- | --- |
+  | 1,025 component definitions | `{"code":"INVALID_OPERATION","error":"Too many component records","status":"failed"}` |
+  | 306,000 unique vertices (34 bodies of 9,000 vertices) | `Document load exceeds document unique geometry limits: vertices would be 306,000 of 300,000` |
+  | 612,000 materialized vertices (34 placements of an 18,000-vertex prism) | `Document load exceeds document placement limits: vertices would be 612,000 of 600,000 (placement #67 of definition 'Prism' #1)` |
+
+  All three messages are as the 1.8.0 CLI printed them when the package checks were replayed on 2026-11-08. The 1.8.0 CLI refuses at open, not at export: a file over the 600,000 materialized vertices cannot be opened by 1.8.0, so its GLB visible-face cap (600,000) can never refuse an open model. The 512 MiB read-snapshot budget of 1.8.0 was not checked against a model over it, because no cheap model of that kind was built.
+- **The rule.** Keep a model within the 1.8.0 limits until every machine that opens or exports it runs 1.9.0. A file over those limits is refused by 1.8.0 when it opens, and it is not damaged.
+
+### Upgrade from 1.8.0-1
+
+Run `pacman -U sketchyup-1.9.0-1-x86_64.pkg.tar.zst`. For the IFC and STEP helper, also install `sketchyup-ifc-1.9.0-1-x86_64.pkg.tar.zst`; the helper is optional. Package acceptance upgrades a 1.8.0-1 package built from the release source to 1.9.0-1. Preferences, data and cache are kept, as package acceptance checks.
+
+### Split-package rollback
+
+The optional `sketchyup-ifc` package requires the exact `sketchyup` version, so pacman refuses to install `sketchyup-1.8.0-1` while `sketchyup-ifc-1.9.0-1` is installed, and it changes nothing (D-071). Remove the helper first, then install the application, as in [Rollback](#rollback-to-180-1).
+
+### Rollback to 1.8.0-1
+
+1. Remove `sketchyup-ifc` first if it is installed: `pacman -R sketchyup-ifc`.
+2. Install `sketchyup-1.8.0-1-x86_64.pkg.tar.zst` with `pacman -U`.
+3. Install `sketchyup-ifc-1.8.0-1-x86_64.pkg.tar.zst` if you want the IFC helper.
+
+A file that 1.9.0 wrote within the 1.8.0 limits opens in 1.8.0 after the rollback. A file over them is refused by 1.8.0 until 1.9.0 is installed again, and nothing is changed by the refusal.
+
+### Versions
+
+| Item | Version |
+| --- | --- |
+| SketchyUp | 1.9.0 (`sketchyup --version`, `sketchyup-cli --version`) |
+| Arch packages | `sketchyup` 1.9.0-1, x86_64; `sketchyup-ifc` 1.9.0-1 (optional, IFC and STEP helper) |
+| Native document | Schema 35 at most, in SKUPDOC container version 2; reads versions 1 through 35. Saves record the writer `SketchyUp/1.9.0`. No schema or version change |
+| Capability output | The limits above are new values; the fields are the same (see Changes callers can see) |
+| Errors | Unchanged from 1.8.0. A refused limit keeps its code and names the limit |
+| MCP, inspection, recipes and other public schemas | The generated tool reference matches the built CLI (`generate-tool-reference.py --check`). The discovery schemas (`generate-api-schemas.py`) need the desktop build and were not checked in this preparation |
+| Assistant provider | OpenAI `gpt-6-astra` over a ChatGPT-plan sign-in, as in 1.8.0. Corpus v6, unchanged in content; its `inputSha256` values are re-pinned for the 1.9.0 writer. The assistant's tool surfaces did not change: the trial `toolsSha256` values are the same for all eight trials. The offline checks pass: `provider_release_corpus`, `provider_release_score` and `assistant_tool_surface`. No live provider run was made in this preparation; the release candidate's record states the run it makes |
+| New third-party code | None |
+
+Qt, OpenGL and Blender requirements are unchanged from 1.8.0.
+
+### File format
+
+1.9.0 reads document versions 1 through 35 and writes the schema each document needs, as 1.8.0 does. Nothing a file may hold has changed. A document with a georeferenced reference image is schema 35, and the 1.8.0 reader opens it unchanged.
+
+### Not in this release
+
+- Binary geometry storage ([R116](PR_ROADMAP.md#r116)): not built, because the measurements did not justify it ([R114](verification/R114-hardware-limits.md#binary-storage-r116)).
+- R107.d (held), the deferred rows, and PR #574.
+- D-087 (open, Minor), and the one-record UV storage change ([D-099](verification/R089a-defect-triage.md)).
+
 ## 1.8.0
 
 SketchyUp 1.8.0 is a minor release. It raises the read-snapshot budget and the GLB visible-face cap (R112, [ADR 0005](decisions/0005-document-protocol.md#r112-snapshot-and-glb-limits-180) and [ADR 0032](decisions/0032-glb-snapshots.md#r112-note-caps)), so a model within the published limits can be exported to GLB, rendered and inserted from a library. It fixes the Select tool's hint overlap (D-094), and it changes the error for a missing entity: a command or query that names a body, material, tag or component definition the document does not hold now fails with `NOT_FOUND` and names it (D-095, D-096). It changes no document schema: 1.8.0 reads document versions 1 through 35 and writes 35 at most, as 1.7.0 does. The release is gated through its [M10 acceptance](M10_ACCEPTANCE.md#the-180-release); its record is [verification/G-1.8.0.md](verification/G-1.8.0.md), written at the release candidate.
@@ -33,7 +198,7 @@ The memory evidence is [R082w v4](verification/R082w-memory-budget-v4.md). It wa
 
 The modelled worst case with a GLB export on top of a loaded viewport is 3.99 GiB. That was over the 3.75 GiB ceiling set on 2026-11-01 by about 242 MiB, so the work stopped until the owner decided. **On 2026-11-06 the owner raised the modelled ceiling to 8 GiB** (8,589,934,592 bytes). The 4 GiB cap on test and measurement jobs is a separate operational limit and is unchanged. The modelled worst case is about 14 MiB under it, so a change that adds to that worst case must be measured again against the record.
 
-**Correction, 2026-11-07.** The owner set these memory ceilings only to protect the development laptop during development and testing. They are not product limits, and no product limit is derived from them. Product limits are set from behaviour measured on real hardware ([R114](PR_ROADMAP.md#r114)).
+**Correction, 2026-11-07.** The owner set these memory ceilings only to protect the development laptop during development and testing. They are not product limits, and no product limit is derived from them. Product limits are set from behaviour measured on real hardware ([R114](PR_ROADMAP.md#r114)). The 1.9.0 limits are set from those measurements, and the 1.8.0 limits above are the limits of 1.8.0 only; see [1.9.0](#190).
 
 Three things the evidence does not show. **The desktop viewport was modelled, not measured:** the desktop build was not compiled for it, so the viewport's own resident memory is an estimate from the earlier record. The export's transient was measured on the command-line export, which runs the same `exportGlb` and `writeGlbExport` code as the desktop render path. **Hardware evidence is open:** [D-091](verification/R089a-defect-triage.md) stays open, and the [ADR 0161](decisions/0161-m9-hardware-evidence-waiver.md) waiver still applies. **The higher ceiling raises no model limit:** the published vertex, face, edge, placement and byte limits are as they were.
 

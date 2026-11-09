@@ -25,6 +25,7 @@
 #include "automation/transactions.hpp"
 #include "core/component_parameters.hpp"
 #include "core/component_publish.hpp"
+#include "core/component_records.hpp"
 #include "core/components.hpp"
 #include "core/consolidation.hpp"
 #include "core/copy_array.hpp"
@@ -321,7 +322,7 @@ QJsonObject capabilities() {
                                {"materializedBodies", int(DocumentLimits::materialized.bodies)},
                                {"materializedVertices", int(DocumentLimits::materialized.vertices)},
                                {"materializedGuides", int(DocumentLimits::materialized.guides)},
-                               {"componentDefinitions", 1024},
+                               {"componentDefinitions", int(componentDefinitionCountLimit)},
                                {"componentDefinitionVertices", int(DocumentLimits::definition.vertices)},
                                {"componentDefinitionFaces", int(DocumentLimits::definition.faces)},
                                {"componentDefinitionWires", int(DocumentLimits::definition.wires)},

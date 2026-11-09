@@ -126,7 +126,7 @@ required feature. The published 1.5.0-1 reader refused it and left it unchanged,
 status 1 and printing `{"code":"INVALID_OPERATION","error":"Invalid required features","status":"failed"}` (checked on the
 package, 2026-10-31). The published 1.6.0-1 reader opens it unchanged, with exit status 0 (checked 2026-10-31 for the
 1.6.1 preparation), and so do the published 1.6.1-1 reader (checked 2026-11-01 for the 1.7.0 preparation) and the
-published 1.7.0-1 reader (checked 2026-11-06 for the 1.8.0 preparation).
+published 1.7.0-1 reader (checked 2026-11-06 for the 1.8.0 preparation), and the published 1.8.0-1 reader (checked 2026-11-08 for the 1.9.0 preparation).
 `native_format_tests` runs that check when `SKETCHYUP_PRIOR_CLI` names the reader. It is original synthetic data.
 
 `reference/` holds the synthetic orthophoto fixtures for the R107.b2.1 reader and importer, written by
