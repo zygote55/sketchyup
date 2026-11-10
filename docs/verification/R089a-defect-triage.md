@@ -1480,6 +1480,7 @@ After R118 and R119 (2026-11-08): 35 open (0 release-blocking, 1 Major, 10 Minor
 At 1.9.0 preparation (2026-11-08): 35 open, unchanged (0 release-blocking, 1 Major, 10 Minor, 24 Limitation). D-111 and D-112 (Minor) were found by the preparation and are fixed in it, so they are not counted. D-105 (Major) and D-108 (Minor) are fixed in code and stay open until the RC's GPU PC run. D-100's budget is 4 GiB from R115, and its row stays open.
 
 At the 1.9.0 RC1 `a1e7e170` (2026-11-08): 33 open (0 release-blocking, 0 Major, 9 Minor, 24 Limitation). D-105 (Major) and D-108 (Minor) are fixed in 1.9.0, and the RC's GPU PC run that was to close them was waived by the owner on 2026-11-10 ([G-1.9.0](G-1.9.0.md)). No row was added at the RC. D-091 is counted as closed (for the AMD GPU, by R114), as the line after R114 says.
+After the 1.9.0 release (2026-11-10, [G-1.9.0](G-1.9.0.md)): 33 open, unchanged (0 release-blocking, 0 Major, 9 Minor, 24 Limitation). No row was added at the publication. D-105 and D-108 are fixed in 1.9.0, and the GPU PC run that was to close them was waived on 2026-11-10.
 
 Before the RC update (2026-10-13): 21 open (0 release-blocking, 0 Major, 8 Minor, 13
 Limitation). The RC update added D-027 and D-028 (Minor) and D-029 (Limitation).
