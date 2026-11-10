@@ -67,6 +67,7 @@ Every case below ran on the GPU PC, an AMD Radeon RX 6800 XT, in the at-limit ac
 
 **Not measured in this release:**
 
+- **The RC's GPU PC run was not made.** The owner waived it on 2026-11-10 ("Let's just skip the GPU test for this. It's not a blocker for release."). It was to measure the 512 MiB texture case, the at-limit glTF import and the Blender import of a GLB at the limit. The GPU PC was unreachable from 2026-11-08, and a replacement with the same GPU but less free memory could not run those cases safely. The at-limit evidence for this release is R115's GPU PC acceptance on the merged code (R115 with R117, 2026-11-08), and R114.
 - Hardware other than the AMD GPU. [D-091](verification/R089a-defect-triage.md) is closed for that GPU only.
 - The viewport at the 512 MiB texture case and the 8192 × 8192 case on the GPU PC. The GPU PC was unreachable for [R118](verification/R118-viewport-textures.md) on 2026-11-08. Its laptop smoke runs show no placeholder for one 8192 × 8192 texture or for 19 textures of 4096 × 4096 (265 MiB stored).
 - A model with colours or textures at the materialized limit, exported under the 4 GiB budget ([D-100](#known-limitations)).
@@ -89,8 +90,8 @@ Every case below ran on the GPU PC, an AMD Radeon RX 6800 XT, in the at-limit ac
 
 ### Fixes
 
-- **Viewport textures (D-105, Major, [R118](verification/R118-viewport-textures.md)).** Every texture inside the stored limit displays, as described above. The fix is in code. The 512 MiB case on the GPU PC, which the RC run makes, closes the row.
-- **glTF meshes used by one node (D-108, Minor, [R119](verification/R119-gltf-meshes.md)).** A glTF with more than 4,096 meshes used by one node is no longer refused: those meshes import as groups. The fix is in code. The at-limit glTF import on the GPU PC, which the RC run makes, closes the row.
+- **Viewport textures (D-105, Major, [R118](verification/R118-viewport-textures.md)).** Every texture inside the stored limit displays, as described above. The fix is in code. The 512 MiB case on the GPU PC was not run: the owner waived the RC's GPU PC run on 2026-11-10.
+- **glTF meshes used by one node (D-108, Minor, [R119](verification/R119-gltf-meshes.md)).** A glTF with more than 4,096 meshes used by one node is no longer refused: those meshes import as groups. The fix is in code. The at-limit glTF import on the GPU PC was not run: the owner waived the RC's GPU PC run on 2026-11-10. R115's GPU PC run on the merged code refused that import before R119, by the definition count.
 - **Edit feedback (D-104 and D-106, Major, [R115](verification/R115-raised-limits.md) and [R117](verification/R117-edit-path.md)).** The undo budget refused definition edits the published limits admit, and push and pull refused any body over 1,000 faces. Both are closed. The undo budget is 4 GiB now.
 - **Edit cost (D-107, Minor, [R117](verification/R117-edit-path.md)).** A move and a definition edit no longer validate every definition. The creation of many definitions is still superlinear ([D-107](#known-limitations)).
 - **Format caps (D-102, Minor, [R113](verification/R113-format-limits.md)).** OBJ, STL, glTF, DXF and `.skp` follow the document limits. STEP is not in this fix ([D-103](#known-limitations)).
@@ -108,7 +109,7 @@ Every case below ran on the GPU PC, an AMD Radeon RX 6800 XT, in the at-limit ac
 - **D-110, raster exports of reduced textures (Limitation).** A view that shows any texture at reduced resolution cannot be exported as a PNG, drawing view, measured drawing or thumbnail. Format exports read the stored textures and are not affected.
 - **D-087 (Minor).** A retained render can burn a terrain's source notice for a terrain outside its view. It stays open.
 - **Carried from 1.8.0.** The memory evidence beyond the AMD GPU is open ([D-091](verification/R089a-defect-triage.md) for the other hardware). `.skp` definitions over the component limit ([D-092](verification/R089a-defect-triage.md)) and the inline parse memory of a native document at its 2 GiB bound ([D-093](verification/R089a-defect-triage.md)) are open. The staging budget is now 1 GiB; [D-090](verification/R089a-defect-triage.md) stays open in the triage.
-- **Defects.** The triage lists 35 open defects at the 1.9.0 preparation: none is release-blocking, 1 is Major (D-105, fixed in code, open until the RC's GPU PC run), 10 are Minor and 24 are Limitations ([triage](verification/R089a-defect-triage.md)).
+- **Defects.** The triage lists 33 open defects at the 1.9.0 release candidate (35 at the preparation): none is release-blocking, none is Major, 9 are Minor and 24 are Limitations ([triage](verification/R089a-defect-triage.md)). D-105 (Major) and D-108 (Minor) are fixed in 1.9.0. The RC's GPU PC run, which was to close them, was not made: the owner waived it on 2026-11-10. The at-limit evidence is R115's GPU PC acceptance on the merged code (R115 with R117, 2026-11-08).
 
 ### Downgrade to 1.8.0
 
