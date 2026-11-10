@@ -4,7 +4,7 @@ SketchyUp 1.9.0. This is the support declaration for the 1.9.0 release. It is th
 limits of R113 to R119: the limits are the largest values measured on real hardware (R114, on the GPU PC) and set in R115, the
 formats take the document limits (R113), an edit validates only what it changes (R117), the viewport shows every texture
 inside the stored limit (R118), and a glTF mesh used by one node imports as a group (R119). The fixes D-105 and D-108 are in
-code and close at the RC's GPU PC run, and D-111 and D-112 were found and fixed by the preparation. The [release notes](RELEASE_NOTES.md#190)
+code and tested; their at-limit run on the GPU PC was not made at the RC (owner decision, 2026-11-10), and D-111 and D-112 were found and fixed by the preparation. The [release notes](RELEASE_NOTES.md#190)
 give every limit. The corpus stays at version 6, and its writer-dependent inputs are re-pinned for the 1.9.0 writer; no live
 provider run was made for this preparation, and the release candidate's record states the run it makes.
 

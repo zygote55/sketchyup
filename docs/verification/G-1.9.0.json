@@ -1,0 +1,368 @@
+{
+  "layer": "1.9.0 release record (G-1.9.0)",
+  "date": "2026-11-10",
+  "procedure": "docs/M10_ACCEPTANCE.md, The 1.9.0 release; the 1.9.0 table answered row by row; the form of G-1.8.0",
+  "version": "1.9.0",
+  "recordComplete": "at RC1 (a1e7e170896fb4d15d80c5f30e7947888e6c39e8); the full tier (run 42538580332) passed on attempt 1; the GPU PC at-limit run was waived by the owner on 2026-11-10; the tag and the release are not yet made and follow this record's merge",
+  "gateStatus": "accepted for publication at RC1; not published",
+  "ownerApproval": {
+    "dates": ["2026-11-07", "2026-11-08", "2026-11-10"],
+    "decisions": [
+      "2026-11-07, on the limits: \"Forget about that \"limit\" - it was completely arbitrary. 1. Fix it 2. Agreed 3. Agreed 4. OK\". These answered R113 (fix the format caps), R114 (measure on the GPU PC), R115 (raise the limits) and R116 (binary storage only if justified; not built). The owner also said that the old 3.75 and 8 GiB memory ceilings protected only the development laptop.",
+      "2026-11-08: \"1. Yes 2. Release 1.9.0 when ready\". \"Yes\" accepted D-108's fix (a glTF mesh used by one node imports as a group, R119). \"Release 1.9.0 when ready\" gives the same permission as 1.8.0: one live corpus run on the ChatGPT plan at the RC, then the tag v1.9.0 and the public GitHub release, without asking again unless a release-blocking problem turns up.",
+      "2026-11-10: \"Let's just skip the GPU test for this. It's not a blocker for release.\" This waives the M10 row \"At-limit acceptance (GPU PC, through the RC build)\" for 1.9.0. The GPU PC was unreachable from 2026-11-08; on 2026-11-10 it was moved to a replacement machine with the same RX 6800 XT, with 16 GiB of which about 9 GiB was in use by a desktop session, so the at-limit cases could not run safely there, and the Blender import could not run because Blender is not installed there."
+    ],
+    "covers": [
+      "one live corpus run of the supported profile at the RC (R086.n), accepting the run for 1.9.0",
+      "accepting the corpus gate (releaseAccepted stays false in the scorer's output by design)",
+      "the tag v1.9.0 and the GitHub release once every check passes"
+    ],
+    "source": "the parent's record of the owner's answers and messages; the owner's own messages are not in the repository"
+  },
+  "tagCreated": false,
+  "releaseCreated": false,
+  "published": false,
+  "features": [
+    {"id": "R113", "title": "the file formats take the document limits (D-102)", "pr": 582, "mergeCommit": "37d2cb5b", "finalHead": "57f41690", "mergedAt": "2026-11-08T04:25:29Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "R114", "title": "measure the model limits on the GPU PC (benchmark only)", "pr": 583, "mergeCommit": "0038456f", "finalHead": "f6ddb319", "mergedAt": "2026-11-08T05:10:08Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "R117", "title": "edit path, push/pull on large bodies, history charge, definition count 4,096", "pr": 584, "mergeCommit": "fa41f744", "finalHead": "76c019a7", "mergedAt": "2026-11-08T11:57:45Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "R115", "title": "raise the model limits to the values measured on real hardware", "pr": 585, "mergeCommit": "b3b888dd", "finalHead": "9aa91a01", "mergedAt": "2026-11-08T18:53:46Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "R118", "title": "show every texture inside the stored limit in the viewport (D-105)", "pr": 586, "mergeCommit": "1bae5610", "finalHead": "50a2bb4f", "mergedAt": "2026-11-08T20:44:01Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "R119", "title": "a glTF mesh used by one node imports as its node's group (D-108)", "pr": 587, "mergeCommit": "7a459e32", "finalHead": "10ddd5c1", "mergedAt": "2026-11-08T20:17:50Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "limits-correction", "title": "the memory ceilings are not product limits; R113 to R116 in the roadmap", "pr": 581, "mergeCommit": "2270b370", "finalHead": "80f665a1", "mergedAt": "2026-11-07T15:11:06Z", "ciVerdict": "SUCCESS", "inRelease": true},
+    {"id": "1.9.0-preparation", "title": "1.9.0: release preparation (RC1)", "pr": 588, "mergeCommit": "a1e7e170", "finalHead": "6be8bcf7", "mergedAt": "2026-11-09T00:08:08Z", "ciVerdict": "SUCCESS", "inRelease": true}
+  ],
+  "rc": {
+    "name": "RC1",
+    "commit": "a1e7e170896fb4d15d80c5f30e7947888e6c39e8",
+    "branch": "release/1.9.0",
+    "mainAfter": "PR #588 (1.9.0: release preparation), merged 2026-11-09T00:08:08Z (2026-11-08 16:08 PST)",
+    "fullTierRun": 42538580332,
+    "fullTierCreatedAt": "2026-11-09T00:08:43Z",
+    "versionScriptPrints": "1.9.0",
+    "pkgver": "1.9.0",
+    "pkgrel": 1,
+    "highestSchema": 35,
+    "sourceArchive": {
+      "file": "sketchyup-1.9.0.tar.gz",
+      "sha256": "856388d061557c2bf8057fb54c651c9a92769c550f260dff63f9d7fd6010b9e1",
+      "byteIdenticalAcrossRuns": true
+    },
+    "packages": [
+      {"file": "sketchyup-1.9.0-1-x86_64.pkg.tar.zst", "name": "sketchyup", "version": "1.9.0-1", "sha256": "0e1911aa38c1be66d34b5677bf7b8fc007d7713261d8e4e84c693f974f0b0ce2", "bytes": 27297951},
+      {"file": "sketchyup-ifc-1.9.0-1-x86_64.pkg.tar.zst", "name": "sketchyup-ifc", "version": "1.9.0-1", "sha256": "c67ac9203620af523342738034e73ad810319a3ac60e66e9a759a7c809897c7e", "bytes": 24773137, "optional": true}
+    ],
+    "thirdPartyNotices": {"file": "THIRD_PARTY_NOTICES", "sha256": "4cb10a27fed1f1d024b3a38dc293223909f80a5f4ccb62fc1934d0fada325c14"},
+    "pkgbuild": {"file": "PKGBUILD", "sha256": "12959fd5a9ade7f506135b959d818b5f5375b01be5867ebd31c08d9dcf0d3551"},
+    "manifest": {"file": "MANIFEST.json", "gitCommit": "a1e7e170", "buildImage": "mirror.gcr.io/library/archlinux:base-devel@sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3"},
+    "priorRelease": {"file": "sketchyup-1.8.0-1-x86_64.pkg.tar.zst", "sha256": "d44e2f6632712232d889e5deec0e8178cc670df8def1502249a8fb571e21dd34", "source": "the published v1.8.0 asset; SKETCHYUP_PRIOR_RELEASE_PACKAGE; the pin in verify-package.sh and native.yml"},
+    "priorSplitPackage": {"file": "sketchyup-ifc-1.8.0-1-x86_64.pkg.tar.zst", "sha256": "296e95c1b7552b9e82fa7f60a1bac34be0f896c83ad5e02fc84a9de3709fdb93", "pinned": false},
+    "qt68ReferencePackageSha256": "f918b3ab8a89a7a4336eeaad303bc90d3ad0be7dc6426a5bcb7f8b24a910bb5f",
+    "qt68ReferenceNote": "a reference build of sketchyup 1.9.0-1 only, not a release asset; SKETCHYUP_PACKAGE_WITHOUT_IFC=1; buildSeconds 1888",
+    "qt68PriorReferencePackageSha256": "d5b7260d1bca8e8b43706e644ae61cd86bd1e04a1f2e1caaade45f054a91ef49",
+    "releaseArtifactsRuns": 2,
+    "archiveStableAcrossRuns": true,
+    "corpusChange": "eight inputSha256 values only (corpus v6)"
+  },
+  "images": {
+    "pinned": "sha256:51dd3d24f7fba779e7c471caeee7804c50e8c134ad948e19685a1c83a42facc3",
+    "packageBuildTag": "sketchyup-build:20261002 (image ID not in the facts sheet)",
+    "fresh": "sha256:624bdc7fc661... (archlinux:base-devel)",
+    "qt68Reference": "archlinux:base-devel-20241013.0.269705 (sha256:291198370afb...; snapshot 2024/10/15)"
+  },
+  "mergedPrsSince180": {
+    "range": "v1.8.0..a1e7e170",
+    "mergeCommits": 15,
+    "pullRequestMerges": 12,
+    "nonPullRequestMerges": 3,
+    "nonMergeCommits": 45,
+    "pullRequests": [581, 582, 583, 584, 585, 586, 587, 588, 577, 578, 579, 580],
+    "documentationAfter180": [577, 578, 579, 580],
+    "allCiVerdictsSuccess": true
+  },
+  "notInRelease": [
+    {"pr": 574, "state": "open", "note": "from an outside contributor; not merged; not in 1.9.0"},
+    {"entry": "R116", "state": "not built", "note": "binary geometry storage not justified by the measurements (R114); owner answer 4 of 2026-11-07, OK"}
+  ],
+  "ciAtRc": {
+    "run": 42538580332,
+    "url": "https://github.com/zygote55/sketchyup/actions/runs/42538580332",
+    "event": "push",
+    "branch": "release/1.9.0",
+    "headSha": "a1e7e170896fb4d15d80c5f30e7947888e6c39e8",
+    "tier": "full",
+    "attempt": 1,
+    "status": "completed",
+    "verdict": "success",
+    "createdAt": "2026-11-09T00:08:43Z",
+    "completedAt": "2026-11-09T01:22:20Z",
+    "workloadJobsTotal": 13,
+    "workloadJobsSucceeded": 13,
+    "workloadJobsInProgress": 0,
+    "fastTierSkipped": 3,
+    "jobs": {
+      "Plan": "success",
+      "Development build and checks": "success",
+      "IFC library and helper": "success",
+      "Qt 6.8 reference compile": "success (compile only)",
+      "Arch package acceptance": "success",
+      "SKP parser, helper and import": "success",
+      "Blender job": "success",
+      "Native tests (six jobs)": "success",
+      "Sanitized builds": "success",
+      "Fast tier (three matrix entries)": "skipped",
+      "CI verdict": "success"
+    },
+    "jobTimesUtc": {
+      "Arch package acceptance": {"started": "2026-11-09T00:08:56Z", "completed": "2026-11-09T01:07:11Z", "minutes": 58.25},
+      "Development build and checks": {"started": "2026-11-09T00:08:57Z", "completed": "2026-11-09T01:06:34Z"},
+      "Sanitized builds": {"started": "2026-11-09T00:08:57Z", "completed": "2026-11-09T01:18:06Z"}
+    },
+    "ctestTotals": {
+      "Development build and checks": ["283/283", "1/1", "2/2"],
+      "Sanitized builds": ["74/74", "146/146", "7/7", "1/1"],
+      "Arch package acceptance": ["282/282"],
+      "IFC library and helper": ["8/8", "1/1", "10/10", "6/6"],
+      "SKP parser, helper and import": ["11/11", "5/5"],
+      "Blender job": ["2/2"],
+      "Native tests: fractional scaling, Blender worker and M5": ["11/11"],
+      "Native tests, other five jobs": "no ctest totals printed; each step concluded with success"
+    },
+    "limitProgramsInCtest": false,
+    "limitProgramsNote": "unique_limits_acceptance_tests and snapshot_glb_limits_acceptance_tests are EXCLUDE_FROM_ALL (CMakeLists.txt lines 1175 to 1181); manual, no CTest entry"
+  },
+  "packageAcceptance": {
+    "image": "sketchyup-build:20261002",
+    "limits": "5 GiB, 2 CPUs, -j2; boost, eigen, opencascade and patchelf installed first",
+    "exit": 0,
+    "firstTry": true,
+    "oomKilled": false,
+    "containerStarted": "2026-11-10T16:53:55Z",
+    "containerFinished": "2026-11-10T18:13:14Z",
+    "durationLocal": "1 h 19 min 19 s",
+    "ciArchJobDuration": "58 min 15 s (2026-11-09T00:08:56Z to 01:07:11Z)",
+    "durationCause": "not established; the record claims none",
+    "priorRelease": "sketchyup-1.8.0-1 (published asset, d44e2f66...)",
+    "priorCliReadsSchemasUpTo": 35,
+    "newerFixturesRefusedUnchanged": 0,
+    "installedMigrations": 38,
+    "ctest": {"passed": 282, "total": 282, "didNotRunSkipped": 17, "note": "the opt-in *_real and sandbox tests; the 1.8.0 package check skipped the same 17 (its record names one)"},
+    "ctestTotalTimeSeconds": 487.29,
+    "priorRefusals": ["1,025 definitions", "306,000 unique vertices", "612,000 materialized vertices"]
+  },
+  "limitsEvidence": {
+    "measuredOn": "the GPU PC (AMD Radeon RX 6800 XT) for R114 and R115; not at the RC",
+    "r115AtLimitAcceptance": {
+      "date": "2026-11-08",
+      "code": "merged code, R115 with R117 (1f061e90)",
+      "cases": {
+        "1 unique 2,400,000 faces": "passed; build 22 s; save 7.7 s, 238,803,918 bytes; open 20 s; peak RSS 4.4 GiB",
+        "2 materialized 4,800,000 placed faces": "passed; definition edit 100 s; history charge 1,792,016,139 bytes (1.67 GiB) inside the 4 GiB undo budget; resident growth 2,326 MiB; peak RSS 7.5 GiB",
+        "3 one body 800,000 faces": "passed; move 10.9 s; history 256,003,695 bytes",
+        "4 model chunk with imported UVs": "passed; save 23.1 s; open 18.4 s; chunk 796,135,248 bytes; peak RSS 7.9 GiB",
+        "5 512 MiB of stored textures": "passed; build 87 s; save 0.5 s, 527,246,051 bytes; open 0.5 s; viewport count not measured (before R118)",
+        "6 exports at the materialized limit": "GLB, OBJ, STL and DXF passed; GLB export 98 s, manifest 574,980,899 bytes; OBJ 77 s; STL 39 s; DXF 59 s; Blender import of the GLB not run",
+        "7 imports at the unique limit": "OBJ passed (112 s, peak RSS 8.8 GiB); STL passed (189 s); glTF refused by the definition count (D-108, fixed by R119, not re-run on the GPU PC)",
+        "8 STEP export at 512 MiB": "not run"
+      }
+    },
+    "r114": "10,000 placements, 2.4 million unique faces and 512 MiB of textures within the frame and edit budgets; AMD run at the 1.7.0 unique limit (frame p95 2.3 to 2.8 ms; peak RSS 1.15 GB)",
+    "marginsFourGiB": {
+      "undo": "materialized definition edit charge 1.67 GiB, 2.33 GiB under 4 GiB; one-body move 256,003,695 bytes",
+      "readSnapshot": "no byte count at the limit recorded by R115; margin not measured"
+    },
+    "walkthroughRcChecks": {
+      "capabilityLimits": "26 fields, matching the release notes table; nativeContainerBytes 1,396,891,740",
+      "smoke-190-raised": "models above the 1.8.0 limits save, validate, reopen and re-save byte for byte; passed in each official lifecycle",
+      "smoke-190-pushpull": "stage A 1,998-sided prism of 2,000 faces passed; stage B newFace push 2000 to 3999 faces passed",
+      "smoke-190-gltf": "meshDefinitions 1, meshGroups 2, instances 2",
+      "smoke-190-glb": "visibleTriangles 598212 for 153,034 visible faces; the log label bodies=17 is a literal, the export has 36"
+    },
+    "largestModelUsedAtRc": "153,034 visible faces (GLB smoke) and 612,000 materialized vertices (cheap model); synthetic recipes",
+    "peakMemoryMeasuredAtRc": false,
+    "atLimitRunAtRc": false,
+    "memoryCeiling": "the 3.75 and 8 GiB modeled ceilings are not product limits (owner, 2026-11-07)"
+  },
+  "gpuPcAtLimitRun": {
+    "m10Row": "At-limit acceptance (GPU PC, through the RC build)",
+    "status": "waived by the owner; not run at the RC",
+    "waivedOn": "2026-11-10",
+    "owner": "Let's just skip the GPU test for this. It's not a blocker for release.",
+    "casesNotRun": [
+      "limits_r115_acceptance: the Blender import of the GLB",
+      "limits_r115_acceptance: the STEP export at 512 MiB (D-103)",
+      "limits_r115_acceptance: the glTF import at the unique limit after R119 (D-108)",
+      "unique_limits_acceptance_tests (manual)",
+      "snapshot_glb_limits_acceptance_tests (manual)",
+      "format_limits_acceptance_tests (manual)",
+      "the R118 512 MiB texture case on the viewport (D-105)",
+      "the Blender import"
+    ],
+    "evidenceInstead": "R115's GPU PC acceptance on the merged code (R115 with R117, 2026-11-08) and R114"
+  },
+  "downgradeWindow": {
+    "priorCli": "published sketchyup-cli 1.8.0-1 (sketchyup-cli 1.8.0; reads document versions 1 to 35)",
+    "opensUnchangedPerOfficialMachine": 17,
+    "sheetFreeSaveAccepted": true,
+    "model153kUniqueOpensUnchanged": true,
+    "purgedR111FileOpensUnchanged": true,
+    "model153034VisibleFacesExportedGlb": {"visibleTriangles": 598212, "fileUnchanged": true},
+    "refusals": [
+      {"model": "1,025 component definitions", "exitStatus": 1, "fileUnchanged": true, "text": "{\"code\":\"INVALID_OPERATION\",\"error\":\"Too many component records\",\"status\":\"failed\"}"},
+      {"model": "306,000 unique vertices", "exitStatus": 1, "fileUnchanged": true, "text": "{\"code\":\"INVALID_OPERATION\",\"error\":\"Document load exceeds document unique geometry limits: vertices would be 306,000 of 300,000\",\"status\":\"failed\"}"},
+      {"model": "612,000 materialized vertices", "exitStatus": 1, "fileUnchanged": true, "text": "{\"code\":\"INVALID_OPERATION\",\"error\":\"Document load exceeds document placement limits: vertices would be 612,000 of 600,000 (placement #67 of definition 'Prism' #1)\",\"status\":\"failed\"}"},
+      {"model": "2,000-face body, push/pull stage B", "exitStatus": 1, "outputWritten": false, "fileUnchanged": true, "text": "{\"code\":\"INVALID_OPERATION\",\"error\":\"Push/pull exceeds the 1000-face/10000-vertex context limit\",\"status\":\"failed\"}"}
+    ],
+    "gltfReport": {
+      "1.9.0": "{\"triangles\":7,\"meshDefinitions\":1,\"meshGroups\":2,\"instances\":2,\"materials\":1,\"nodes\":8}",
+      "1.8.0": "{\"triangles\":7,\"meshDefinitions\":3,\"meshGroups\":null,\"instances\":4}"
+    },
+    "readSnapshotBudgetRefusalCheck": "not done (as at 1.8.0): no cheap model of that kind was built"
+  },
+  "rollback": {
+    "machines": ["pinned (official)", "fresh (official, in the same steps)", "Qt 6.8 reference (no IFC)"],
+    "withIfcInstalled": "pacman -U sketchyup-1.8.0-1-x86_64.pkg.tar.zst exits 1: 'warning: downgrading package sketchyup (1.9.0-1 => 1.8.0-1)', 'error: failed to prepare transaction (could not satisfy dependencies)', ':: installing sketchyup (1.8.0-1) breaks dependency 'sketchyup=1.9.0' required by sketchyup-ifc'; nothing changed",
+    "afterRemovingIfc": "pacman -R sketchyup-ifc (exit 0, 73.55 MiB); the same pacman -U installs sketchyup-1.8.0-1 (exit 0; 'downgrading sketchyup'); post-transaction hooks ran; the 1.8.0 CLI validates the 1.9.0 orthophoto (exit 0) and the purged file (exit 0)",
+    "referenceMachine": "no sketchyup-ifc; the rollback steps ran without the IFC step, with the same validations, exit 0",
+    "rehearsal": "clean/dev-rollback-pinned.log: the same refusal (exit 1) and rollback (exit 0)"
+  },
+  "errorCodes": {
+    "tagAssignBody7": {"180": "NOT_FOUND Body #7 does not exist", "190": "NOT_FOUND Body #7 does not exist"},
+    "tagAssignTag9": {"180": "NOT_FOUND Tag #9 does not exist", "190": "NOT_FOUND Tag #9 does not exist"},
+    "geometryInspectContext999": {"180": "NOT_FOUND Body #999 does not exist", "190": "NOT_FOUND Body #999 does not exist"},
+    "note": "codes and texts are those of 1.8.0; a refused limit keeps its code and names the limit; errors unchanged"
+  },
+  "cleanMachines": {
+    "pinned": {
+      "image": "sha256:51dd3d24f7fb... (the pinned digest)",
+      "packages": "qt6-base 6.11.2-3, qt6-wayland 6.11.2-1, mesa 1:26.2.3-2, glibc 2.44+r50+g1848099f063e-1, pacman 7.1.0.r9.g54d9411-2",
+      "stepResults": 34,
+      "networkIsolated": true,
+      "migrations": 38,
+      "lifecycle": "pass",
+      "officialRunPst": "2026-11-10 10:23:55 to 10:26:20",
+      "networkedRehearsal": {"result": "34 results, lifecycle=pass", "networkIsolated": "rehearsal-not-checked"}
+    },
+    "fresh": {
+      "image": "sha256:624bdc7fc661... (archlinux:base-devel)",
+      "packages": "qt6-base 6.12.0-3, qt6-wayland 6.12.0-1, mesa 1:26.2.6-1, pacman 7.1.0.r9.g54d9411-3",
+      "stepResults": 34,
+      "networkIsolated": true,
+      "migrations": 38,
+      "lifecycle": "pass",
+      "officialRunPst": "2026-11-10 10:26:38 to 10:29:21",
+      "networkedRehearsal": "not run (as at 1.8.0)"
+    },
+    "qt68Reference": {
+      "image": "archlinux:base-devel-20241013.0.269705 (sha256:291198370afb...)",
+      "packages": "qt6-base 6.8.0-1, qt6-wayland 6.8.0-1, mesa 1:24.2.4-1, glibc 2.40+r16+gaa533d58ff-2, pacman 7.0.0.r3.g7736133-1",
+      "stepResults": 32,
+      "networkIsolated": true,
+      "migrations": 38,
+      "lifecycle": "pass",
+      "ifcSteps": "not in reference",
+      "officialRunPst": "2026-11-10 11:04:42 to 11:07:05",
+      "networkedRehearsal": {"result": "32 results, lifecycle=pass", "networkIsolated": "rehearsal-not-checked"}
+    },
+    "upgradeFromPublished": {"prior": "sketchyup-1.8.0-1 (published)", "step": "upgrade-preferences-remove", "passed": true},
+    "d036": {"pages": 2, "syntaxErrors": 0, "qpdfCheck": "exit 0", "textSha256Prefix": "c4812bec", "machines": 3}
+  },
+  "corpus": {
+    "record": "docs/verification/R086n-rc190-remote-evaluation.md",
+    "completionRecord": "docs/verification/R086n-rc190-remote-completion.json",
+    "scoreRecord": "docs/verification/R086n-rc190-remote-corpus-score.json",
+    "manifestVersion": 6,
+    "manifestSha256": "2abcaf77cd5dbf149a1d858ba918041da4416f4b51cd0f1739d5499c2c28c956",
+    "manifestChangedFrom180": "eight inputSha256 values re-pinned for the SketchyUp/1.9.0 writer; no other line changed; the scorer is unchanged",
+    "frozenAt": "2026-11-09T00:14:56Z (2026-11-08 16:14:56 -08:00)",
+    "run": "one fresh live run at RC1, 2026-11-09T00:15:01Z to 00:26:09Z (2026-11-08 16:15:01 to 16:26:09 -08:00), no retries",
+    "runsCompleted": 24,
+    "runsPassed": 24,
+    "corpusPassed": true,
+    "blockers": [],
+    "releaseAccepted": false,
+    "undoRecovery": "24/24",
+    "remoteHttp200": 104,
+    "loopbackAttempts": 9,
+    "providerAttempts": 113,
+    "toolCalls": 142,
+    "toolCallErrors": 2,
+    "toolCallErrorCode": "CONTEXT_MISMATCH (read-only entity.describe, first call of Resize repeats 2 and 3)",
+    "reportedTokens": 1586699,
+    "reportedTokensAt180": 1611433,
+    "trialSeconds": 664.675,
+    "trialSecondsAt180": 838.0,
+    "largestRunTokens": 167719,
+    "largestReplyTokens": 35244,
+    "maximumProviderTurns": 8,
+    "maximumElapsedSeconds": 73.13,
+    "advancedFirstRequestToolsBytes": 63657,
+    "advancedFirstRequestToolCount": 40,
+    "advancedFirstTurnInputTokensByRepeat": [12986, 12986, 12986],
+    "committedCanonicalHashesEqualTo180": "12 of 12",
+    "scorerReRun": {"exitCode": 0, "outputByteIdentical": true},
+    "model": "gpt-6-astra"
+  },
+  "triage": {
+    "atRc": "a1e7e170",
+    "open": 33,
+    "releaseBlocking": 0,
+    "major": 0,
+    "minor": 9,
+    "limitation": 24,
+    "minorIds": ["D-006", "D-007", "D-008", "D-009", "D-031", "D-034", "D-040", "D-087", "D-107"],
+    "limitationIds": ["D-001", "D-004", "D-005", "D-010", "D-011", "D-012", "D-013", "D-014", "D-015", "D-016", "D-017", "D-018", "D-019", "D-020", "D-029", "D-090", "D-092", "D-093", "D-099", "D-100", "D-101", "D-103", "D-109", "D-110"],
+    "fixedInRelease": ["D-105 (Major, R118)", "D-108 (Minor, R119)"],
+    "closedForPart": ["D-091 (Limitation; closed for the AMD GPU by R114; counted as closed)"],
+    "preparationCount": {"open": 35, "releaseBlocking": 0, "major": 1, "minor": 10, "limitation": 24},
+    "countConvention": "as the G-1.8.0 record: every non-fixed Minor, Major or Release-blocking row, and every non-fixed Limitation row, is counted; a row closed for part of its scope is counted as closed where the triage says so"
+  },
+  "m10Answers": [
+    {"area": "RC", "answer": "yes: release/1.9.0 at a1e7e170 (RC1); release-version.sh prints 1.9.0; pkgver 1.9.0; pkgrel 1"},
+    {"area": "CI", "answer": "yes: full tier run 42538580332, attempt 1, all 13 workload jobs success; CI verdict success; ctest 283/283 (development), 282/282 (package); the two limit programs are manual"},
+    {"area": "Downgrade window", "answer": "yes: 1.8.0-1 CLI opens 17 files unchanged per official machine, opens the 153,000-vertex model, the 153,034-visible-face model (GLB 598,212 triangles) and the purged file; refuses the three limit models and the 2,000-face push/pull with its own texts, exit 1, file unchanged"},
+    {"area": "Split-package rollback", "answer": "yes: pacman -U of sketchyup-1.8.0-1 refused by the dependency on sketchyup=1.9.0 and changes nothing; after pacman -R sketchyup-ifc, the same pacman -U installs 1.8.0-1"},
+    {"area": "Corpus", "answer": "yes under the owner's 2026-11-08 permission: R086.n, 24/24 passed, corpusPassed true, no blockers, undo and recovery 24/24, 104 of 104 remote responses HTTP 200 with gpt-6-astra and completed; scorer re-run byte-identical"},
+    {"area": "At-limit acceptance (GPU PC, through the RC build)", "answer": "waived by the owner on 2026-11-10; not run at the RC; evidence is R115's GPU PC acceptance on the merged code (2026-11-08) and R114"},
+    {"area": "Limits", "answer": "yes with the waiver: capability limits and the walkthrough's CLI checks pass at the RC; the margins and peaks are from R115 on the GPU PC; no at-limit run and no memory measurement at the RC; D-091 closed for AMD only"},
+    {"area": "Clean machines", "answer": "yes: lifecycle pass on pinned, fresh and Qt 6.8 reference machines, each --network none, migrations 38; the fresh image had no networked rehearsal"},
+    {"area": "Accepted misses", "answer": "no budget miss recorded; open limits D-099, D-100, D-101, D-103, D-107, D-109, D-110, D-087, and D-091 for other hardware"},
+    {"area": "Error codes", "answer": "yes: codes unchanged from 1.8.0; the 1.9.0 NOT_FOUND texts equal 1.8.0's; the three refusal texts from 1.8.0-1 are verbatim in the record"},
+    {"area": "Triage", "answer": "yes: 33 open at the RC (0 release-blocking, 0 Major, 9 Minor, 24 Limitation); D-105 and D-108 fixed in 1.9.0"},
+    {"area": "Documentation", "answer": "yes, with items for publication: support matrix preamble and PR_ROADMAP R118 and R119 still say the GPU run closes D-105 and D-108 (contradiction 1); release notes corrected on main; roadmap entry and changelog heading at publication"}
+  ],
+  "contradictions": [
+    "The RC release notes (the text the tag carries) and the support matrix say the RC's GPU PC run closes D-105 and D-108; the owner waived that run on 2026-11-10. The release notes on main carry the correction; the support matrix and PR_ROADMAP R118 and R119 need it too.",
+    "The 1.9.0 release notes say the refusal texts were printed 'when the package checks were replayed on 2026-11-08'; the logs record them on 2026-11-10. The texts agree; the date does not.",
+    "harness/smoke-190-glb.sh line 53 prints bodies=17 as a literal; the validate report of the same file gives bodies 36.",
+    "The R086.n review's Site note (scene.transform; three checks in each run) and Advanced note (one transaction.apply) disagree with the receipts (assembly.site_place with 3, 3 and 1 checks; two applies with 6, 6 and 7 checks). The record uses the receipts.",
+    "R089.a's D-091 row: the Evidence column says Open (2026-11-01); the Fix owner column and the count line after R114 say closed for the AMD GPU. Counted as closed for AMD and open for other hardware.",
+    "The walkthrough's push/pull stage B expected 3,998 faces at first and the product gave 2,000 for a plain push; the harness now uses newFace true and expects 3,999. The newFace semantics are not documented in the schema.",
+    "The 1.8.0 record reports one skipped test in the package check; the 1.9.0 check's log lists 17 'did not run' tests, all Skipped (opt-in *_real and sandbox tests). The 1.8.0 RC log lists the same 17 Skipped tests, so nothing changed; the 1.8.0 record understates its own log."
+  ],
+  "openForOwner": [
+    "R107.d stays held; SCOPE C06 stays at Investigate until R107.d is accepted",
+    "the buildingSMART hosted validation of the IFC export is the owner's task and is not a gate",
+    "the GPU PC at-limit run (waived for 1.9.0 on 2026-11-10): R115's cases (Blender import of the GLB, STEP at 512 MiB, glTF at the unique limit), R118's 512 MiB texture case and the manual limit programs; to be run on a GPU PC with enough free memory",
+    "R118 budget option: halving TextureCache::Limits::bytes to 512 MiB, which halves the viewport's RAM at the cost of more reduction; not measured; the owner decides",
+    "D-087 (Minor, open): a retained render can carry a terrain's notice outside its view",
+    "D-091 hardware evidence for other hardware: closed for the AMD GPU by R114; Intel campaigns waived by ADR 0161",
+    "D-099: the one-record UV storage change is left for a later release, as the release notes say",
+    "R116 binary geometry storage: not built (owner answer 4 of 2026-11-07, OK, if justified)",
+    "PR #574 from an outside contributor is not in 1.9.0",
+    "carried from 1.8.0 and still open: the 1 s per-frame budget and the view test's cost; the frame credit for stills; the Qt range (6.8.0 to 6.12.0, with the orthophoto dialog and the guide viewer not run on Qt 6.8)"
+  ],
+  "followUpsForPublicationPr": [
+    "support matrix 1.9.0 preamble and PR_ROADMAP R118 and R119: say the RC's GPU PC run was waived (contradiction 1)",
+    "release notes: the refusal date, if the parent confirms 2026-11-10 (contradiction 2)",
+    "roadmap entry 1.9.0 release reads released; CHANGELOG heading dated at the tag",
+    "harness/smoke-190-glb.sh bodies label (contradiction 3)"
+  ],
+  "publishedRelease": {
+    "status": "to be filled at publication",
+    "tag": "v1.9.0 (to be made from a1e7e170, RC1)",
+    "release": "SketchyUp 1.9.0 (to be filled at publication)",
+    "assets": "to be filled at publication",
+    "fullTierOnTag": "to be filled at publication"
+  }
+}
