@@ -146,7 +146,7 @@
     "priorCliReadsSchemasUpTo": 35,
     "newerFixturesRefusedUnchanged": 0,
     "installedMigrations": 38,
-    "ctest": {"passed": 282, "total": 282, "didNotRunSkipped": 17, "note": "the opt-in *_real and sandbox tests; 1.8.0 reported one skipped test"},
+    "ctest": {"passed": 282, "total": 282, "didNotRunSkipped": 17, "note": "the opt-in *_real and sandbox tests; the 1.8.0 package check skipped the same 17 (its record names one)"},
     "ctestTotalTimeSeconds": 487.29,
     "priorRefusals": ["1,025 definitions", "306,000 unique vertices", "612,000 materialized vertices"]
   },
@@ -338,7 +338,7 @@
     "The R086.n review's Site note (scene.transform; three checks in each run) and Advanced note (one transaction.apply) disagree with the receipts (assembly.site_place with 3, 3 and 1 checks; two applies with 6, 6 and 7 checks). The record uses the receipts.",
     "R089.a's D-091 row: the Evidence column says Open (2026-11-01); the Fix owner column and the count line after R114 say closed for the AMD GPU. Counted as closed for AMD and open for other hardware.",
     "The walkthrough's push/pull stage B expected 3,998 faces at first and the product gave 2,000 for a plain push; the harness now uses newFace true and expects 3,999. The newFace semantics are not documented in the schema.",
-    "The 1.8.0 record reports one skipped test in the package check; the 1.9.0 check's log lists 17 'did not run' tests, all Skipped (opt-in *_real and sandbox tests). The 1.8.0 log is not in the worktree; the difference is not explained."
+    "The 1.8.0 record reports one skipped test in the package check; the 1.9.0 check's log lists 17 'did not run' tests, all Skipped (opt-in *_real and sandbox tests). The 1.8.0 RC log lists the same 17 Skipped tests, so nothing changed; the 1.8.0 record understates its own log."
   ],
   "openForOwner": [
     "R107.d stays held; SCOPE C06 stays at Investigate until R107.d is accepted",
