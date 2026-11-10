@@ -320,7 +320,7 @@ fast tier) before the record is accepted.
 
 ## The 1.9.0 release
 
-SketchyUp 1.9.0 is a minor release of 1.8.0. It is one release with one record, `docs/verification/G-1.9.0.md`, written at its release candidate, and it was released on 2026-11-10 from RC1, in the form of the 1.8.0 record. It follows the gate above, with the differences below. It carries:
+SketchyUp 1.9.0 is a minor release of 1.8.0. It is one release with one record, `docs/verification/G-1.9.0.md`, written at its release candidate in the form of the 1.8.0 record. It was released on 2026-11-10 from RC1. It follows the gate above, with the differences below. It carries:
 
 - the raised model limits, set from behaviour measured on real hardware and not from a memory ceiling (R114 on the GPU PC, and R115: unique and materialized limits about eight times 1.8.0's, a document of 4,096 component definitions, a 4 GiB undo and read-snapshot budget, a 2 GiB native file, a 768 MiB model chunk and a GLB visible-face cap of 4,800,000; [ADR 0005, R115](decisions/0005-document-protocol.md#implementation-notes-r115), [ADR 0005, R114](decisions/0005-document-protocol.md#implementation-notes-r114-measured-limits));
 - the file formats at the document limits (R113, [PR #582](https://github.com/zygote55/sketchyup/pull/582)), the edit path and push/pull on large bodies (R117, [PR #584](https://github.com/zygote55/sketchyup/pull/584)), the viewport textures past the decoded budget (R118, [PR #586](https://github.com/zygote55/sketchyup/pull/586)), and glTF meshes used by one node imported as groups (R119, [PR #587](https://github.com/zygote55/sketchyup/pull/587));
