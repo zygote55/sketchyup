@@ -3,8 +3,8 @@
   "date": "2026-11-10",
   "procedure": "docs/M10_ACCEPTANCE.md, The 1.9.0 release; the 1.9.0 table answered row by row; the form of G-1.8.0",
   "version": "1.9.0",
-  "recordComplete": "at RC1 (a1e7e170896fb4d15d80c5f30e7947888e6c39e8); the full tier (run 42538580332) passed on attempt 1; the GPU PC at-limit run was waived by the owner on 2026-11-10; the tag and the release are not yet made and follow this record's merge",
-  "gateStatus": "accepted for publication at RC1; not published",
+  "recordComplete": "at RC1 (a1e7e170896fb4d15d80c5f30e7947888e6c39e8); the full tier (run 42538580332) passed on attempt 1; the GPU PC at-limit run was waived by the owner on 2026-11-10; the tag and the release were made after this record merged (see publishedRelease); the record as first merged in #589 was written before the tag was made",
+  "gateStatus": "published",
   "ownerApproval": {
     "dates": ["2026-11-07", "2026-11-08", "2026-11-10"],
     "decisions": [
@@ -19,9 +19,9 @@
     ],
     "source": "the parent's record of the owner's answers and messages; the owner's own messages are not in the repository"
   },
-  "tagCreated": false,
-  "releaseCreated": false,
-  "published": false,
+  "tagCreated": true,
+  "releaseCreated": true,
+  "published": true,
   "features": [
     {"id": "R113", "title": "the file formats take the document limits (D-102)", "pr": 582, "mergeCommit": "37d2cb5b", "finalHead": "57f41690", "mergedAt": "2026-11-08T04:25:29Z", "ciVerdict": "SUCCESS", "inRelease": true},
     {"id": "R114", "title": "measure the model limits on the GPU PC (benchmark only)", "pr": 583, "mergeCommit": "0038456f", "finalHead": "f6ddb319", "mergedAt": "2026-11-08T05:10:08Z", "ciVerdict": "SUCCESS", "inRelease": true},
@@ -332,7 +332,7 @@
     {"area": "Documentation", "answer": "yes, with items for publication: support matrix preamble and PR_ROADMAP R118 and R119 still say the GPU run closes D-105 and D-108 (contradiction 1); release notes corrected on main; roadmap entry and changelog heading at publication"}
   ],
   "contradictions": [
-    "The RC release notes (the text the tag carries) and the support matrix say the RC's GPU PC run closes D-105 and D-108; the owner waived that run on 2026-11-10. The release notes on main carry the correction; the support matrix and PR_ROADMAP R118 and R119 need it too.",
+    "The RC release notes (the text the tag carries) and the support matrix say the RC's GPU PC run closes D-105 and D-108; the owner waived that run on 2026-11-10. The release notes on main carry the correction; the support matrix and PR_ROADMAP R118 and R119 need it too. Corrected on main before the publication (commit 82b4bd00): the support matrix's 1.9.0 preamble and PR_ROADMAP R118 and R119 now say the run was waived.",
     "The 1.9.0 release notes say the refusal texts were printed 'when the package checks were replayed on 2026-11-08'; the logs record them on 2026-11-10. The texts agree; the date does not.",
     "harness/smoke-190-glb.sh line 53 prints bodies=17 as a literal; the validate report of the same file gives bodies 36.",
     "The R086.n review's Site note (scene.transform; three checks in each run) and Advanced note (one transaction.apply) disagree with the receipts (assembly.site_place with 3, 3 and 1 checks; two applies with 6, 6 and 7 checks). The record uses the receipts.",
@@ -353,16 +353,39 @@
     "carried from 1.8.0 and still open: the 1 s per-frame budget and the view test's cost; the frame credit for stills; the Qt range (6.8.0 to 6.12.0, with the orthophoto dialog and the guide viewer not run on Qt 6.8)"
   ],
   "followUpsForPublicationPr": [
-    "support matrix 1.9.0 preamble and PR_ROADMAP R118 and R119: say the RC's GPU PC run was waived (contradiction 1)",
     "release notes: the refusal date, if the parent confirms 2026-11-10 (contradiction 2)",
-    "roadmap entry 1.9.0 release reads released; CHANGELOG heading dated at the tag",
-    "harness/smoke-190-glb.sh bodies label (contradiction 3)"
+    "harness/smoke-190-glb.sh bodies label (contradiction 3)",
+    "screenshots: scripts/screenshots.Dockerfile defaults to SKETCHYUP_VERSION=1.8.0 and docs/images/README.md names the 1.8.0 image; another PR completes this"
   ],
   "publishedRelease": {
-    "status": "to be filled at publication",
-    "tag": "v1.9.0 (to be made from a1e7e170, RC1)",
-    "release": "SketchyUp 1.9.0 (to be filled at publication)",
-    "assets": "to be filled at publication",
-    "fullTierOnTag": "to be filled at publication"
+    "tag": "v1.9.0",
+    "tagType": "annotated",
+    "tagMessage": "SketchyUp 1.9.0",
+    "tagObject": "9aabfaf8e2d81600d19f7797ce529305457a2445",
+    "taggerDate": "2026-11-10T23:31:12Z",
+    "pointsAt": "a1e7e170896fb4d15d80c5f30e7947888e6c39e8",
+    "url": "https://github.com/zygote55/sketchyup/releases/tag/v1.9.0",
+    "title": "SketchyUp 1.9.0",
+    "publishedAt": "2026-11-10T23:36:55Z",
+    "latest": true,
+    "prerelease": false,
+    "draft": false,
+    "assets": {
+      "sketchyup-1.9.0.tar.gz": "856388d061557c2bf8057fb54c651c9a92769c550f260dff63f9d7fd6010b9e1",
+      "sketchyup-1.9.0-1-x86_64.pkg.tar.zst": "0e1911aa38c1be66d34b5677bf7b8fc007d7713261d8e4e84c693f974f0b0ce2",
+      "sketchyup-ifc-1.9.0-1-x86_64.pkg.tar.zst": "c67ac9203620af523342738034e73ad810319a3ac60e66e9a759a7c809897c7e",
+      "PKGBUILD": "12959fd5a9ade7f506135b959d818b5f5375b01be5867ebd31c08d9dcf0d3551",
+      "SHA256SUMS": "08f1d0653111a95392f1c0d268ca63696ff9c15f9913f79caf479c2b3fb7deae",
+      "MANIFEST.json": "331afdb3e4dfe08f9ee6b91e2fd8312521984557e5342fcfcb7fefb2c6a4cc8b",
+      "THIRD_PARTY_NOTICES": "4cb10a27fed1f1d024b3a38dc293223909f80a5f4ccb62fc1934d0fada325c14"
+    },
+    "assetsVerified": "the parent downloaded every asset; sha256sum -c SHA256SUMS passes for the four files it lists (the archive, both packages and THIRD_PARTY_NOTICES); each downloaded file is byte-identical to the RC artifact; MANIFEST.json's digests match the files and its gitCommit is the RC commit. The digests of all seven assets are GitHub's asset digest field, read from the release when this record was written; for the five release files in the artifact manifest they equal its values; SHA256SUMS and MANIFEST.json have no value in the record to compare with",
+    "recordPr": "PR #589 (merge commit 00c4948c) merged before the tag was made",
+    "fullTierRun": {
+      "run": 42924039840,
+      "headBranch": "v1.9.0",
+      "status": "in_progress when written",
+      "conclusion": null
+    }
   }
 }

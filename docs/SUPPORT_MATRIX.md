@@ -6,7 +6,7 @@ formats take the document limits (R113), an edit validates only what it changes 
 inside the stored limit (R118), and a glTF mesh used by one node imports as a group (R119). The fixes D-105 and D-108 are in
 code and tested; their at-limit run on the GPU PC was not made at the RC (owner decision, 2026-11-10), and D-111 and D-112 were found and fixed by the preparation. The [release notes](RELEASE_NOTES.md#190)
 give every limit. The corpus stays at version 6, and its writer-dependent inputs are re-pinned for the 1.9.0 writer; no live
-provider run was made for this preparation, and the release candidate's record states the run it makes.
+provider run was made for the preparation, and the release record, [G-1.9.0](verification/G-1.9.0.md), states the run made at the release candidate.
 
 The 1.7.0 declaration is the 1.6.1 declaration with the raised
 unique geometry limits (R110: 300,000 vertices, faces and wires and 900,000 edges per document, a 200,000 per-definition

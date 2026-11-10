@@ -47,7 +47,7 @@
 SketchyUp is packaged for Arch Linux on x86_64. Download the package and its checksums from the [latest release](https://github.com/zygote55/sketchyup/releases/latest), check them, and install:
 
 ```sh
-v=1.8.0
+v=1.9.0
 gh release download "v$v" -R zygote55/sketchyup -p "sketchyup-$v-1-x86_64.pkg.tar.zst" -p SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 sudo pacman -U "sketchyup-$v-1-x86_64.pkg.tar.zst"
@@ -81,7 +81,7 @@ This needs CMake 3.25+, Ninja, a C++20 compiler, Qt 6.8+ (base and Wayland), Ope
 
 ## Status
 
-**[SketchyUp 1.8.0](https://github.com/zygote55/sketchyup/releases/tag/v1.8.0) is the current release.** It covers the 1.0 core scope plus documentation sheets, configurable components, terrain and site tools, IFC and STEP exchange, `.skp` import and geographic data. It is not a full replacement for SketchUp; the [support matrix](docs/SUPPORT_MATRIX.md) says what is and is not covered. Work follows the [roadmap](docs/PR_ROADMAP.md), and every release has a verification record in [`docs/verification`](docs/verification/).
+**[SketchyUp 1.9.0](https://github.com/zygote55/sketchyup/releases/tag/v1.9.0) is the current release.** It covers the 1.0 core scope plus documentation sheets, configurable components, terrain and site tools, IFC and STEP exchange, `.skp` import and geographic data. It is not a full replacement for SketchUp; the [support matrix](docs/SUPPORT_MATRIX.md) says what is and is not covered. Work follows the [roadmap](docs/PR_ROADMAP.md), and every release has a verification record in [`docs/verification`](docs/verification/).
 
 ## License
 

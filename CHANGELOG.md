@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.9.0 — unreleased
+## 1.9.0 — 2026-11-10
+
+Tag `v1.9.0`; [GitHub release](https://github.com/zygote55/sketchyup/releases/tag/v1.9.0).
 
 1.9.0 raises the model limits to the values measured on real hardware (R114 and R115), and makes the file formats, the edit path, the viewport and the glTF import follow them (R113, R117, R118, R119). It changes no document schema: 1.9.0 writes schema 35 at most, as 1.8.0 does. The release notes, with every limit, the downgrade rule and the known limits, are in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md#190).
 
