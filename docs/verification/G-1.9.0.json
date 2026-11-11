@@ -352,10 +352,11 @@
     "PR #574 from an outside contributor is not in 1.9.0",
     "carried from 1.8.0 and still open: the 1 s per-frame budget and the view test's cost; the frame credit for stills; the Qt range (6.8.0 to 6.12.0, with the orthophoto dialog and the guide viewer not run on Qt 6.8)"
   ],
-  "followUpsForPublicationPr": [
-    "release notes: the refusal date, if the parent confirms 2026-11-10 (contradiction 2)",
-    "harness/smoke-190-glb.sh bodies label (contradiction 3)",
-    "screenshots: scripts/screenshots.Dockerfile defaults to SKETCHYUP_VERSION=1.8.0 and docs/images/README.md names the 1.8.0 image; another PR completes this"
+  "followUpsForPublicationPr": [],
+  "followUpsClosed": [
+    "release notes refusal date (contradiction 2): no change; 2026-11-08 is the preparation's run of the 1.8.0 CLI, and the walkthrough printed the same texts again on 2026-11-10",
+    "bodies=17 label (contradiction 3): in the private walkthrough harness, not the repository; the validate report gives 36",
+    "screenshots: #591 rebuilt the image from the published 1.9.0 package and recaptured all eight shots, byte-identical to the 1.8.0 capture; the Dockerfile, capture script and docs/images/README.md name 1.9.0"
   ],
   "publishedRelease": {
     "tag": "v1.9.0",
@@ -384,8 +385,11 @@
     "fullTierRun": {
       "run": 42924039840,
       "headBranch": "v1.9.0",
-      "status": "in_progress when written",
-      "conclusion": null
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "completedAt": "2026-11-11T00:32:29Z",
+      "jobs": "15 succeeded, 3 fast-tier entries skipped"
     }
   }
 }

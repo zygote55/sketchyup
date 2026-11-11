@@ -351,4 +351,4 @@ informational: readers accept any writer string, and retained fixtures that reco
   `SKETCHYUP_IFC_JOBS` is set; the preparation set it to 2, because four compile jobs were killed under the 4 GiB container cap.
 - The README `v=` snippet, its "current release" line and the screenshots stay at 1.8.0 until the release publication, as the
   1.8.0 entry above says.
-- Resolved at the publication (2026-11-10). The README's `v=1.9.0` install snippet and its "current release" line name 1.9.0. The screenshot Dockerfile (`scripts/screenshots.Dockerfile`, default `SKETCHYUP_VERSION=1.8.0`) and `docs/images/README.md` still name 1.8.0: the screenshots are another PR's, which completes them. The R089.a rows D-102 to D-112 have no "in this PR" or "on main" wording, so none changed at publication.
+- Resolved at the publication (2026-11-10). The README's `v=1.9.0` install snippet and its "current release" line name 1.9.0. The screenshots were rebuilt from the 1.9.0 package in #591, and the full tier on the tag (run 42924039840) passed. The R089.a rows D-102 to D-112 have no "in this PR" or "on main" wording, so none changed at publication.
