@@ -5,7 +5,7 @@ and built with SketchyUp's public modeling commands. It is an architectural stud
 not a surveyed site or a construction document. No external project models,
 real addresses, house numbers, city names or branded furniture were used.
 
-All eight screenshots are actual SketchyUp 1.8.0 windows captured under a private
+All eight screenshots are actual SketchyUp 1.9.0 windows captured under a private
 Xvfb **inside Docker**. Each is 1440×900, stripped of metadata and below 500 KB.
 
 | Image | What it shows |
@@ -71,11 +71,11 @@ ulimit -c 0
 timeout 10 free -g
 timeout 10 df -h .
 timeout 600 docker build -f scripts/screenshots.Dockerfile \
-  --build-arg SKETCHYUP_VERSION=1.8.0 \
-  -t sketchyup-shots:1.8.0 packaging/arch
+  --build-arg SKETCHYUP_VERSION=1.9.0 \
+  -t sketchyup-shots:1.9.0 packaging/arch
 ```
 
-Build the model separately with an installed SketchyUp 1.8.0 CLI:
+Build the model separately with an installed SketchyUp 1.9.0 CLI:
 
 ```sh
 timeout 300 python3 docs/images/showcase/build_showcase.py .local/showcase-build
@@ -92,7 +92,7 @@ timeout 900 docker run --rm --network none \
   --memory 4g --memory-swap 4g --cpus 2 --user "$(id -u):$(id -g)" \
   -v "$PWD":/src:ro -v "$PWD/docs/images":/out \
   -v "$PWD/.local/capture-build":/build -e SHOWCASE_BUILD_OUT=/build \
-  sketchyup-shots:1.8.0 /src/scripts/capture-screenshots.sh /out
+  sketchyup-shots:1.9.0 /src/scripts/capture-screenshots.sh /out
 ```
 
 For capture development only, `SHOWCASE_SHOTS=components,sheets` selects a subset.

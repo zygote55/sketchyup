@@ -6,15 +6,17 @@
 #
 # Build it with packaging/arch as the context, so the build sends only the mirror list:
 #
-#   docker build -f scripts/screenshots.Dockerfile --build-arg SKETCHYUP_VERSION=1.8.0 \
-#     -t sketchyup-shots:1.8.0 packaging/arch
+#   docker build -f scripts/screenshots.Dockerfile --build-arg SKETCHYUP_VERSION=1.9.0 \
+#     -t sketchyup-shots:1.9.0 packaging/arch
 FROM archlinux:base-devel
 
-ARG SKETCHYUP_VERSION=1.8.0
+ARG SKETCHYUP_VERSION=1.9.0
 
 # The dated archive keeps the package set fixed; see packaging/arch/mirrorlist.
+# --disable-download-timeout: the archive can stall a parallel download for more than
+# pacman's 10-second low-speed limit, which failed this build on 2026-11-10.
 COPY mirrorlist /etc/pacman.d/mirrorlist
-RUN pacman -Syy --noconfirm --needed xorg-server-xvfb xdotool imagemagick ttf-dejavu mesa curl python \
+RUN pacman -Syy --noconfirm --needed --disable-download-timeout xorg-server-xvfb xdotool imagemagick ttf-dejavu mesa curl python \
  && pacman -Scc --noconfirm
 
 RUN set -eu; \
@@ -27,7 +29,7 @@ RUN set -eu; \
     grep -F "$pkg" SHA256SUMS > checksum.txt; \
     test -s checksum.txt; \
     sha256sum -c checksum.txt; \
-    pacman -U --noconfirm "$pkg"; \
+    pacman -U --noconfirm --disable-download-timeout "$pkg"; \
     cd /; \
     rm -rf /tmp/sketchyup-pkg; \
     pacman -Scc --noconfirm

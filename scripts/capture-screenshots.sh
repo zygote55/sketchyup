@@ -6,12 +6,12 @@
 # and writes the PNGs (1440x900, stripped, max compression) to OUTPUT_DIR.
 #
 # Run it inside the screenshot image, which provides Xvfb, xdotool, ImageMagick
-# and the SketchyUp 1.8.0 package. Build the image from scripts/screenshots.Dockerfile
+# and the SketchyUp 1.9.0 package. Build the image from scripts/screenshots.Dockerfile
 # first, then run the script with this repository mounted read-only:
 #
-#   docker build -f scripts/screenshots.Dockerfile -t sketchyup-shots:1.8.0 packaging/arch
+#   docker build -f scripts/screenshots.Dockerfile -t sketchyup-shots:1.9.0 packaging/arch
 #   docker run --rm --network none --memory 4g --memory-swap 4g --cpus 2 --user "$(id -u):$(id -g)" \
-#     -v "$PWD":/src:ro -v "$PWD/docs/images":/out sketchyup-shots:1.8.0 \
+#     -v "$PWD":/src:ro -v "$PWD/docs/images":/out sketchyup-shots:1.9.0 \
 #     /src/scripts/capture-screenshots.sh /out
 #
 # Usage: scripts/capture-screenshots.sh OUTPUT_DIR
